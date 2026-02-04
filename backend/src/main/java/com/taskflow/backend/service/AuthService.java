@@ -4,6 +4,7 @@ import com.taskflow.backend.dto.AuthResponse;
 import com.taskflow.backend.dto.LoginRequest;
 import com.taskflow.backend.dto.SignupRequest;
 import com.taskflow.backend.entity.User;
+import com.taskflow.backend.entity.UserRole;
 import com.taskflow.backend.repository.UserRepository;
 import com.taskflow.backend.security.JwtService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -22,28 +23,34 @@ public class AuthService {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
-
     }
 
-    // ✅ REGISTER
-    public void register(SignupRequest request) {
+    public AuthResponse signup(SignupRequest request) {
+        if (request.getRole() == null) {
+            throw new IllegalArgumentException("Role is required. Must be PROJECT_MANAGER or COLLABORATOR.");
+        }
+        if (!request.getRole().equals(UserRole.PROJECT_MANAGER) && !request.getRole().equals(UserRole.COLLABORATOR)) {
+            throw new IllegalArgumentException("Role must be PROJECT_MANAGER or COLLABORATOR.");
+        }
 
-        // check if email already exists
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new RuntimeException("Email already exists");
         }
 
         User user = new User();
+        user.setFirstName(request.getFirstName());
+        user.setLastName(request.getLastName());
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole("USER");
+        user.setRole(request.getRole());
 
-        userRepository.save(user);
+        user = userRepository.save(user);
+
+        String token = jwtService.generateToken(user.getEmail());
+        return new AuthResponse(token, user);
     }
 
-    // ✅ LOGIN
     public AuthResponse login(LoginRequest request) {
-
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
@@ -51,14 +58,7 @@ public class AuthService {
             throw new RuntimeException("Invalid credentials");
         }
 
-        // 🔑 Generate JWT
         String token = jwtService.generateToken(user.getEmail());
-
-        // 🐞 DEBUG LINE (ADD IT HERE)
-        System.out.println("TOKEN = " + token);
-
-        // ✅ Return token to controller
-        return new AuthResponse(token);
+        return new AuthResponse(token, user);
     }
-
 }
