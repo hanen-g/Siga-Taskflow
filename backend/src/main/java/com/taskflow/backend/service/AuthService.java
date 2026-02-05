@@ -1,10 +1,9 @@
 package com.taskflow.backend.service;
 
-import com.taskflow.backend.dto.AuthResponse;
-import com.taskflow.backend.dto.LoginRequest;
-import com.taskflow.backend.dto.SignupRequest;
+import com.taskflow.backend.dto.auth.AuthResponse;
+import com.taskflow.backend.dto.auth.LoginRequest;
+import com.taskflow.backend.dto.auth.SignupRequest;
 import com.taskflow.backend.entity.User;
-import com.taskflow.backend.entity.UserRole;
 import com.taskflow.backend.repository.UserRepository;
 import com.taskflow.backend.security.JwtService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,10 +28,6 @@ public class AuthService {
         if (request.getRole() == null) {
             throw new IllegalArgumentException("Role is required. Must be PROJECT_MANAGER or COLLABORATOR.");
         }
-        if (!request.getRole().equals(UserRole.PROJECT_MANAGER) && !request.getRole().equals(UserRole.COLLABORATOR)) {
-            throw new IllegalArgumentException("Role must be PROJECT_MANAGER or COLLABORATOR.");
-        }
-
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new RuntimeException("Email already exists");
         }
@@ -42,7 +37,7 @@ public class AuthService {
         user.setLastName(request.getLastName());
         user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
-        user.setRole(request.getRole());
+        user.setRole(request.getRoleAsEnum());
 
         user = userRepository.save(user);
 

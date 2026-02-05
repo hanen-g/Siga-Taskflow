@@ -1,5 +1,6 @@
-package com.taskflow.backend.dto;
+package com.taskflow.backend.dto.auth;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.taskflow.backend.entity.User;
 import com.taskflow.backend.entity.UserRole;
 
@@ -10,7 +11,7 @@ public class AuthResponse {
     private String email;
     private String firstName;
     private String lastName;
-    private UserRole role;
+    private String role;
 
     public AuthResponse(String token, User user) {
         this.token = token;
@@ -18,7 +19,7 @@ public class AuthResponse {
         this.email = user.getEmail();
         this.firstName = user.getFirstName();
         this.lastName = user.getLastName();
-        this.role = user.getRole();
+        this.role = user.getRole().name();
     }
 
     public String getToken() {
@@ -61,11 +62,11 @@ public class AuthResponse {
         this.lastName = lastName;
     }
 
-    public UserRole getRole() {
+    public String getRole() {
         return role;
     }
 
-    public void setRole(UserRole role) {
+    public void setRole(String role) {
         this.role = role;
     }
 }

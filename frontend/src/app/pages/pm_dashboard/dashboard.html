@@ -1,0 +1,10 @@
+<h2>Project Manager Dashboard</h2>
+
+@if (user) {
+  <p>Welcome, {{ user.firstName }} {{ user.lastName }}</p>
+}
+<button routerLink="/create-project">
+  Create Project
+</button>
+
+<button (click)="logout()">Log out</button>

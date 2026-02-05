@@ -1,9 +1,18 @@
-package com.taskflow.backend.dto;
+package com.taskflow.backend.dto.auth;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public class LoginRequest {
 
     private String email;
     private String password;
+
+    public LoginRequest() {}
+
+    public LoginRequest(String email, String password) {
+        this.email = email;
+        this.password = password;
+    }
 
     // getters & setters
     public String getEmail() {
