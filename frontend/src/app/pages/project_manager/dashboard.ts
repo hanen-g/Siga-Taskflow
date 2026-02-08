@@ -1,17 +1,20 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
+import { RouterOutlet } from '@angular/router';
 import { ApiService, UserProfile } from '../../services/api';
 
 @Component({
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, RouterOutlet],
   selector: 'app-dashboard-pm',
   templateUrl: './dashboard.html'
 })
 export class PMDashboard implements OnInit {
   user: UserProfile | null = null;
   error = '';
+
+
 
   constructor(private api: ApiService, private router: Router) {}
 
@@ -35,3 +38,4 @@ export class PMDashboard implements OnInit {
     this.router.navigate(['/login']);
   }
 }
+

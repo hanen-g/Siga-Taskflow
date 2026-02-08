@@ -1,10 +1,13 @@
+
 <h2>Project Manager Dashboard</h2>
 
 @if (user) {
   <p>Welcome, {{ user.firstName }} {{ user.lastName }}</p>
 }
-<button routerLink="/create-project">
-  Create Project
-</button>
+<div class="dashboard">
+  <main class="content">
+    <router-outlet></router-outlet>
+  </main>
+</div>
 
 <button (click)="logout()">Log out</button>
