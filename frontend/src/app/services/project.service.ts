@@ -10,7 +10,7 @@ export class ProjectService {
 
   constructor(private http: HttpClient) {}
 
-  createProject(data: any) {
-    return this.http.post(this.apiUrl, data);
+  getProjects(data: any) {
+    return this.http.get<any[]>(this.apiUrl, data);
   }
 }

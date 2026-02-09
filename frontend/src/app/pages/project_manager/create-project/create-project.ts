@@ -1,5 +1,5 @@
 import { Component } from '@angular/core';
-import { ProjectService } from '../../../services/ProjectService ';
+import { ProjectService } from '../../../services/project.service';
 import { FormsModule } from '@angular/forms';
 import { CommonModule } from '@angular/common';
 
@@ -10,7 +10,7 @@ import { CommonModule } from '@angular/common';
 })
 export class CreateProject {
 
-  project = {
+  /*project = {
     name: '',
     description: ''
   };
@@ -29,5 +29,5 @@ export class CreateProject {
         this.message = 'Error creating project';
       }
     });
-  }
+  }*/
 }

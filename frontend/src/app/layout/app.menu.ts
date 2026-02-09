@@ -27,6 +27,13 @@ export class AppMenu {
                 label: 'Home',
                 items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', routerLink: ['dashboard/pm'] }]
             },
+            {
+                label: 'Projects and Tasks',
+                items: [{ label: 'Project List', icon: 'pi pi-folder',routerLink: ['/dashboard/pm/projects'] },
+                        { label: 'Task List', icon: 'pi pi-fw pi-check-circle', routerLink: ['tasks/list'] }
+                    ]
+                
+            },
         ]    
     }
 }

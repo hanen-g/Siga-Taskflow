@@ -4,9 +4,10 @@ import { Signup } from './pages/signup/signup';
 import { DashboardRedirect } from './pages/redirect-dashboard';
 import { PMDashboard } from './pages/project_manager/dashboard';
 import { CollabDashboard } from './pages/collaborator/dashboard';
-import { CreateProject } from './pages/project_manager/create-project/create-project';
+import { ProjectList } from './pages/project_manager/project-list/project-list';
 import { AuthGuard } from './guards/auth.guard';
 import { AppLayout } from './layout/app.layout';
+
 
 export const routes: Routes = [
   { path: 'login', component: Login },
@@ -24,8 +25,8 @@ export const routes: Routes = [
         data: { roles: ['PROJECT_MANAGER'] }
       },
       {
-        path: 'dashboard/pm/create-project',
-        component: CreateProject,
+        path: 'dashboard/pm/projects',
+        component: ProjectList,
         data: { roles: ['PROJECT_MANAGER'] }
       },
       {
