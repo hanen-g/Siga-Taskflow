@@ -19,9 +19,8 @@ public class TaskController {
     private final TaskService taskService;
 
     @GetMapping("/my")
-    public List<Task> myTasks(
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
+    public List<Task> myTasks( @AuthenticationPrincipal CustomUserDetails userDetails) {
 
-        return taskService.getMyTasks(userDetails.getUser());
+       return null; //taskService.getMyTasks(userDetails.getUser());
     }
 }

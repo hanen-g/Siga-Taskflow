@@ -1,36 +1,32 @@
 package com.taskflow.backend.controller;
 
-import com.taskflow.backend.dto.project.ProjectRequest;
-import com.taskflow.backend.dto.project.ProjectResponse;
 import com.taskflow.backend.entity.Project;
-import com.taskflow.backend.security.CustomUserDetails;
 import com.taskflow.backend.service.ProjectService;
-import lombok.RequiredArgsConstructor;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
+import java.util.List;
 @RestController
 @RequestMapping("/api/projects")
-@RequiredArgsConstructor
+@CrossOrigin
 public class ProjectController {
 
     private final ProjectService projectService;
 
+    public ProjectController(ProjectService projectService) {
+        this.projectService = projectService;
+    }
+
+
     @PostMapping
-    public ProjectResponse createProject(
-            @RequestBody ProjectRequest request,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
+    @PreAuthorize("hasRole('PROJECT_MANAGER')")
+    public Project createProject(@RequestBody Project project) {
+        return projectService.createProject(project);
+    }
 
-        Project project = projectService.createProject(request, userDetails.getUser());
-return new ProjectResponse(
-                project.getId(),
-                project.getName(),
-                project.getDescription(),
-                project.getManager().getEmail()
-);
 
+    @GetMapping
+    public List<Project> getAllProjects() {
+        return projectService.getAllProjects();
     }
 }
