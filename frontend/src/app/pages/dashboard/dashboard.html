@@ -1,5 +1,5 @@
 
-<h2>Project Manager Dashboard</h2>
+<h2>{{ title }}</h2>
 
 @if (user) {
   <p>Welcome, {{ user.firstName }} {{ user.lastName }}</p>
@@ -9,5 +9,3 @@
     <router-outlet></router-outlet>
   </main>
 </div>
-
-<button (click)="logout()">Log out</button>

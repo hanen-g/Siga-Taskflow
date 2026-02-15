@@ -84,7 +84,6 @@
   opacity: 0.8;
 }
 
-/* Responsive */
 @media (max-width: 600px) {
   .login-container {
     padding: 2rem 1rem;

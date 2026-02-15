@@ -136,6 +136,26 @@
             }
         }
     }
+
+    // ✅ Style pour le logout en rouge
+    .logout-item {
+        a {
+            color: #ef4444 !important;
+
+            .layout-menuitem-icon {
+                color: #ef4444 !important;
+            }
+
+            &:hover {
+                background-color: #fee2e2 !important;
+            }
+
+            &:focus {
+                @include focused-inset();
+                box-shadow: 0 0 0 0.2rem rgba(239, 68, 68, 0.2) !important;
+            }
+        }
+    }
 }
 
 .layout-submenu-enter-from,

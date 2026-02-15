@@ -7,14 +7,12 @@ import { ApiService, UserProfile } from '../../services/api';
 @Component({
   standalone: true,
   imports: [CommonModule, RouterOutlet],
-  selector: 'app-dashboard-pm',
+  selector: 'app-dashboard',
   templateUrl: './dashboard.html'
 })
-export class PMDashboard implements OnInit {
+export class Dashboard implements OnInit {
   user: UserProfile | null = null;
-  error = '';
-
-
+  title = 'Dashboard';
 
   constructor(private api: ApiService, private router: Router) {}
 
@@ -23,6 +21,11 @@ export class PMDashboard implements OnInit {
     if (storedUser) {
       try {
         this.user = JSON.parse(storedUser);
+        if (this.user?.role === 'PROJECT_MANAGER') {
+          this.title = 'Project Manager Dashboard';
+        } else if (this.user?.role === 'COLLABORATOR') {
+          this.title = 'Collaborator Dashboard';
+        }
       } catch (e) {
         console.error('Failed to parse user data:', e);
         this.router.navigate(['/login']);
@@ -32,10 +35,5 @@ export class PMDashboard implements OnInit {
     }
   }
 
-  logout() {
-    localStorage.removeItem('token');
-    localStorage.removeItem('user');
-    this.router.navigate(['/login']);
-  }
-}
 
+}

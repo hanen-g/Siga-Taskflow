@@ -1,18 +1,16 @@
 import { Routes } from '@angular/router';
 import { Login } from './pages/login/login';
 import { Signup } from './pages/signup/signup';
-import { DashboardRedirect } from './pages/redirect-dashboard';
-import { PMDashboard } from './pages/project_manager/dashboard';
-import { CollabDashboard } from './pages/collaborator/dashboard';
-import { ProjectList } from './pages/project_manager/project-list/project-list';
+import { Dashboard } from './pages/dashboard/dashboard';
+import { ProjectsPage } from './pages/project_manager/projects/projects';
 import { AuthGuard } from './guards/auth.guard';
 import { AppLayout } from './layout/app.layout';
 
-
 export const routes: Routes = [
+  { path: '', redirectTo: 'login', pathMatch: 'full' },
+
   { path: 'login', component: Login },
   { path: 'signup', component: Signup },
-  { path: 'dashboard', component: DashboardRedirect, canActivate: [AuthGuard] },
 
   {
     path: '',
@@ -21,21 +19,21 @@ export const routes: Routes = [
     children: [
       {
         path: 'dashboard/pm',
-        component: PMDashboard,
+        component: Dashboard,
         data: { roles: ['PROJECT_MANAGER'] }
       },
       {
         path: 'dashboard/pm/projects',
-        component: ProjectList,
+        component: ProjectsPage,
         data: { roles: ['PROJECT_MANAGER'] }
       },
       {
         path: 'dashboard/collab',
-        component: CollabDashboard,
+        component: Dashboard,
         data: { roles: ['COLLABORATOR'] }
       }
     ]
   },
 
-  { path: '', redirectTo: 'login', pathMatch: 'full' }
+  { path: '**', redirectTo: 'login' }
 ];

@@ -14,10 +14,7 @@ import { LayoutService } from './service/layout.service';
             <button class="layout-menu-button layout-topbar-action" (click)="layoutService.onMenuToggle()">
                 <i class="pi pi-bars"></i>
             </button>
-            <a class="layout-topbar-logo" routerLink="/">
-                
-                <span>TASKFLOW</span>
-            </a>
+                <span class="layout-topbar-logo">TASKFLOW</span>
         </div>
 
         <div class="layout-topbar-actions">
@@ -35,12 +32,8 @@ import { LayoutService } from './service/layout.service';
             <div class="layout-topbar-menu hidden lg:block">
                 <div class="layout-topbar-menu-content">
                     <button type="button" class="layout-topbar-action">
-                        <i class="pi pi-calendar"></i>
-                        <span>Calendar</span>
-                    </button>
-                    <button type="button" class="layout-topbar-action">
-                        <i class="pi pi-inbox"></i>
-                        <span>Messages</span>
+                        <i class="pi pi-bell"></i>
+                        <span>Notifications</span>
                     </button>
                     <button type="button" class="layout-topbar-action">
                         <i class="pi pi-user"></i>

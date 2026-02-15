@@ -57,7 +57,7 @@ export class Signup {
           lastName: res.lastName,
           role: res.role
         }));
-        this.router.navigate(['/dashboard']);
+        this.router.navigate(['/login']);
       },
       error: (err) => {
         this.message = err.error?.error || 'Signup failed';

@@ -1,0 +1,52 @@
+.project-card {
+  background: white;
+  border-radius: 15px;
+  padding: 1rem;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  margin: 5rem;
+}
+
+.task-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 10px;
+}
+
+.task-list li {
+  padding: 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.task-list li:hover {
+  background: #f3f4f6;
+}
+
+:host ::ng-deep .p-dialog .p-dialog-footer {
+    border-top: 1px solid #dee2e6;
+    padding: 1rem 1.5rem;
+}
+
+.p-input-icon-left {
+    display: block;
+}
+
+input, textarea {
+    width: 100% !important;
+}
+textarea:focus, input:focus {
+    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25) !important;  
+}
+.large-input {
+    padding: 0.6rem !important; 
+    font-size: 1.1rem !important;
+    border: 1.5px solid #d1d5db !important; 
+    border-radius: 12px !important; 
+    background-color: #ffffff;
+}
+
+label {
+    display: block;
+    color: #121313 !important; 
+    margin-bottom: 0.75rem !important;
+    margin:  1rem !important;}

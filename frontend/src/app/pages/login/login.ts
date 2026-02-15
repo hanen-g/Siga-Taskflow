@@ -6,6 +6,8 @@ import { PasswordModule } from 'primeng/password';
 import { RippleModule } from 'primeng/ripple';
 import { CardModule } from 'primeng/card';
 import { MessageModule } from 'primeng/message';
+import { IconFieldModule } from 'primeng/iconfield';
+import { InputIconModule } from 'primeng/inputicon';
 
 import { RouterModule,Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../services/api';
@@ -22,6 +24,8 @@ import { CommonModule } from '@angular/common';
     FormsModule,
     RouterLink,
     RouterModule,
+    IconFieldModule,
+    InputIconModule,
     RippleModule,
     CardModule,
     MessageModule,
