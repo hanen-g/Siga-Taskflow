@@ -83,10 +83,15 @@ export class Login implements OnInit {
           this.router.navigate(['/dashboard/pm']);
         } else if (res.role === 'COLLABORATOR') {
           this.router.navigate(['/dashboard/collab']);
-        } else {
+        }
+         else if (res.role === 'ADMIN') {
+  this.router.navigate(['/dashboard/admin']);
+}
+ else {
           // Fallback to generic dashboard
           this.router.navigate(['/dashboard']);
         }
+       
       },
       error: (err) => {
         console.error('Login error:', err);

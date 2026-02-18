@@ -85,7 +85,7 @@ export class AppMenu {
                     {
                         label: 'My Tasks',
                         icon: 'pi pi-check-square',
-                        routerLink: ['/dashboard/collab']
+                        routerLink: ['dashboard/collab/tasks']
                     }
                 ]
             }

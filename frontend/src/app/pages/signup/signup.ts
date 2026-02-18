@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../services/api';
@@ -13,7 +13,17 @@ import { CommonModule } from '@angular/common';
 @Component({
   selector: 'app-signup',
   standalone: true,
-  imports: [FormsModule, RouterLink, ButtonModule, InputTextModule, PasswordModule, CardModule, MessageModule, SelectModule, CommonModule],
+  imports: [
+    FormsModule,
+    RouterLink,
+    ButtonModule,
+    InputTextModule,
+    PasswordModule,
+    CardModule,
+    MessageModule,
+    SelectModule,
+    CommonModule
+  ],
   templateUrl: './signup.html',
   styleUrls: ['./signup.css']
 })
@@ -29,10 +39,15 @@ export class Signup {
 
   roles = [
     { label: 'Project Manager', value: 'PROJECT_MANAGER' },
-    { label: 'Collaborator', value: 'COLLABORATOR' }
+    { label: 'Collaborator', value: 'COLLABORATOR' },
+    { label: 'Admin', value: 'ADMIN' }
   ];
 
-  constructor(private api: ApiService, private router: Router) {}
+  constructor(
+    private api: ApiService,
+    private router: Router,
+    private cdr: ChangeDetectorRef
+  ) {}
 
   signup() {
     if (!this.firstName || !this.lastName || !this.email || !this.password) {
@@ -41,6 +56,7 @@ export class Signup {
     }
 
     this.isLoading = true;
+
     this.api.signup({
       firstName: this.firstName,
       lastName: this.lastName,
@@ -57,11 +73,13 @@ export class Signup {
           lastName: res.lastName,
           role: res.role
         }));
+
         this.router.navigate(['/login']);
       },
       error: (err) => {
         this.message = err.error?.error || 'Signup failed';
         this.isLoading = false;
+        this.cdr.detectChanges();
       }
     });
   }

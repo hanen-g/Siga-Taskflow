@@ -3,6 +3,8 @@ import { Login } from './pages/login/login';
 import { Signup } from './pages/signup/signup';
 import { Dashboard } from './pages/dashboard/dashboard';
 import { ProjectsPage } from './pages/project_manager/projects/projects';
+import { MyTasksPage } from './pages/collaborator/my-tasks';
+
 import { AuthGuard } from './guards/auth.guard';
 import { AppLayout } from './layout/app.layout';
 
@@ -31,7 +33,18 @@ export const routes: Routes = [
         path: 'dashboard/collab',
         component: Dashboard,
         data: { roles: ['COLLABORATOR'] }
-      }
+      },
+      {
+    path: 'dashboard/collab/tasks',
+    component: MyTasksPage,
+    data: { roles: ['COLLABORATOR'] }
+  },
+  {
+  path: 'dashboard/admin',
+  component: Dashboard,
+  data: { roles: ['ADMIN'] }
+}
+
     ]
   },
 
