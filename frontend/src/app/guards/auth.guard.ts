@@ -39,8 +39,13 @@ export class AuthGuard implements CanActivate {
     if (allowedRoles && !allowedRoles.includes(role)) {
       if (role === 'PROJECT_MANAGER') {
         this.router.navigate(['/dashboard/pm']);
-      } else {
+      } else if (role === 'COLLABORATOR') {
         this.router.navigate(['/dashboard/collab']);
+      }else{     
+           this.router.navigate(['/dashboard/admin']);
+
+
+        
       }
       return false;
     }

@@ -3,7 +3,6 @@ import { HttpClient } from '@angular/common/http';
 import { Task } from '../pages/project_manager/projects/models/task.model';
 import { Observable } from 'rxjs';
 
-
 @Injectable({ providedIn: 'root' })
 export class TaskService {
 
@@ -11,13 +10,25 @@ export class TaskService {
 
   constructor(private http: HttpClient) {}
 
-  getTasksByProject(projectId: number) {
-    return this.http.get<any[]>(`${this.apiUrl}/project/${projectId}`);
+  getTasksByProject(projectId: number): Observable<Task[]> {
+    return this.http.get<Task[]>(`${this.apiUrl}/project/${projectId}`);
   }
-    createTask(task: Task) {
+
+  createTask(task: Task): Observable<Task> {
     return this.http.post<Task>(this.apiUrl, task);
   }
-  deleteTask(taskId: number){
+
+  deleteTask(taskId: number): Observable<void> {
     return this.http.delete<void>(`${this.apiUrl}/${taskId}`);
+  }
+  
+  updateTaskStatus(taskId: number, status: string) {
+  return this.http.put(
+    `${this.apiUrl}/${taskId}/status?status=${status}`,
+    {}
+  );
+}
+  getMyTasks(): Observable<Task[]> {
+    return this.http.get<Task[]>(`${this.apiUrl}/my-tasks`);
   }
 }

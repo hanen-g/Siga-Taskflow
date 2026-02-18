@@ -11,4 +11,6 @@ export interface Task {
   status: TaskStatus;
   projectId: number;
   collaboratorEmail?: string;
+  projectName?: string;
+
 }
