@@ -1,0 +1,23 @@
+
+> frontend@0.0.0 build
+> ng build
+
+[33m❯[39m Building...
+[32m✔[39m Building...
+[1mInitial chunk files[22m[2m | [22m[1mNames[22m        [2m | [22m [1mRaw size[22m[2m | [22m[1mEstimated transfer size[22m
+[32mmain-JTCWTE6J.js[39m   [2m | [22m[2mmain[22m         [2m | [22m[36m770.91 kB[39m[2m | [22m              [36m141.13 kB[39m
+[32mchunk-37IJK6J7.js[39m  [2m | [22m[2m-[22m            [2m | [22m[36m169.00 kB[39m[2m | [22m               [36m49.06 kB[39m
+[32mstyles-QFV2KODK.css[39m[2m | [22m[2mstyles[22m       [2m | [22m [36m55.95 kB[39m[2m | [22m               [36m10.41 kB[39m
+
+[1m [22m                  [2m | [22m[1mInitial total[22m[2m | [22m[1m[93m995.86 kB[39m[22m[2m | [22m              [1m200.61 kB[22m
+
+[1mLazy chunk files[22m   [2m | [22m[1mNames[22m        [2m | [22m [1mRaw size[22m[2m | [22m[1mEstimated transfer size[22m
+[32mchunk-4AGTLNDW.js[39m  [2m | [22m[2mbrowser[22m      [2m | [22m [36m67.75 kB[39m[2m | [22m               [36m17.75 kB[39m
+
+Application bundle generation complete. [11.614 seconds] - 2026-03-28T19:35:45.495Z
+
+[1m[33m[33m▲ [43;33m[[43;30mWARNING[43;33m][0m [1mbundle initial exceeded maximum budget. Budget 500.00 kB was not met by 495.86 kB with a total of 995.86 kB.[0m
+
+[39m[22m
+Output location: C:\Users\HUAWEI\Desktop\taskflow\taskflow\frontend\dist\frontend
+
