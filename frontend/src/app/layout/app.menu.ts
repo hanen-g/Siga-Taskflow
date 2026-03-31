@@ -1,6 +1,7 @@
 import { Component } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router,RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
+import { WebsocketService } from '../services/websocket.service';
 import { MenuItem } from 'primeng/api';
 import { AppMenuitem } from './app.menuitem';
 
@@ -8,7 +9,8 @@ import { AppMenuitem } from './app.menuitem';
     selector: 'app-menu',
     standalone: true,
     imports: [CommonModule, AppMenuitem, RouterModule],
-    template: `<ul class="layout-menu">
+    template: `
+    <ul class="layout-menu">
         @for (item of model; track item.label) {
             @if (!item.separator) {
                 <li app-menuitem [item]="item" [root]="true"></li>
@@ -21,7 +23,9 @@ import { AppMenuitem } from './app.menuitem';
 })
 export class AppMenu {
     model: MenuItem[] = [];
-    constructor(private router: Router) {}
+
+    constructor(private router: Router, private ws: WebsocketService) {}
+
     private getRoleFromToken(): string | null {
         const token = localStorage.getItem('token');
         if (!token) return null;
@@ -33,75 +37,80 @@ export class AppMenu {
             return null;
         }
     }
-    logout() {
-    localStorage.clear();
-    this.router.navigate(['/login']);
-}
 
+    logout() {
+        // make sure any active websocket connection is closed as user leaves
+        this.ws.disconnect();
+        localStorage.clear();
+        this.router.navigate(['/login']);
+    }
 
     ngOnInit() {
-    const role = this.getRoleFromToken();
+        const role = this.getRoleFromToken();
 
-    if (role === 'PROJECT_MANAGER') {
-        this.model = [
-            {
-                label: 'Home',
-                items: [
-                    {
-                        label: 'Dashboard',
-                        icon: 'pi pi-fw pi-home',
-                        routerLink: ['/dashboard/pm']
-                    }
-                ]
-            },
-            {
-                label: 'Projects',
-                items: [
-                    {
-                        label: 'Project List',
-                        icon: 'pi pi-folder',
-                        routerLink: ['/dashboard/pm/projects']
-                    }
-                ]
-            }
-        ];
+        if (role === 'PROJECT_MANAGER') {
+            this.model = [
+                {
+                    label: 'Home',
+                    items: [
+                        { label: 'Dashboard', icon: 'pi pi-fw pi-home', routerLink: ['/dashboard/pm'] }
+                    ]
+                },
+                {
+                    label: 'Projects',
+                    items: [
+                        { label: 'Project List', icon: 'pi pi-folder', routerLink: ['/dashboard/pm/projects'] },
+                        { label: 'Archive', icon: 'pi pi-building-columns', routerLink: ['/dashboard/pm/archives'] }
+                    ]
+                },
+                {
+                    label: 'Tasks',
+                    items: [
+                        { label: 'Tasks List', icon: 'pi pi-check-square', routerLink: ['/dashboard/pm/tasks'] }
+                    ]
+                }
+            ];
+        }
+
+        if (role === 'COLLABORATOR') {
+            this.model = [
+                {
+                    label: 'Home',
+                    items: [
+                        { label: 'Dashboard', icon: 'pi pi-fw pi-home', routerLink: ['/dashboard/collab'] }
+                    ]
+                },
+                {
+                    label: 'Tasks',
+                    items: [
+                        { label: 'My Tasks', icon: 'pi pi-check-square', routerLink: ['/dashboard/collab/tasks'] }
+                    ]
+                }
+            ];
+        }
+
+        if (role === 'ADMIN') {
+            this.model = [
+                {
+                    label: 'Home',
+                    items: [
+                        { label: 'Dashboard', icon: 'pi pi-fw pi-home', routerLink: ['/dashboard/admin'] }
+                    ]
+                },
+                {
+                    label: 'Projects & Tasks',
+                    items: [
+                        { label: 'All Projects', icon: 'pi pi-folder', routerLink: ['/dashboard/admin/projects'] },
+                        { label: 'All Tasks', icon: 'pi pi-check-square', routerLink: ['/dashboard/admin/tasks'] }
+                    ]
+                }
+            ];
+        }
+
+        this.model.push({
+            items: [
+                { label: 'Logout', icon: 'pi pi-sign-out', command: () => this.logout(), style: { 'color': '#ef4444' } }
+            ]
+        });
     }
-
-    if (role === 'COLLABORATOR') {
-        this.model = [
-            {
-                label: 'Home',
-                items: [
-                    {
-                        label: 'Dashboard',
-                        icon: 'pi pi-fw pi-home',
-                        routerLink: ['/dashboard/collab']
-                    }
-                ]
-            },
-            {
-                label: 'Tasks',
-                items: [
-                    {
-                        label: 'My Tasks',
-                        icon: 'pi pi-check-square',
-                        routerLink: ['dashboard/collab/tasks']
-                    }
-                ]
-            }
-        ];
-    }
-
-   
-
-    this.model.push({
-        items: [
-            {
-                label: 'Logout',
-                icon: 'pi pi-sign-out',
-                command: () => this.logout(),
-                style: { 'color': '#ef4444' }            }
-        ]
-    });
-}
 }

@@ -1,75 +1,67 @@
 
-<div class="login-container">
-  <div class="login-wrapper">
-    <p-card>
-      <ng-template pTemplate="header">
-        <div class="login-header">
-          <h1>Welcome Back</h1>
-          <p>Sign in to your account</p>
-        </div>
-      </ng-template>
+<div class="login-page">
+  <p-toast></p-toast>
 
-      <form (ngSubmit)="login()" class="login-form">
-        <!-- Error Message -->
-        <p-message 
-          *ngIf="message" 
-          severity="error" 
-          [text]="message"
-          styleClass="w-full mb-4">
-        </p-message>
+  <section class="left-panel">
+    <div class="left-bg-overlay"></div>
+    <div class="left-top-logo" aria-label="SIGA logo">SIGA</div>
 
-        <!-- Email Field -->
-        <div class="field">
-          <label for="email" class="block mb-2">Email Address</label>
-          <input 
+    <div class="left-content">
+      <h1>Join Us!</h1>
+      <a routerLink="/signup" class="left-signup-btn">Sign Up</a>
+    </div>
+  </section>
+
+  <section class="right-panel">
+    <div class="right-curve"></div>
+    <div class="right-curve-outline"></div>
+
+    <div class="right-content">
+      <div class="greeting">
+        <h2>Welcome Back</h2>
+      </div>
+
+      <form (ngSubmit)="login()" class="login-form" autocomplete="off">
+        <p-message *ngIf="message" severity="error" [text]="message" class="error-message"></p-message>
+
+        <div class="field icon-field">
+          <i class="pi pi-user"></i>
+          
+          <input
             pInputText
-            id="email"
-            type="email" 
-            [(ngModel)]="email" 
-            name="email"
+            type="email"
+            name="username"
+            id="username"
+            [(ngModel)]="username"
             placeholder="Enter your email"
             [disabled]="isLoading"
-            required 
-            class="w-full" />
+            required
+            class="underline-input" />
         </div>
 
-        <!-- Password Field -->
-        <div class="field">
-          <label for="password" class="block mb-2">Password</label>
-          <p-password 
-            id="password"
-            [(ngModel)]="password" 
+        <div class="field icon-field">
+          <i class="pi pi-envelope"></i>
+          <input
+            pInputText
+            type="password"
             name="password"
-            placeholder="Enter your password"
+            id="password"
+            [(ngModel)]="password"
+            placeholder="Password"
             [disabled]="isLoading"
-            [toggleMask]="true"
-            required 
-            [weakLabel]="'Too simple'"
-            [mediumLabel]="'Average complexity'"
-            [strongLabel]="'Complex'"
-            [feedback]="false"
-            styleClass="w-full">
-          </p-password>
+            required
+            class="underline-input" />
         </div>
 
-        <!-- Submit Button -->
-        <p-button 
-          type="submit" 
-          [label]="isLoading ? 'Signing in...' : 'Sign In'"
+        <p-button
+          type="submit"
+          [label]="isLoading ? 'Signing in...' : 'Sign in'"
           [disabled]="isLoading"
           [loading]="isLoading"
-          severity="primary"
-          styleClass="w-full mb-3"
+          class="signin-btn"
           [rounded]="true">
         </p-button>
-
-        <!-- Sign Up Link -->
-        <div class="text-center">
-          <p class="text-color-secondary">Don't have an account? 
-            <a routerLink="/signup" class="font-semibold text-primary">Sign up</a>
-          </p>
-        </div>
       </form>
-    </p-card>
-  </div>
+    </div>
+  </section>
 </div>

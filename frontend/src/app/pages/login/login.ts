@@ -8,6 +8,8 @@ import { CardModule } from 'primeng/card';
 import { MessageModule } from 'primeng/message';
 import { IconFieldModule } from 'primeng/iconfield';
 import { InputIconModule } from 'primeng/inputicon';
+import { ToastModule } from 'primeng/toast';
+import { MessageService } from 'primeng/api';
 
 import { RouterModule,Router, RouterLink } from '@angular/router';
 import { ApiService } from '../../services/api';
@@ -29,13 +31,15 @@ import { CommonModule } from '@angular/common';
     RippleModule,
     CardModule,
     MessageModule,
+    ToastModule,
     CommonModule,
   ],
+  providers: [MessageService],
   templateUrl: './login.html',
   styleUrls: ['./login.css'],
 })
 export class Login implements OnInit {
-  email = '';
+  username = '';
   password = '';
   message = '';
   isLoading = false;
@@ -44,6 +48,7 @@ export class Login implements OnInit {
     private api: ApiService,
     private router: Router,
     private location: Location,
+    private messageService: MessageService
   ) {}
 
   ngOnInit() {
@@ -55,7 +60,7 @@ export class Login implements OnInit {
   }
 
   login() {
-    if (!this.email || !this.password) {
+    if (!this.username || !this.password) {
       this.message = 'Please fill in all fields';
       return;
     }
@@ -63,7 +68,7 @@ export class Login implements OnInit {
     this.isLoading = true;
     this.message = '';
     
-    this.api.login(this.email, this.password).subscribe({
+    this.api.login(this.username, this.password).subscribe({
       next: (res) => {
         // Store token and user data before navigation
         localStorage.setItem('token', res.token);
@@ -102,6 +107,12 @@ export class Login implements OnInit {
         } else {
           this.message = err.error?.message || 'An error occurred during login';
         }
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Login Failed',
+          detail: this.message,
+          life: 3000
+        });
         this.isLoading = false;
       },
     });

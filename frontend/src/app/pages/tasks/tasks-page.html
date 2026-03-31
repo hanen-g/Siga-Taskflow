@@ -1,0 +1,206 @@
+<div class="my-tasks-wrapper p-4">
+  <div class="header-row flex align-items-center justify-content-between mb-5">
+    <h2 class="m-0">{{ pageTitle }}</h2>
+  </div>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-state">
+    <i class="pi pi-spin pi-spinner"></i>
+    <span>Loading tasks...</span>
+  </div>
+
+  <!-- Error State -->
+  <div *ngIf="errorMessage" class="error-state">
+    <i class="pi pi-exclamation-triangle"></i>
+    <span>{{ errorMessage }}</span>
+    <button type="button" class="retry-btn" (click)="loadTasks()">Retry</button>
+  </div>
+
+  <ng-container *ngIf="!isLoading && !errorMessage">
+    <div class="tabs mb-4">
+      <button
+        *ngFor="let tab of filterTabs; trackBy: trackByFilter"
+        type="button"
+        class="tab-button"
+        [class.active]="activeFilter === tab.key"
+        (click)="setFilter(tab.key)">
+        <i class="pi" [ngClass]="tab.icon"></i>
+        <span class="tab-label">{{ tab.label }}</span>
+        <span *ngIf="tab.badge !== null" class="tab-badge">{{ tab.badge }}</span>
+      </button>
+    </div>
+
+    <div class="search-bar mb-4">
+      <span class="p-input-icon-left w-full">
+        <i class="pi pi-search"></i>
+        <input
+          pInputText
+          type="text"
+          placeholder="Search tasks..."
+          [(ngModel)]="searchText"
+          (input)="refreshGrouping()"
+          class="w-full"
+        />
+      </span>
+    </div>
+
+    <div class="sections">
+      <ng-container *ngFor="let group of groupedTasks; trackBy: trackByGroup">
+        <div class="section" *ngIf="activeFilter === 'all' || group.status === activeStatus">
+
+          <button
+            class="section-header"
+            type="button"
+            *ngIf="activeFilter === 'all'"
+            (click)="toggleSection(group.status)">
+            <div>
+              <span class="section-title">{{ group.title }}</span>
+              <span class="section-count">{{ group.tasks.length }} tasks</span>
+            </div>
+            <i
+              class="pi"
+              [ngClass]="{
+                'pi-chevron-down': !collapsedSections[group.status],
+                'pi-chevron-right': collapsedSections[group.status]
+              }">
+            </i>
+          </button>
+
+          <div class="section-body" *ngIf="activeFilter !== 'all' || !collapsedSections[group.status]">
+            <div *ngIf="group.tasks.length === 0" class="empty-state">
+              <i class="pi pi-info-circle"></i>
+              <span>No tasks in this section.</span>
+            </div>
+
+            <div class="task-card" *ngFor="let task of group.tasks; trackBy: trackByTask">
+              <div class="task-header">
+                <div class="task-title">{{ task.title }}</div>
+                <div class="task-status" [ngClass]="getStatusClass(task.status)">
+                  {{ statusLabel(task.status) }}
+                </div>
+              </div>
+              <div class="task-meta">
+                <span class="task-project">
+                  <i class="pi pi-folder"></i>
+                  {{ task.projectName }}
+                </span>
+                <span class="task-desc">{{ task.description }}</span>
+              </div>
+
+              <div class="task-actions">
+                <ng-container *ngIf="isManager || isAdmin">
+                  <button type="button" class="action-btn edit-btn" (click)="editTask(task)" pTooltip="Edit Task">
+                    <i class="pi pi-pencil"></i>
+                  </button>
+                  <button type="button" class="action-btn delete-btn" (click)="deleteTask(task)" pTooltip="Delete Task">
+                    <i class="pi pi-trash"></i>
+                  </button>
+                </ng-container>
+
+                <ng-container *ngIf="isCollaborator">
+                  <span class="task-action-label">Change status:</span>
+                  <select [(ngModel)]="task.status" (change)="updateStatus(task)">
+                    <option *ngFor="let s of statuses" [value]="s">{{ statusLabel(s) }}</option>
+                  </select>
+                </ng-container>
+              </div>
+            </div>
+          </div>
+        </div>
+      </ng-container>
+
+      <div *ngIf="groupedTasks.length === 0" class="empty-overall">
+        <i class="pi pi-info-circle"></i>
+        <span>No tasks found.</span>
+      </div>
+    </div>
+  </ng-container>
+</div>
+
+<p-drawer
+  *ngIf="isManager || isAdmin"
+  [(visible)]="isDrawerOpen"
+  position="right"
+  [modal]="true"
+  styleClass="edit-task-drawer"
+>
+  <div class="drawer-header">
+    <div class="drawer-title">
+      <i class="pi pi-list"></i>
+      <span>Edit Task</span>
+    </div>
+    <button type="button" class="close-btn" (click)="closeDrawer()"><i class="pi pi-times"></i></button>
+  </div>
+
+  <div class="drawer-body">
+    <div *ngIf="drawerErrorMessage" class="error-state mb-3">
+      <i class="pi pi-exclamation-triangle"></i>
+      <span>{{ drawerErrorMessage }}</span>
+    </div>
+
+    <div class="form-group">
+      <label for="taskTitle">Title</label>
+      <input
+        id="taskTitle"
+        pInputText
+        [(ngModel)]="editForm.title"
+        placeholder="Task title"
+        class="w-full"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="taskDescription">Description</label>
+      <textarea
+        id="taskDescription"
+        pInputTextarea
+        [(ngModel)]="editForm.description"
+        placeholder="Enter task description..."
+        rows="4"
+        class="w-full"
+      ></textarea>
+    </div>
+
+    <div class="form-group">
+      <label>Team Members</label>
+      <div class="members-section">
+        <div class="member-chips">
+          <div class="member-chip" *ngFor="let email of editForm.collaboratorEmails">
+            <p-avatar [label]="getInitialsFromEmail(email)" size="normal"></p-avatar>
+            <span>{{ email }}</span>
+            <button type="button" class="remove-btn" (click)="removeMemberEmail(email)">
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
+        </div>
+        <p-autoComplete
+          [(ngModel)]="memberSearch"
+          [suggestions]="memberSuggestions"
+          (completeMethod)="searchMembers($event)"
+          placeholder="Add team member..."
+          [multiple]="false"
+          (onSelect)="addMemberEmail($event.value)"
+          class="member-search"
+        >
+          <ng-template let-email pTemplate="item">
+            <div class="member-suggestion">
+              <p-avatar [label]="getInitialsFromEmail(email)" size="normal"></p-avatar>
+              <span>{{ email }}</span>
+            </div>
+          </ng-template>
+        </p-autoComplete>
+      </div>
+    </div>
+  </div>
+
+  <div class="drawer-footer">
+    <p-button
+      label="Update Task"
+      icon="pi pi-check"
+      styleClass="p-button-primary"
+      [loading]="isSaving"
+      [disabled]="isSaving"
+      (onClick)="updateTask()"
+    ></p-button>
+  </div>
+</p-drawer>

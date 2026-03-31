@@ -1,104 +1,228 @@
-import { Component, Input, Output, EventEmitter, OnInit } from '@angular/core';
+import {
+  Component,
+  Input,
+  Output,
+  EventEmitter,
+  ChangeDetectionStrategy,
+  ElementRef,
+  ViewChild,
+  OnInit
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { PanelModule } from 'primeng/panel';
-import { ButtonModule } from 'primeng/button';
-import { MenuModule } from 'primeng/menu';
+import { FormsModule } from '@angular/forms';
 import { MenuItem } from 'primeng/api';
+import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
+import { MenuModule, Menu } from 'primeng/menu';
 import { TextareaModule } from 'primeng/textarea';
-import { FormsModule } from '@angular/forms';
 
+import { ProjectService } from '../../../../services/project.service';
 import { TaskService } from '../../../../services/task.service';
-import { Project } from '../models/project.model';
-import { TaskList } from './task-list';
-import { Task, TaskStatus } from '../models/task.model';
+import { Project } from '../../../../models/project.model';
+import { Task, TaskStatus } from '../../../../models/task.model';
 
 @Component({
   selector: 'app-project-panel',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-<p-panel [header]="project.name" [toggleable]="true">
+    <article class="project-card">
+      <div class="project-banner" [style.background]="bannerColor">
+        <p-menu #menu [popup]="true" [appendTo]="'body'" [model]="menuItems" (onShow)="onMenuShow()"></p-menu>
+        <button
+          pButton
+          type="button"
+          icon="pi pi-ellipsis-v"
+          class="project-menu-button"
+          (click)="toggleMenu($event)">
+        </button>
+      </div>
 
-  <ng-template pTemplate="header">
-    <div class="flex justify-content-between align-items-center w-full">
-      <div class="font-bold">{{ project.description }}</div>
+      <div class="project-card-body">
+        <div class="project-copy">
+          <h2 class="project-title">{{ project.name }}</h2>
+          <p class="project-description">
+            {{ project.description || 'No description yet for this project.' }}
+          </p>
+        </div>
 
-      <p-menu #menu [popup]="true" [model]="menuItems"></p-menu>
-      <button pButton icon="pi pi-ellipsis-v"
-              class="p-button-text"
-              (click)="menu.toggle($event); $event.stopPropagation()">
-      </button>
-    </div>
-  </ng-template>
+        <button
+          pButton
+          type="button"
+          label="+ New Task"
+          class="project-task-button"
+          (click)="openDialog()">
+        </button>
+      </div>
+    </article>
 
-  <!-- Task list -->
-  <app-task-list [projectId]="project.id"></app-task-list>
+    <input #fileInput type="file" style="display:none" (change)="onFileSelected($event)" />
 
-  <!-- Button to open new task dialog -->
-  <button pButton label="New Task" icon="pi pi-plus" class="mt-2" (click)="openNewTaskDialog()"></button>
+    <p-dialog
+      header="New Task"
+      [visible]="taskDialogVisible"
+      [modal]="true"
+      [draggable]="false"
+      [resizable]="false"
+      [style]="{ width: '400px' }"
+      (onHide)="taskDialogVisible = false">
 
-</p-panel>
+      <div class="flex flex-column gap-3">
+        <input pInputText
+               [(ngModel)]="newTask.title"
+               placeholder="Task name">
 
-<!-- Task creation dialog -->
-<p-dialog header="New Task"
-          [(visible)]="taskDialogVisible"
-          [modal]="true"
-          [draggable]="false"
-          [resizable]="false"
-          [style]="{width:'400px'}">
+        <textarea pInputTextarea
+                  [(ngModel)]="newTask.description"
+                  rows="4"
+                  placeholder="Description">
+        </textarea>
 
-  <div class="flex flex-column gap-3">
+        <input pInputText
+               [(ngModel)]="newTask.collaboratorEmail"
+               placeholder="Email">
 
-    <div class="flex flex-column">
-      <label>Name</label>
-      <input pInputText [(ngModel)]="newTask.title" placeholder="Enter task name">
-    </div>
-
-    <div class="flex flex-column">
-      <label>Description</label>
-      <textarea pInputTextarea [(ngModel)]="newTask.description" rows="4" placeholder="Enter task description"></textarea>
-    </div>
-
-    <div class="flex flex-column">
-  <label>Collaborator Email</label>
-  <input pInputText [(ngModel)]="newTask.collaboratorEmail" placeholder="user@example.com">
-  </div>
-    <button pButton label="Create Task" class="p-button-success mt-2" (click)="saveTask()"></button>
-
-  </div>
-</p-dialog>
-
+        <button pButton
+                label="Create Task"
+                class="p-button-success"
+                (click)="saveTask()">
+        </button>
+      </div>
+    </p-dialog>
   `,
-  styleUrls: ['../projects.css'],
-
   imports: [
     CommonModule,
-    PanelModule,
+    FormsModule,
     ButtonModule,
-    MenuModule,
-    TaskList,
     DialogModule,
     InputTextModule,
-    TextareaModule,
-    FormsModule
-  ]
+      MenuModule,
+    TextareaModule
+  ],
+  styles: [`
+    :host {
+      display: block;
+      height: 100%;
+    }
+
+    .project-card {
+      display: flex;
+      flex-direction: column;
+      min-height: 20rem;
+      height: 100%;
+      overflow: hidden;
+      border-radius: 1.5rem;
+      background: #ffffff;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
+    }
+
+    .project-banner {
+      position: relative;
+      min-height: 6.75rem;
+      height: 33%;
+      padding: 1rem;
+    }
+
+    .project-menu-button {
+      position: absolute;
+      top: 0.9rem;
+      right: 0.9rem;
+      width: 2.5rem;
+      height: 2.5rem;
+      border: 0;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.58) !important;
+      color: #334155 !important;
+      backdrop-filter: blur(10px);
+    }
+
+    .project-menu-button:enabled:hover {
+      background: rgba(255, 255, 255, 0.78) !important;
+    }
+
+    .project-card-body {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 1.5rem;
+      padding: 1.4rem;
+    }
+
+    .project-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 0.65rem;
+    }
+
+    .project-title {
+      margin: 0;
+      color: #0f172a;
+      font-size: 1.2rem;
+      font-weight: 500;
+      line-height: 1.3;
+    }
+
+    .project-description {
+      margin: 0;
+      color: #64748b;
+      font-size: 0.875rem;
+      line-height: 1.5;
+    }
+
+    .project-task-button {
+      width: 100%;
+      justify-content: center;
+      border: 0;
+      border-radius: 0.95rem;
+      background: #22c55e !important;
+      color: #ffffff !important;
+      font-weight: 600;
+      box-shadow: none;
+    }
+
+    .project-task-button:enabled:hover {
+      background: #16a34a !important;
+    }
+  `]
 })
 export class ProjectPanel implements OnInit {
 
   @Input() project!: Project;
   @Output() edit = new EventEmitter<Project>();
-  @Output() delete = new EventEmitter<{ id: number, nativeEvent: Event }>();
+  @Output() delete = new EventEmitter<{ id: number; nativeEvent: Event }>();
+  @Output() archive = new EventEmitter<{ id: number; archived: boolean; nativeEvent: Event }>();
+  @ViewChild('fileInput') fileInput?: ElementRef<HTMLInputElement>;
+  @ViewChild('menu') menu?: Menu;
 
   taskDialogVisible = false;
-  newTask: Task = { title: '', description: '', status: TaskStatus.TODO, projectId: 0, collaboratorEmail: '' };
-
   menuItems: MenuItem[] = [];
+  bannerColor = '#dbeafe';
 
-  constructor(private taskService: TaskService) {}
+  newTask: Task = {
+    title: '',
+    description: '',
+    status: TaskStatus.TODO,
+    projectId: 0,
+    collaboratorEmail: ''
+  };
+
+  constructor(
+    private taskService: TaskService,
+    private projectService: ProjectService
+  ) {}
 
   ngOnInit() {
+    const archived = !!this.project.archived;
+    this.bannerColor = this.resolveBannerColor();
     this.menuItems = [
+      {
+        label: archived ? 'Unarchive' : 'Archive',
+        icon: archived ? 'pi pi-folder-open' : 'pi pi-building-columns',
+        command: (event) => this.archive.emit({ id: this.project.id, archived: !archived, nativeEvent: event.originalEvent as Event })
+      },
       {
         label: 'Edit',
         icon: 'pi pi-pencil',
@@ -108,40 +232,83 @@ export class ProjectPanel implements OnInit {
         label: 'Delete',
         icon: 'pi pi-trash',
         command: (event) => this.delete.emit({ id: this.project.id, nativeEvent: event.originalEvent as Event })
+      },
+      {
+        label: 'Upload File',
+        icon: 'pi pi-upload',
+        command: () => this.openFilePicker()
       }
     ];
   }
 
-resetForm() {
-  this.newTask = {
-    title: '',
-    description: '',
-    status: TaskStatus.TODO,
-    projectId: this.project.id,
-    collaboratorEmail: ''
-  };
-}
-  openNewTaskDialog() {
-  this.resetForm();
-  this.taskDialogVisible = true;
-}
+  toggleMenu(event: Event) {
+    this.menu?.toggle(event);
+  }
 
+  onMenuShow() {
+    const container = this.menu?.container as HTMLElement | undefined;
+    const target = this.menu?.target as HTMLElement | undefined;
 
-saveTask() {
-  if (!this.newTask.title?.trim()) return;
+    if (!container || !target) {
+      return;
+    }
 
-  this.taskService.createTask(this.newTask).subscribe({
-    next: () => {
+    const targetRect = target.getBoundingClientRect();
+    const overlayWidth = container.offsetWidth;
+
+    const left = targetRect.right - overlayWidth;
+    const top = targetRect.bottom;
+
+    container.style.left = `${Math.max(left, 0)}px`;
+    container.style.top = `${Math.max(top, 0)}px`;
+    container.style.transformOrigin = 'top right';
+  }
+
+  openDialog() {
+    this.newTask = {
+      title: '',
+      description: '',
+      status: TaskStatus.TODO,
+      projectId: this.project.id,
+      collaboratorEmail: ''
+    };
+    this.taskDialogVisible = true;
+  }
+
+  saveTask() {
+    if (!this.newTask.title.trim()) return;
+
+    this.taskService.createTask(this.newTask).subscribe(() => {
       this.taskDialogVisible = false;
-      this.resetForm();
+    });
+  }
 
-      window.dispatchEvent(new CustomEvent('taskCreated'));
-    },
-    error: (error) => console.error('Error creating task:', error)
-  });
-}
+  openFilePicker() {
+    this.fileInput?.nativeElement.click();
+  }
 
+  onFileSelected(event: any) {
+    const file: File = event.target.files[0];
+    if (!file) return;
 
+    this.projectService.uploadAttachment(this.project.id, file).subscribe((updated: any) => {
+      this.project = updated;
+    });
+  }
 
-
+  private resolveBannerColor(): string {
+    const palette = [
+      '#fecdd3',
+      '#fde68a',
+      '#bfdbfe',
+      '#c7d2fe',
+      '#bbf7d0',
+      '#fbcfe8',
+      '#fed7aa',
+      '#a7f3d0'
+    ];
+    const seed = `${this.project.id ?? ''}${this.project.name ?? ''}`;
+    const index = Array.from(seed).reduce((total, char) => total + char.charCodeAt(0), 0) % palette.length;
+    return palette[index];
+  }
 }
