@@ -1,0 +1,130 @@
+/* PAGE CONTAINER */
+.card {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: auto;
+}
+
+/* HEADER */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.page-header h2 {
+  font-size: 1.6rem;
+  font-weight: 600;
+}
+
+/* GRID */
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+  gap: 1.5rem;
+}
+
+/* CARD */
+.project-card {
+  background: #ffffff;
+  border-radius: 14px;
+  padding: 1.3rem;
+
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+
+  transition: all 0.25s ease;
+}
+
+/* Hover */
+.project-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 12px 25px rgba(0,0,0,0.08);
+}
+
+/* HEADER CARD */
+.project-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 1rem;
+}
+
+.project-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.project-desc {
+  font-size: 0.85rem;
+  color: #6b7280;
+}
+
+/* TASK LIST */
+.task-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* TASK ITEM */
+.task-list li {
+  padding: 0.6rem 0.7rem;
+  border-radius: 8px;
+
+  background: #f9fafb;
+  border: 1px solid #f1f5f9;
+
+  cursor: pointer;
+  transition: 0.2s;
+  font-size: 0.9rem;
+}
+
+/* Hover */
+.task-list li:hover {
+  background: #eef2ff;
+  border-color: #c7d2fe;
+}
+
+/* EMPTY */
+.empty-text {
+  font-size: 0.85rem;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* BUTTON */
+:deep(.p-button) {
+  border-radius: 10px;
+  font-weight: 500;
+}
+
+/* MENU BUTTON */
+:deep(.p-button-text) {
+  opacity: 0.6;
+}
+
+:deep(.p-button-text:hover) {
+  opacity: 1;
+}
+
+/* DIALOG */
+:deep(.p-dialog) {
+  border-radius: 12px;
+}
+
+:deep(.p-inputtext) {
+  border-radius: 8px;
+  padding: 0.6rem;
+}
+
+/* RESPONSIVE */
+@media (max-width: 600px) {
+  .card {
+    padding: 1rem;
+  }
+}
