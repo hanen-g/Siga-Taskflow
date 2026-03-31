@@ -1,31 +1,32 @@
-<div class="p-4 surface-ground min-h-screen">
+<div class="workspace-page p-4 min-h-screen">
   <p-toast />
   <p-confirmdialog />
-  
-  <div class="flex align-items-center justify-content-between mb-5 bg-white p-4 border-round-xl shadow-1">
+
+  <div class="workspace-header">
     <div>
-      <h1 class="text-3xl font-bold m-0 text-900">Project Workspace</h1>
-      <p>Manage your teams and track progress</p><br>
+      <h1 class="workspace-title">{{ pageTitle }}</h1>
+      <p class="workspace-subtitle">Manage your teams and track progress</p>
     </div>
-    <button pButton 
-            label="New Project" 
-            icon="pi pi-plus" 
-            class="p-button-raised p-button-primary border-round-lg px-4"
+    <button pButton
+            label="New Project"
+            icon="pi pi-plus"
+            class="workspace-create-button"
             (click)="showDialog()">
     </button>
   </div>
-<br>
-  <div class="grid">
-    <div class="col-12 md:col-6 lg:col-4 p-3" *ngFor="let project of (projects$ | async)">
+
+  <div class="projects-grid" *ngIf="(projects$ | async)?.length">
+    <div class="project-grid-item" *ngFor="let project of (projects$ | async)">
       <app-project-panel
         [project]="project"
         (edit)="editProject($event)"
-        (delete)="deleteProject($event)">
+        (delete)="deleteProject($event)"
+        (archive)="archiveProject($event)">
       </app-project-panel>
     </div>
   </div>
 
-  <div *ngIf="!(projects$ | async)?.length" class="flex flex-column align-items-center justify-content-center py-8">
+  <div *ngIf="!(projects$ | async)?.length" class="empty-state">
     <i class="pi pi-folder-open text-300 text-7xl mb-3"></i>
     <span class="text-600 text-xl font-medium">No projects found. Create one to get started!</span>
   </div>
@@ -33,11 +34,12 @@
 
 <p-dialog
   [header]="isEditMode ? 'Edit Project' : 'Launch new Project'"
-  [(visible)]="displayDialog"
+  [visible]="displayDialog"
   [modal]="true"
   [draggable]="false"
   [resizable]="false"
-  [style]="{width: '500px'}">
+  [style]="{width: '500px'}"
+  (onHide)="displayDialog = false">
 
   <ng-template pTemplate="content">
     <div class="flex flex-column mb-5 mt-3">

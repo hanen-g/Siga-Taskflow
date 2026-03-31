@@ -1,0 +1,422 @@
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Subscription } from 'rxjs';
+
+import { AutoCompleteModule } from 'primeng/autocomplete';
+import { AvatarModule } from 'primeng/avatar';
+import { ButtonModule } from 'primeng/button';
+import { CardModule } from 'primeng/card';
+import { DrawerModule } from 'primeng/drawer';
+import { InputTextModule } from 'primeng/inputtext';
+import { TextareaModule } from 'primeng/textarea';
+import { TooltipModule } from 'primeng/tooltip';
+
+import { Task, TaskStatus } from '../../models/task.model';
+import { TaskMessage } from '../../models/task-message.model';
+import { TaskService } from '../../services/task.service';
+import { UserService } from '../../services/user.service';
+import { WebsocketService } from '../../services/websocket.service';
+
+type TaskFilterKey = 'all' | 'pending' | 'inProgress' | 'completed';
+
+type GroupedTasks = { status: TaskStatus; title: string; tasks: Task[] };
+
+type FilterTab = { key: TaskFilterKey; label: string; icon: string; badge: number | null };
+
+const STATUS_CONFIG: Record<Exclude<TaskFilterKey, 'all'>, { status: TaskStatus; label: string; className: string; titleSuffix: string }> = {
+  pending: {
+    status: TaskStatus.TODO,
+    label: 'Pending',
+    className: 'status-pending',
+    titleSuffix: 'Tasks Pending',
+  },
+  inProgress: {
+    status: TaskStatus.IN_PROGRESS,
+    label: 'In progress',
+    className: 'status-inprogress',
+    titleSuffix: 'Tasks In Progress',
+  },
+  completed: {
+    status: TaskStatus.DONE,
+    label: 'Completed',
+    className: 'status-completed',
+    titleSuffix: 'Tasks Completed',
+  },
+};
+
+const FILTER_TAB_CONFIG: ReadonlyArray<Omit<FilterTab, 'badge'>> = [
+  { key: 'all', label: 'All', icon: 'pi-list' },
+  { key: 'pending', label: 'Pending', icon: 'pi-clock' },
+  { key: 'inProgress', label: 'In Progress', icon: 'pi-spinner' },
+  { key: 'completed', label: 'Completed', icon: 'pi-check' },
+];
+
+@Component({
+  selector: 'app-tasks-page',
+  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  templateUrl: './tasks-page.html',
+  styleUrls: ['./tasks-page.css'],
+  imports: [
+    CommonModule,
+    FormsModule,
+    AutoCompleteModule,
+    AvatarModule,
+    ButtonModule,
+    CardModule,
+    DrawerModule,
+    InputTextModule,
+    TextareaModule,
+    TooltipModule,
+  ],
+})
+export class TasksPage implements OnInit, OnDestroy {
+  tasks: Task[] = [];
+  filteredTasks: Task[] = [];
+  statuses: TaskStatus[] = [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.DONE];
+
+  activeFilter: TaskFilterKey = 'all';
+  searchText = '';
+  isLoading = false;
+  errorMessage = '';
+  isSaving = false;
+  drawerErrorMessage = '';
+  role: string | null = null;
+  pageTitle = 'Tasks';
+
+  collapsedSections: Record<TaskStatus, boolean> = {
+    [TaskStatus.TODO]: false,
+    [TaskStatus.IN_PROGRESS]: false,
+    [TaskStatus.DONE]: false,
+  };
+
+  filterTabs: FilterTab[] = [];
+  groupedTasks: GroupedTasks[] = [];
+
+  isDrawerOpen = false;
+  selectedTask: Task | null = null;
+  editForm = { title: '', description: '', collaboratorEmails: [] as string[] };
+  memberSearch = '';
+  memberSuggestions: string[] = [];
+
+  private readonly subscriptions = new Subscription();
+
+  constructor(
+    private taskService: TaskService,
+    private userService: UserService,
+    private ws: WebsocketService,
+    private cdr: ChangeDetectorRef
+  ) {}
+
+  get isManager(): boolean {
+    return this.role === 'PROJECT_MANAGER';
+  }
+
+  get isCollaborator(): boolean {
+    return this.role === 'COLLABORATOR';
+  }
+
+  get isAdmin(): boolean {
+    return this.role === 'ADMIN';
+  }
+
+  ngOnInit() {
+    this.detectRole();
+    this.pageTitle = this.isManager ? 'Tasks' : this.isCollaborator ? 'My Tasks' : 'All Tasks';
+    this.updateFilterTabs();
+    this.loadTasks();
+
+    this.subscriptions.add(
+      this.ws.getTaskUpdates().subscribe((_msg: TaskMessage) => {
+        this.loadTasks();
+      })
+    );
+  }
+
+  ngOnDestroy() {
+    this.subscriptions.unsubscribe();
+  }
+
+  detectRole() {
+    const userData = localStorage.getItem('user');
+
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        if (user?.role) {
+          this.role = user.role;
+          return;
+        }
+      } catch {
+        // fallback to token parse.
+      }
+    }
+
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        this.role = payload.role;
+      } catch {
+        this.role = null;
+      }
+    }
+  }
+
+  loadTasks() {
+    this.isLoading = true;
+    this.errorMessage = '';
+    this.cdr.detectChanges();
+
+    let tasks$;
+
+    if (this.isManager) {
+      tasks$ = this.taskService.getManagerTasks();
+    } else if (this.isCollaborator) {
+      tasks$ = this.taskService.getMyTasks();
+    } else if (this.isAdmin) {
+      tasks$ = this.taskService.getAllTasks();
+    } else {
+      this.errorMessage = 'Unknown user role.';
+      this.isLoading = false;
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.subscriptions.add(
+      tasks$?.subscribe({
+        next: (tasks: Task[]) => {
+          this.tasks = tasks;
+          this.isLoading = false;
+          this.refreshGrouping();
+          this.cdr.detectChanges();
+        },
+        error: (err) => {
+          this.isLoading = false;
+          this.errorMessage = 'Failed to load tasks. Please try again.';
+          console.error('Failed to load tasks', err);
+          this.cdr.detectChanges();
+        },
+      })
+    );
+  }
+
+  get activeStatus(): TaskStatus | null {
+    return this.activeFilter === 'all' ? null : STATUS_CONFIG[this.activeFilter].status;
+  }
+
+  setFilter(key: TaskFilterKey) {
+    this.activeFilter = key;
+    this.refreshGrouping();
+    this.cdr.detectChanges();
+  }
+
+  refreshGrouping() {
+    const search = this.searchText?.trim().toLowerCase();
+
+    const tasks = this.tasks.filter((task) => this.matchesFilter(task) && this.matchesSearch(task, search));
+    this.filteredTasks = tasks;
+    this.groupedTasks = this.buildGroupedTasks(tasks);
+    this.updateFilterTabs();
+  }
+
+  matchesFilter(task: Task): boolean {
+    return this.activeStatus === null || task.status === this.activeStatus;
+  }
+
+  matchesSearch(task: Task, search: string | null): boolean {
+    if (!search) {
+      return true;
+    }
+
+    const text = `${task.title} ${task.description} ${task.projectName ?? ''}`.toLowerCase();
+    return text.includes(search);
+  }
+
+  countByStatus(status: TaskStatus) {
+    return this.tasks.filter((t) => t.status === status).length;
+  }
+
+  getBadgeCount(filterKey: TaskFilterKey) {
+    if (filterKey === 'all') {
+      return this.tasks.length;
+    }
+
+    return this.countByStatus(STATUS_CONFIG[filterKey].status);
+  }
+
+  statusLabel(status: TaskStatus) {
+    return STATUS_CONFIG[Object.keys(STATUS_CONFIG).find((k) => STATUS_CONFIG[k as Exclude<TaskFilterKey, 'all'>].status === status) as Exclude<TaskFilterKey, 'all'>]?.label ?? status;
+  }
+
+  getStatusClass(status: TaskStatus): string {
+    return STATUS_CONFIG[Object.keys(STATUS_CONFIG).find((k) => STATUS_CONFIG[k as Exclude<TaskFilterKey, 'all'>].status === status) as Exclude<TaskFilterKey, 'all'>]?.className ?? '';
+  }
+
+  toggleSection(status: TaskStatus) {
+    this.collapsedSections[status] = !this.collapsedSections[status];
+    this.cdr.detectChanges();
+  }
+
+  editTask(task: Task) {
+    if (!this.isManager && !this.isAdmin) {
+      return;
+    }
+
+    this.selectedTask = task;
+    this.drawerErrorMessage = '';
+    this.editForm = {
+      title: task.title,
+      description: task.description,
+      collaboratorEmails: [...(task.collaboratorEmails ?? [])],
+    };
+    this.isDrawerOpen = true;
+    this.cdr.detectChanges();
+  }
+
+  deleteTask(task: Task) {
+    if (!this.isManager && !this.isAdmin) {
+      return;
+    }
+
+    if (confirm('Are you sure you want to delete this task?')) {
+      this.taskService.deleteTask(task.id!).subscribe({
+        next: () => this.loadTasks(),
+        error: (err) => console.error('Failed to delete task', err),
+      });
+    }
+  }
+
+  closeDrawer() {
+    this.isDrawerOpen = false;
+    this.isSaving = false;
+    this.drawerErrorMessage = '';
+    this.selectedTask = null;
+    this.editForm = { title: '', description: '', collaboratorEmails: [] };
+    this.memberSearch = '';
+    this.memberSuggestions = [];
+    this.cdr.detectChanges();
+  }
+
+  updateTask() {
+    if (!this.selectedTask) return;
+
+    if (!this.editForm.title.trim()) {
+      this.drawerErrorMessage = 'Task title is required.';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.isSaving = true;
+    this.drawerErrorMessage = '';
+    this.cdr.detectChanges();
+
+    this.taskService
+      .updateTask(this.selectedTask.id!, {
+        title: this.editForm.title.trim(),
+        description: this.editForm.description.trim(),
+        projectId: this.selectedTask.projectId,
+        collaboratorEmails: this.editForm.collaboratorEmails,
+      })
+      .subscribe({
+        next: () => {
+          this.isSaving = false;
+          this.closeDrawer();
+          this.loadTasks();
+        },
+        error: (err) => {
+          this.isSaving = false;
+          this.drawerErrorMessage = err?.error?.error || 'Failed to update task. Please try again.';
+          console.error('Failed to update task', err);
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  updateStatus(task: Task) {
+    if (!this.isCollaborator) {
+      return;
+    }
+
+    this.taskService.updateTaskStatus(task.id!, task.status).subscribe({
+      next: () => this.loadTasks(),
+      error: (err) => console.error('Failed to update status', err),
+    });
+  }
+
+  searchMembers(event: { query?: string }) {
+    if (!this.isManager && !this.isAdmin) {
+      return;
+    }
+
+    const query = String(event?.query ?? '').trim().toLowerCase();
+
+    if (!query) {
+      this.memberSuggestions = [];
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.subscriptions.add(
+      this.userService.searchCollaboratorEmails(query).subscribe({
+        next: (emails) => {
+          this.memberSuggestions = emails.filter((email) => !this.editForm.collaboratorEmails.includes(email));
+          this.cdr.detectChanges();
+        },
+        error: (err) => {
+          console.error('Failed to search collaborators', err);
+          this.memberSuggestions = [];
+          this.cdr.detectChanges();
+        },
+      })
+    );
+  }
+
+  addMemberEmail(email: string) {
+    if (!this.editForm.collaboratorEmails.includes(email)) {
+      this.editForm.collaboratorEmails.push(email);
+    }
+
+    this.memberSearch = '';
+    this.memberSuggestions = [];
+  }
+
+  removeMemberEmail(email: string) {
+    this.editForm.collaboratorEmails = this.editForm.collaboratorEmails.filter((entry) => entry !== email);
+  }
+
+  getInitialsFromEmail(email: string): string {
+    const name = email.split('@')[0];
+    return name.substring(0, 2).toUpperCase();
+  }
+
+  trackByFilter(_index: number, tab: FilterTab): TaskFilterKey {
+    return tab.key;
+  }
+
+  trackByGroup(_index: number, group: GroupedTasks): TaskStatus {
+    return group.status;
+  }
+
+  trackByTask(_index: number, task: Task): string | number | undefined {
+    return task.id;
+  }
+
+  private buildGroupedTasks(tasks: Task[]): GroupedTasks[] {
+    return (Object.values(STATUS_CONFIG) as Array<(typeof STATUS_CONFIG)[keyof typeof STATUS_CONFIG]>).map(
+      ({ status, titleSuffix }) => ({
+        status,
+        title: `${this.countByStatus(status)} ${titleSuffix}`,
+        tasks: tasks.filter((task) => task.status === status),
+      })
+    );
+  }
+
+  private updateFilterTabs() {
+    this.filterTabs = FILTER_TAB_CONFIG.map((tab) => ({
+      ...tab,
+      badge: this.getBadgeCount(tab.key),
+    }));
+  }
+}

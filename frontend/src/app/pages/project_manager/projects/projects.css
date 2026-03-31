@@ -1,52 +1,112 @@
-.project-card {
-  background: white;
-  border-radius: 15px;
-  padding: 1rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
-  margin: 5rem;
+.workspace-page {
+  background:
+    radial-gradient(circle at top left, rgba(187, 247, 208, 0.5), transparent 28%),
+    radial-gradient(circle at top right, rgba(191, 219, 254, 0.45), transparent 24%),
+    #f8fafc;
 }
 
-.task-list {
-  list-style: none;
-  padding: 0;
-  margin-top: 10px;
+.workspace-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  padding: 1.5rem;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: 1.5rem;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
 }
 
-.task-list li {
-  padding: 6px;
-  border-radius: 6px;
-  cursor: pointer;
+.workspace-title {
+  margin: 0;
+  color: #0f172a;
+  font-size: 2rem;
+  font-weight: 700;
 }
 
-.task-list li:hover {
-  background: #f3f4f6;
+.workspace-subtitle {
+  margin: 0.5rem 0 0;
+  color: #64748b;
+  font-size: 1rem;
+}
+
+.workspace-create-button {
+  border-radius: 1rem;
+  padding-inline: 1.25rem;
+}
+
+.projects-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5rem;
+  align-items: stretch;
+}
+
+.project-grid-item {
+  min-width: 0;
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 5rem 1rem;
+  text-align: center;
 }
 
 :host ::ng-deep .p-dialog .p-dialog-footer {
-    border-top: 1px solid #dee2e6;
-    padding: 1rem 1.5rem;
+  border-top: 1px solid #dee2e6;
+  padding: 1rem 1.5rem;
 }
 
 .p-input-icon-left {
-    display: block;
+  display: block;
 }
 
-input, textarea {
-    width: 100% !important;
+input,
+textarea {
+  width: 100% !important;
 }
-textarea:focus, input:focus {
-    box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25) !important;  
+
+textarea:focus,
+input:focus {
+  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.25) !important;
 }
+
 .large-input {
-    padding: 0.6rem !important; 
-    font-size: 1.1rem !important;
-    border: 1.5px solid #d1d5db !important; 
-    border-radius: 12px !important; 
-    background-color: #ffffff;
+  padding: 0.6rem !important;
+  font-size: 1.1rem !important;
+  border: 1.5px solid #d1d5db !important;
+  border-radius: 12px !important;
+  background-color: #ffffff;
 }
 
 label {
-    display: block;
-    color: #121313 !important; 
-    margin-bottom: 0.75rem !important;
-    margin:  1rem !important;}
+  display: block;
+  margin: 1rem !important;
+  margin-bottom: 0.75rem !important;
+  color: #121313 !important;
+}
+
+@media (max-width: 1024px) {
+  .projects-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .workspace-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .workspace-create-button {
+    width: 100%;
+  }
+
+  .projects-grid {
+    grid-template-columns: 1fr;
+  }
+}
