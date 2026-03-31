@@ -1,3 +1,5 @@
+import { User } from './user.model';
+
 export enum TaskStatus {
   TODO = 'TODO',
   IN_PROGRESS = 'IN_PROGRESS',
@@ -11,6 +13,8 @@ export interface Task {
   status: TaskStatus;
   projectId: number;
   collaboratorEmail?: string;
+  collaboratorEmails?: string[];
+  collaborators?: User[];
   projectName?: string;
 
 }

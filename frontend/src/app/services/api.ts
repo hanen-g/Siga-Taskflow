@@ -27,6 +27,11 @@ signup(data: { firstName: string; lastName: string; email: string; password: str
 getProfile() {
   return this.http.get<UserProfile>(`${this.baseUrl}/user/me`);
 }
+
+updateProfile(data: UpdateProfileRequest) {
+  return this.http.put<UserProfile>(`${this.baseUrl}/user/me`, data);
+}
+
 getRole(): string | null {
   const token = localStorage.getItem('token');
   if (!token) return null;
@@ -52,4 +57,11 @@ export interface UserProfile {
   firstName: string;
   lastName: string;
   role: string;
+}
+
+export interface UpdateProfileRequest {
+  firstName?: string;
+  lastName?: string;
+  password?: string;
+  currentPassword?: string;
 }
