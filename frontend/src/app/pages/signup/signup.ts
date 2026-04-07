@@ -1,6 +1,7 @@
 import { Component, ChangeDetectorRef } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
+import { HttpErrorResponse } from '@angular/common/http';
 import { ApiService } from '../../services/api';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
@@ -74,10 +75,18 @@ export class Signup {
           role: res.role
         }));
 
+        this.isLoading = false;
         this.router.navigate(['/login']);
       },
-      error: (err) => {
-        this.message = err.error?.error || 'Signup failed';
+      error: (err: HttpErrorResponse) => {
+        if (err.status === 409) {
+          this.message = 'This email is already registered. Please login or use another email.';
+        } else if (err.status === 400) {
+          this.message = err.error?.message || 'Invalid signup data. Please check the fields and try again.';
+        } else {
+          this.message = err.error?.error || err.error?.message || 'Signup failed. Please try again.';
+        }
+
         this.isLoading = false;
         this.cdr.detectChanges();
       }
