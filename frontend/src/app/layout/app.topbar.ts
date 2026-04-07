@@ -1,18 +1,19 @@
-import { Component, inject, OnInit, OnDestroy } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, HostListener } from '@angular/core';
 import { MenuItem } from 'primeng/api';
 import { RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { StyleClassModule } from 'primeng/styleclass';
+import { OverlayBadgeModule } from 'primeng/overlaybadge';
 import { LayoutService } from './service/layout.service';
 import { WebsocketService } from '../services/websocket.service';
 import { Notification } from '../models/notification.model';
+import { NotificationService } from '../services/notification.service';
 import { Subject } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
 
 @Component({
     selector: 'app-topbar',
     standalone: true,
-    imports: [RouterModule, CommonModule, StyleClassModule],
+    imports: [RouterModule, CommonModule, OverlayBadgeModule],
     template: ` <div class="layout-topbar">
         <div class="layout-topbar-logo-container">
             <button class="layout-menu-button layout-topbar-action" (click)="layoutService.onMenuToggle()">
@@ -29,11 +30,18 @@ import { takeUntil } from 'rxjs/operators';
                 
             </div>
 
-            <button class="layout-topbar-menu-button layout-topbar-action" pStyleClass="@next" enterFromClass="hidden" enterActiveClass="animate-scalein" leaveToClass="hidden" leaveActiveClass="animate-fadeout" [hideOnOutsideClick]="true">
+            <button
+                #topbarMenuButton
+                class="layout-topbar-menu-button layout-topbar-action"
+                type="button"
+                (click)="toggleTopbarMenu($event)">
                 <i class="pi pi-ellipsis-v"></i>
             </button>
 
-            <div class="layout-topbar-menu hidden lg:block">
+            <div
+                *ngIf="showTopbarMenu"
+                #topbarMenu
+                class="layout-topbar-menu">
                 <div class="layout-topbar-menu-content">
                     <div class="notification-container">
                         <button 
@@ -42,9 +50,16 @@ import { takeUntil } from 'rxjs/operators';
                             [class.has-notifications]="unreadCount > 0"
                             [class.shake]="showShake"
                             (click)="toggleNotifications()">
-                            <i class="pi pi-bell"></i>
+                            <p-overlaybadge
+                                *ngIf="unreadCount > 0; else plainBellIcon"
+                                [value]="unreadCount"
+                                severity="danger">
+                                <i class="pi pi-bell"></i>
+                            </p-overlaybadge>
+                            <ng-template #plainBellIcon>
+                                <i class="pi pi-bell"></i>
+                            </ng-template>
                             <span>Notifications</span>
-                            <span *ngIf="unreadCount > 0" class="notification-badge">{{ unreadCount }}</span>
                         </button>
                         
                         <!-- Notification Panel -->
@@ -66,8 +81,8 @@ import { takeUntil } from 'rxjs/operators';
                                             @if (notif.projectName) {
                                                 <small class="notification-meta">Project: {{ notif.projectName }}</small>
                                             }
-                                            @if (notif.taskTitle) {
-                                                <small class="notification-meta">Task: {{ notif.taskTitle }}</small>
+                                            @if (notif.managerName) {
+                                                <small class="notification-meta">Assigned by: {{ notif.managerName }}</small>
                                             }
                                         </div>
                                     </div>
@@ -87,7 +102,11 @@ import { takeUntil } from 'rxjs/operators';
                             }
                         </div>
                     </div>
-                    <button type="button" class="layout-topbar-action" [routerLink]="['/dashboard/profile']">
+                    <button
+                        type="button"
+                        class="layout-topbar-action"
+                        [routerLink]="['/dashboard/profile']"
+                        (click)="closeTopbarMenu()">
                         <i class="pi pi-user"></i>
                         <span>{{ userName || 'Profile' }}</span>
                     </button>
@@ -112,21 +131,9 @@ import { takeUntil } from 'rxjs/operators';
             position: relative;
         }
 
-        .notification-badge {
-            position: absolute;
-            top: -5px;
-            right: -5px;
-            background-color: #ef4444;
-            color: white;
-            border-radius: 50%;
-            width: 20px;
-            height: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.7rem;
-            font-weight: bold;
-            border: 2px solid white;
+        .notification-button p-overlaybadge {
+            display: inline-flex;
+            margin-right: 0.35rem;
         }
 
         @keyframes shake {
@@ -285,17 +292,28 @@ export class AppTopbar implements OnInit, OnDestroy {
 
     layoutService = inject(LayoutService);
     private ws = inject(WebsocketService);
+    private notificationService = inject(NotificationService);
+    private cdr = inject(ChangeDetectorRef);
     private destroy$ = new Subject<void>();
+    @ViewChild('topbarMenu') topbarMenu?: ElementRef<HTMLElement>;
+    @ViewChild('topbarMenuButton') topbarMenuButton?: ElementRef<HTMLElement>;
 
     notifications: Notification[] = [];
     unreadCount = 0;
     showNotificationPanel = false;
     showShake = false;
     userName = '';
+    mobileTopbarMenuVisible = false;
+    isDesktopView = window.innerWidth > 991;
+
+    get showTopbarMenu(): boolean {
+        return this.isDesktopView || this.mobileTopbarMenuVisible;
+    }
 
     ngOnInit() {
         // ensure websocket is connected
         this.ws.connect();
+        this.loadStoredNotifications();
 
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
@@ -310,9 +328,10 @@ export class AppTopbar implements OnInit, OnDestroy {
         this.ws.getNotificationStream()
             .pipe(takeUntil(this.destroy$))
             .subscribe((notif: Notification) => {
-                this.notifications.unshift(notif);
+                this.notifications.unshift({ ...notif, read: false });
                 this.unreadCount++;
                 this.triggerShake();
+                this.cdr.detectChanges();
             });
     }
 
@@ -328,16 +347,51 @@ export class AppTopbar implements OnInit, OnDestroy {
         }));
     }
 
+    toggleTopbarMenu(event: Event) {
+        event.stopPropagation();
+        this.mobileTopbarMenuVisible = !this.mobileTopbarMenuVisible;
+
+        if (!this.mobileTopbarMenuVisible) {
+            this.showNotificationPanel = false;
+        }
+    }
+
+    closeTopbarMenu() {
+        this.mobileTopbarMenuVisible = false;
+        this.showNotificationPanel = false;
+    }
+
     toggleNotifications() {
         this.showNotificationPanel = !this.showNotificationPanel;
-        if (this.showNotificationPanel) {
-            this.unreadCount = 0;
+        if (this.showNotificationPanel && this.unreadCount > 0) {
+            this.notificationService.markAllAsRead()
+                .pipe(takeUntil(this.destroy$))
+                .subscribe({
+                    next: () => {
+                        this.notifications = this.notifications.map(notification => ({ ...notification, read: true }));
+                        this.unreadCount = 0;
+                        this.cdr.detectChanges();
+                    },
+                    error: (error) => {
+                        console.error('Failed to mark notifications as read', error);
+                    }
+                });
         }
     }
 
     clearNotifications() {
-        this.notifications = [];
-        this.unreadCount = 0;
+        this.notificationService.clearMyNotifications()
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+                next: () => {
+                    this.notifications = [];
+                    this.unreadCount = 0;
+                    this.cdr.detectChanges();
+                },
+                error: (error) => {
+                    console.error('Failed to clear notifications', error);
+                }
+            });
     }
 
     private triggerShake() {
@@ -345,5 +399,44 @@ export class AppTopbar implements OnInit, OnDestroy {
         setTimeout(() => {
             this.showShake = false;
         }, 500);
+    }
+
+    @HostListener('window:resize')
+    onWindowResize() {
+        this.isDesktopView = window.innerWidth > 991;
+
+        if (this.isDesktopView) {
+            this.closeTopbarMenu();
+        }
+    }
+
+    @HostListener('document:click', ['$event'])
+    onDocumentClick(event: Event) {
+        if (this.isDesktopView || !this.mobileTopbarMenuVisible) {
+            return;
+        }
+
+        const target = event.target as Node | null;
+        const clickedInsideMenu = !!target && !!this.topbarMenu?.nativeElement.contains(target);
+        const clickedMenuButton = !!target && !!this.topbarMenuButton?.nativeElement.contains(target);
+
+        if (!clickedInsideMenu && !clickedMenuButton) {
+            this.closeTopbarMenu();
+        }
+    }
+
+    private loadStoredNotifications() {
+        this.notificationService.getMyNotifications()
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+                next: (notifications) => {
+                    this.notifications = notifications;
+                    this.unreadCount = notifications.filter(notification => !notification.read).length;
+                    this.cdr.detectChanges();
+                },
+                error: (error) => {
+                    console.error('Failed to load notifications', error);
+                }
+            });
     }
 }

@@ -4,6 +4,7 @@ import {
   Output,
   EventEmitter,
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   ElementRef,
   ViewChild,
   OnInit
@@ -20,7 +21,7 @@ import { TextareaModule } from 'primeng/textarea';
 import { ProjectService } from '../../../../services/project.service';
 import { TaskService } from '../../../../services/task.service';
 import { Project } from '../../../../models/project.model';
-import { Task, TaskStatus } from '../../../../models/task.model';
+import { Task, TaskStatus, Priority } from '../../../../models/task.model';
 
 @Component({
   selector: 'app-project-panel',
@@ -45,9 +46,13 @@ import { Task, TaskStatus } from '../../../../models/task.model';
           <p class="project-description">
             {{ project.description || 'No description yet for this project.' }}
           </p>
+          <p *ngIf="project.createdAt" class="project-created-at">
+            Created {{ project.createdAt | date: 'mediumDate' }}
+          </p>
         </div>
 
         <button
+          *ngIf="!project.archived"
           pButton
           type="button"
           label="+ New Task"
@@ -79,13 +84,24 @@ import { Task, TaskStatus } from '../../../../models/task.model';
                   placeholder="Description">
         </textarea>
 
+        <select [(ngModel)]="newTask.priority" class="p-inputtext">
+          <option [ngValue]="null">No priority</option>
+          <option *ngFor="let p of priorities" [ngValue]="p">{{ priorityLabel(p) }}</option>
+        </select>
+
+        <input type="datetime-local"
+               pInputText
+               [(ngModel)]="newTask.deadline"
+               placeholder="Deadline">
+
         <input pInputText
                [(ngModel)]="newTask.collaboratorEmail"
                placeholder="Email">
 
         <button pButton
-                label="Create Task"
+                [label]="isSavingTask ? 'Creating...' : 'Create Task'"
                 class="p-button-success"
+                [disabled]="isSavingTask"
                 (click)="saveTask()">
         </button>
       </div>
@@ -113,7 +129,6 @@ import { Task, TaskStatus } from '../../../../models/task.model';
       height: 100%;
       overflow: hidden;
       border-radius: 1.5rem;
-      background: #ffffff;
       border: 1px solid rgba(15, 23, 42, 0.08);
       box-shadow: 0 20px 45px rgba(15, 23, 42, 0.08);
     }
@@ -172,6 +187,13 @@ import { Task, TaskStatus } from '../../../../models/task.model';
       line-height: 1.5;
     }
 
+    .project-created-at {
+      margin: 0;
+      color: #94a3b8;
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+
     .project-task-button {
       width: 100%;
       justify-content: center;
@@ -198,6 +220,7 @@ export class ProjectPanel implements OnInit {
   @ViewChild('menu') menu?: Menu;
 
   taskDialogVisible = false;
+  isSavingTask = false;
   menuItems: MenuItem[] = [];
   bannerColor = '#dbeafe';
 
@@ -206,12 +229,17 @@ export class ProjectPanel implements OnInit {
     description: '',
     status: TaskStatus.TODO,
     projectId: 0,
-    collaboratorEmail: ''
+    collaboratorEmail: '',
+    priority: undefined,
+    deadline: undefined
   };
+
+  priorities: Priority[] = [Priority.LOW, Priority.MEDIUM, Priority.HIGH];
 
   constructor(
     private taskService: TaskService,
-    private projectService: ProjectService
+    private projectService: ProjectService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit() {
@@ -265,26 +293,69 @@ export class ProjectPanel implements OnInit {
   }
 
   openDialog() {
+    if (this.project.archived) {
+      return;
+    }
+
     this.newTask = {
       title: '',
       description: '',
       status: TaskStatus.TODO,
       projectId: this.project.id,
-      collaboratorEmail: ''
+      collaboratorEmail: '',
+      priority: undefined,
+      deadline: undefined
     };
+    this.isSavingTask = false;
     this.taskDialogVisible = true;
+    this.cdr.markForCheck();
   }
 
   saveTask() {
-    if (!this.newTask.title.trim()) return;
+    if (this.isSavingTask || !this.newTask.title.trim()) {
+      return;
+    }
 
-    this.taskService.createTask(this.newTask).subscribe(() => {
-      this.taskDialogVisible = false;
+    const taskToCreate: Task = { ...this.newTask };
+
+    this.isSavingTask = true;
+    this.taskDialogVisible = false;
+    this.cdr.detectChanges();
+
+    this.taskService.createTask(taskToCreate).subscribe({
+      next: () => {
+        this.isSavingTask = false;
+        this.newTask = {
+          title: '',
+          description: '',
+          status: TaskStatus.TODO,
+          projectId: this.project.id,
+          collaboratorEmail: '',
+          priority: undefined,
+          deadline: undefined
+        };
+        this.cdr.detectChanges();
+      },
+      error: () => {
+        this.isSavingTask = false;
+        this.newTask = taskToCreate;
+        this.taskDialogVisible = true;
+        this.cdr.detectChanges();
+      }
     });
   }
 
   openFilePicker() {
     this.fileInput?.nativeElement.click();
+  }
+
+  priorityLabel(priority: Priority): string {
+    switch (priority) {
+      case Priority.LOW: return 'Low';
+      case Priority.MEDIUM: return 'Medium';
+      case Priority.HIGH: return 'High';
+      default: return priority;
+    }
   }
 
   onFileSelected(event: any) {

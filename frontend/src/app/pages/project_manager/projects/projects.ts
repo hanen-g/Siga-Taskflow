@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Observable, Subject, of } from 'rxjs';
 import { switchMap, startWith } from 'rxjs/operators';
@@ -44,7 +44,8 @@ export class ProjectsPage implements OnInit {
 
   projects$: Observable<any[]> = of([]);
 
-  private projectsList: any[] = [];
+  projectsList: any[] = [];
+  searchText = '';
 
   displayDialog = false;
   isEditMode = false;
@@ -56,7 +57,8 @@ export class ProjectsPage implements OnInit {
     private projectService: ProjectService,
     private ws: WebsocketService,
     private confirmationService: ConfirmationService,
-    private messageService: MessageService
+    private messageService: MessageService,
+    private cdr: ChangeDetectorRef
   ) {
     this.ws.getProjectUpdates().subscribe(() => {
       this.refresh$.next();
@@ -74,9 +76,8 @@ export class ProjectsPage implements OnInit {
 
     this.projects$.subscribe(projects => {
       this.projectsList = projects || [];
+      this.cdr.detectChanges();
     });
-
-    this.refresh$.next();
   }
 
   private detectRole() {
@@ -113,6 +114,20 @@ export class ProjectsPage implements OnInit {
 
   private loadProjectsByRole(): Observable<any[]> {
     return this.isAdmin ? this.projectService.getAllProjects() : this.projectService.myProjects();
+  }
+
+  get filteredProjects(): any[] {
+    const search = this.searchText.trim().toLowerCase();
+
+    if (!search) {
+      return this.projectsList;
+    }
+
+    return this.projectsList.filter((project) => {
+      const name = String(project?.name ?? '').toLowerCase();
+      const description = String(project?.description ?? '').toLowerCase();
+      return name.includes(search) || description.includes(search);
+    });
   }
 
   showDialog() {
@@ -164,22 +179,34 @@ export class ProjectsPage implements OnInit {
 
     if (!this.validateProjectName()) return;
 
-    const request = this.isEditMode
+    const isEditing = this.isEditMode;
+
+    const request = isEditing
       ? this.projectService.updateProject(this.selectedProjectId!, this.newProject)
       : this.projectService.createProject(this.newProject);
 
-    request.subscribe(() => {
+    request.subscribe({
+      next: () => {
+        this.closeDialog();
+        this.refresh$.next();
 
-      this.closeDialog();
-      this.refresh$.next();
-
-      this.notify(
-        'success',
-        'Success',
-        this.isEditMode
-          ? 'Project updated successfully'
-          : 'Project created successfully'
-      );
+        this.notify(
+          'success',
+          'Success',
+          isEditing
+            ? 'Project updated successfully'
+            : 'Project created successfully'
+        );
+      },
+      error: () => {
+        this.notify(
+          'error',
+          'Request Failed',
+          isEditing
+            ? 'Project was updated on the server, but the app could not finish the request cleanly.'
+            : 'Unable to save the project.'
+        );
+      }
     });
   }
 

@@ -15,6 +15,30 @@
   align-items: center;
 }
 
+.profile-pic-container {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 1rem;
+}
+
+.profile-pic {
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--surface-border);
+}
+
+.profile-pic-edit {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.profile-pic-edit input[type="file"] {
+  max-width: 200px;
+}
+
 :deep(.p-password-input) {
   border-radius: 0.5rem;
 }
