@@ -1,5 +1,5 @@
 import { Injectable, OnDestroy } from '@angular/core';
-import { Client, IMessage } from '@stomp/stompjs';
+import { Client, Frame, IMessage } from '@stomp/stompjs';
 import { Observable, Subject, BehaviorSubject } from 'rxjs';
 import { Notification } from '../models/notification.model';
 import { TaskMessage } from '../models/task-message.model';
@@ -33,15 +33,39 @@ export class WebsocketService implements OnDestroy {
       return;
     }
 
+    // Get token - if not available, don't attempt connection
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.warn('WebsocketService: No authentication token found — WebSocket connection skipped');
+      return;
+    }
+
+    // Validate token format (should be JWT with 3 parts)
+    const tokenParts = token.split('.');
+    if (tokenParts.length !== 3) {
+      console.error('WebsocketService: Invalid token format. Expected JWT with 3 parts, got:', tokenParts.length);
+      return;
+    }
+
+    try {
+      // Try to decode token to check if it's valid
+      const payload = JSON.parse(atob(tokenParts[1]));
+      console.log('WebsocketService: Token decoded successfully. User:', payload.sub);
+    } catch (e) {
+      console.error('WebsocketService: Failed to decode token:', e);
+      return;
+    }
+
     this.isConnecting = true;
 
     const userId = this.getUserId();
+    console.log('WebsocketService: Attempting WebSocket connection for userId:', userId);
 
     this.client = new Client({
       brokerURL: 'ws://localhost:8080/ws',
 
       connectHeaders: {
-        Authorization: `Bearer ${localStorage.getItem('token') ?? ''}`
+        Authorization: `Bearer ${token}`
       },
 
       debug: () => {}, // Disabled — avoids exposing tokens and internal topics in the console
@@ -52,7 +76,7 @@ export class WebsocketService implements OnDestroy {
     });
 
     // ─── On Connect ────────────────────────────────────────────────────────────
-    this.client.onConnect = (frame) => {
+    this.client.onConnect = (frame: Frame) => {
       this.isConnecting = false;
       this.connectionState$.next(true);
 
@@ -101,17 +125,20 @@ export class WebsocketService implements OnDestroy {
     };
 
     // ─── On Error ──────────────────────────────────────────────────────────────
-    this.client.onStompError = (frame) => {
+    this.client.onStompError = (frame: Frame) => {
       this.isConnecting = false;
       this.connectionState$.next(false);
       console.error('WebSocket broker error:', frame.headers['message']);
       console.error('Details:', frame.body);
     };
 
-    this.client.onWebSocketError = (event) => {
+    this.client.onWebSocketError = (event: Event) => {
       this.isConnecting = false;
       this.connectionState$.next(false);
-      console.error('WebSocket error:', event);
+      
+      // Non-blocking error: Log but don't block the application
+      console.warn('WebSocket connection failed (non-blocking):', event);
+      console.warn('Application will continue to work without real-time notifications');
     };
 
     this.client.activate();
@@ -182,7 +209,7 @@ export class WebsocketService implements OnDestroy {
   // ─── Project Topic Subscription ──────────────────────────────────────────────
 
   private _subscribeToProjectTopic(projectId: number): void {
-    this.client?.subscribe(`/topic/tasks/project/${projectId}`, (msg) => {
+    this.client?.subscribe(`/topic/tasks/project/${projectId}`, (msg: IMessage) => {
       try {
         const payload = JSON.parse(msg.body) as TaskMessage;
         this.taskUpdates$.next(payload);
