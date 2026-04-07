@@ -7,6 +7,7 @@ import com.taskflow.backend.entity.User;
 import com.taskflow.backend.security.CustomUserDetails;
 import com.taskflow.backend.service.TaskService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,11 +37,10 @@ public class TaskController {
             taskService.deleteTask(id);
     }
     @GetMapping("/my-tasks")
-    public List<TaskResponse> myTasks(Authentication authentication) {
-        User user = (User) authentication.getPrincipal();
-        return taskService.getTasksForUser(user);
-    }
+    public List<TaskResponse> myTasks(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
 
+        return taskService.getCollaboratorTasks(userDetails.getUser());    }
 
 
 
