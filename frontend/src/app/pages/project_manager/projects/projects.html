@@ -15,8 +15,21 @@
     </button>
   </div>
 
-  <div class="projects-grid" *ngIf="(projects$ | async)?.length">
-    <div class="project-grid-item" *ngFor="let project of (projects$ | async)">
+  <div class="workspace-tools" *ngIf="projectsList.length">
+    <div class="workspace-search">
+      <div class="search-input-wrapper">
+        <i class="pi pi-search search-icon"></i>
+        <input
+          type="text"
+          [(ngModel)]="searchText"
+          placeholder="Search"
+          class="search-input" />
+      </div>
+    </div>
+  </div>
+
+  <div class="projects-grid" *ngIf="filteredProjects.length">
+    <div class="project-grid-item" *ngFor="let project of filteredProjects">
       <app-project-panel
         [project]="project"
         (edit)="editProject($event)"
@@ -26,9 +39,14 @@
     </div>
   </div>
 
-  <div *ngIf="!(projects$ | async)?.length" class="empty-state">
+  <div *ngIf="!projectsList.length" class="empty-state">
     <i class="pi pi-folder-open text-300 text-7xl mb-3"></i>
     <span class="text-600 text-xl font-medium">No projects found. Create one to get started!</span>
+  </div>
+
+  <div *ngIf="projectsList.length && !filteredProjects.length" class="empty-state">
+    <i class="pi pi-search text-300 text-6xl mb-3"></i>
+    <span class="text-600 text-xl font-medium">No projects match your search.</span>
   </div>
 </div>
 

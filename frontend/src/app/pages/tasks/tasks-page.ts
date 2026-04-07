@@ -7,16 +7,17 @@ import { AutoCompleteModule } from 'primeng/autocomplete';
 import { AvatarModule } from 'primeng/avatar';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
-import { DrawerModule } from 'primeng/drawer';
+import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { TextareaModule } from 'primeng/textarea';
 import { TooltipModule } from 'primeng/tooltip';
 
-import { Task, TaskStatus } from '../../models/task.model';
+import { Task, TaskStatus, Priority } from '../../models/task.model';
 import { TaskMessage } from '../../models/task-message.model';
 import { TaskService } from '../../services/task.service';
 import { UserService } from '../../services/user.service';
 import { WebsocketService } from '../../services/websocket.service';
+import { TaskDetailsPanelComponent } from './components/task-details-panel';
 
 type TaskFilterKey = 'all' | 'pending' | 'inProgress' | 'completed';
 
@@ -65,16 +66,18 @@ const FILTER_TAB_CONFIG: ReadonlyArray<Omit<FilterTab, 'badge'>> = [
     AvatarModule,
     ButtonModule,
     CardModule,
-    DrawerModule,
+    DialogModule,
     InputTextModule,
     TextareaModule,
     TooltipModule,
+    TaskDetailsPanelComponent,
   ],
 })
 export class TasksPage implements OnInit, OnDestroy {
   tasks: Task[] = [];
   filteredTasks: Task[] = [];
   statuses: TaskStatus[] = [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.DONE];
+  priorities: Priority[] = [Priority.LOW, Priority.MEDIUM, Priority.HIGH];
 
   activeFilter: TaskFilterKey = 'all';
   searchText = '';
@@ -94,9 +97,9 @@ export class TasksPage implements OnInit, OnDestroy {
   filterTabs: FilterTab[] = [];
   groupedTasks: GroupedTasks[] = [];
 
-  isDrawerOpen = false;
+  isEditDialogOpen = false;
   selectedTask: Task | null = null;
-  editForm = { title: '', description: '', collaboratorEmails: [] as string[] };
+  editForm = { title: '', description: '', collaboratorEmails: [] as string[], priority: null as Priority | null, deadline: null as string | null };
   memberSearch = '';
   memberSuggestions: string[] = [];
 
@@ -250,12 +253,31 @@ export class TasksPage implements OnInit, OnDestroy {
     return STATUS_CONFIG[Object.keys(STATUS_CONFIG).find((k) => STATUS_CONFIG[k as Exclude<TaskFilterKey, 'all'>].status === status) as Exclude<TaskFilterKey, 'all'>]?.label ?? status;
   }
 
+  priorityLabel(priority: Priority): string {
+    switch (priority) {
+      case Priority.LOW: return 'Low';
+      case Priority.MEDIUM: return 'Medium';
+      case Priority.HIGH: return 'High';
+      default: return priority;
+    }
+  }
+
   getStatusClass(status: TaskStatus): string {
     return STATUS_CONFIG[Object.keys(STATUS_CONFIG).find((k) => STATUS_CONFIG[k as Exclude<TaskFilterKey, 'all'>].status === status) as Exclude<TaskFilterKey, 'all'>]?.className ?? '';
   }
 
   toggleSection(status: TaskStatus) {
     this.collapsedSections[status] = !this.collapsedSections[status];
+    this.cdr.detectChanges();
+  }
+
+  selectTask(task: Task) {
+    this.selectedTask = task;
+    this.cdr.detectChanges();
+  }
+
+  closeTaskDetails() {
+    this.selectedTask = null;
     this.cdr.detectChanges();
   }
 
@@ -270,8 +292,10 @@ export class TasksPage implements OnInit, OnDestroy {
       title: task.title,
       description: task.description,
       collaboratorEmails: [...(task.collaboratorEmails ?? [])],
+      priority: task.priority ?? null,
+      deadline: task.deadline ?? null,
     };
-    this.isDrawerOpen = true;
+    this.isEditDialogOpen = true;
     this.cdr.detectChanges();
   }
 
@@ -288,12 +312,12 @@ export class TasksPage implements OnInit, OnDestroy {
     }
   }
 
-  closeDrawer() {
-    this.isDrawerOpen = false;
+  closeEditDialog() {
+    this.isEditDialogOpen = false;
     this.isSaving = false;
     this.drawerErrorMessage = '';
     this.selectedTask = null;
-    this.editForm = { title: '', description: '', collaboratorEmails: [] };
+    this.editForm = { title: '', description: '', collaboratorEmails: [], priority: null, deadline: null };
     this.memberSearch = '';
     this.memberSuggestions = [];
     this.cdr.detectChanges();
@@ -318,11 +342,13 @@ export class TasksPage implements OnInit, OnDestroy {
         description: this.editForm.description.trim(),
         projectId: this.selectedTask.projectId,
         collaboratorEmails: this.editForm.collaboratorEmails,
+        priority: this.editForm.priority ?? undefined,
+        deadline: this.editForm.deadline ?? undefined,
       })
       .subscribe({
         next: () => {
           this.isSaving = false;
-          this.closeDrawer();
+          this.closeEditDialog();
           this.loadTasks();
         },
         error: (err) => {

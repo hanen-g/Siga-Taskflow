@@ -21,6 +21,10 @@ export class WebsocketService implements OnDestroy {
   private projectSubjects             = new Map<number, Subject<TaskMessage>>();
   private pendingProjectSubscriptions = new Set<number>();
 
+  // ─── Task Comments Subscriptions ────────────────────────────────────────────
+  private taskCommentSubjects         = new Map<number, Subject<any>>();
+  private pendingTaskCommentSubscriptions = new Set<number>();
+
   // ─── Connect ─────────────────────────────────────────────────────────────────
 
   connect(): void {
@@ -102,6 +106,17 @@ export class WebsocketService implements OnDestroy {
         this._subscribeToProjectTopic(id);
       });
       this.pendingProjectSubscriptions.clear();
+
+      // ✅ Re-subscribe to all tracked task comment topics
+      this.taskCommentSubjects.forEach((_, taskId) => {
+        this._subscribeToTaskCommentsTopic(taskId);
+      });
+
+      // ✅ Flush any task comment subscriptions that were requested before connection was ready
+      this.pendingTaskCommentSubscriptions.forEach(id => {
+        this._subscribeToTaskCommentsTopic(id);
+      });
+      this.pendingTaskCommentSubscriptions.clear();
     };
 
     // ─── On Disconnect ─────────────────────────────────────────────────────────
@@ -144,6 +159,9 @@ export class WebsocketService implements OnDestroy {
     this.projectSubjects.forEach(s => s.complete());
     this.projectSubjects.clear();
     this.pendingProjectSubscriptions.clear();
+    this.taskCommentSubjects.forEach(s => s.complete());
+    this.taskCommentSubjects.clear();
+    this.pendingTaskCommentSubscriptions.clear();
 
     // Reinitialize subjects for future reconnections
     this.notifications$  = new Subject<Notification>();
@@ -202,6 +220,17 @@ export class WebsocketService implements OnDestroy {
     });
   }
 
+  private _subscribeToTaskCommentsTopic(taskId: number): void {
+    this.client?.subscribe(`/topic/tasks/comments/${taskId}`, (msg) => {
+      try {
+        const payload = JSON.parse(msg.body) as any;
+        this.taskCommentSubjects.get(taskId)?.next(payload);
+      } catch (e) {
+        console.error(`WebsocketService: Failed to parse comment message for task ${taskId}`, e);
+      }
+    });
+  }
+
   // ─── Public API ──────────────────────────────────────────────────────────────
 
   /**
@@ -236,6 +265,28 @@ export class WebsocketService implements OnDestroy {
 
   getTaskUpdates(): Observable<TaskMessage> {
     return this.taskUpdates$.asObservable();
+  }
+
+  /**
+   * Subscribe to comment updates for a specific task.
+   * Safe to call before or after connect().
+   */
+  subscribeToTaskComments(taskId: number): Observable<any> {
+    let subject = this.taskCommentSubjects.get(taskId);
+    const isFirstSubscription = !subject;
+
+    if (!subject) {
+      subject = new Subject<any>();
+      this.taskCommentSubjects.set(taskId, subject);
+    }
+
+    if (this.client?.connected && isFirstSubscription) {
+      this._subscribeToTaskCommentsTopic(taskId);
+    } else if (!this.client?.connected) {
+      this.pendingTaskCommentSubscriptions.add(taskId);
+    }
+
+    return subject.asObservable();
   }
 
   /** Emits true when connected, false when disconnected or on error */

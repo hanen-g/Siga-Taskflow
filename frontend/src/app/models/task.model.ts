@@ -6,11 +6,20 @@ export enum TaskStatus {
   DONE = 'DONE'
 }
 
+export enum Priority {
+  LOW = 'LOW',
+  MEDIUM = 'MEDIUM',
+  HIGH = 'HIGH',
+  URGENT = 'URGENT'
+}
+
 export interface Task {
-  id?: number; 
+  id?: number;
   title: string;
   description: string;
   status: TaskStatus;
+  priority?: Priority;
+  deadline?: string;
   projectId: number;
   collaboratorEmail?: string;
   collaboratorEmails?: string[];
