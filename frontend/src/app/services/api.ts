@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
 
 @Injectable({
   providedIn: 'root'
@@ -9,6 +10,10 @@ export class ApiService {
   private baseUrl = 'http://localhost:8080/api';
 
   constructor(private http: HttpClient) {}
+  
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
   
 login(email: string, password: string) {
   return this.http.post<AuthResponse>(
@@ -30,6 +35,12 @@ getProfile() {
 
 updateProfile(data: UpdateProfileRequest) {
   return this.http.put<UserProfile>(`${this.baseUrl}/user/me`, data);
+}
+
+uploadFile(file: File): Observable<FileUploadResponse> {
+  const form = new FormData();
+  form.append('file', file);
+  return this.http.post<FileUploadResponse>(`${this.baseUrl}/files/upload`, form);
 }
 
 getRole(): string | null {
@@ -57,6 +68,7 @@ export interface UserProfile {
   firstName: string;
   lastName: string;
   role: string;
+  profilePicture?: string;
 }
 
 export interface UpdateProfileRequest {
@@ -64,4 +76,9 @@ export interface UpdateProfileRequest {
   lastName?: string;
   password?: string;
   currentPassword?: string;
+  profilePicture?: string;
+}
+
+export interface FileUploadResponse {
+  url: string;
 }

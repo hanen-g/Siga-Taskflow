@@ -10,6 +10,18 @@
 
   <div class="bg-white shadow-1 border-round-xl p-5 max-w-2xl">
     <ng-container *ngIf="!isEditingProfile && !isChangingPassword">
+      <div class="profile-pic-container mb-4 text-center">
+        <ng-container *ngIf="getProfilePictureSrc(); else avatarFallback">
+          <img
+            [src]="getProfilePictureSrc()"
+            alt="Profile Picture"
+            class="profile-pic"
+          />
+        </ng-container>
+        <ng-template #avatarFallback>
+          <p-avatar [label]="getInitials()" styleClass="profile-pic"></p-avatar>
+        </ng-template>
+      </div>
       <div class="grid formgrid p-fluid">
         <div class="field col-12 md:col-6">
           <label>First Name</label>
@@ -49,6 +61,23 @@
         <div class="field col-12">
           <label for="email">Email</label>
           <input id="email" type="text" pInputText [value]="email" readonly />
+        </div>
+
+        <div class="field col-12">
+          <label>Profile Picture</label>
+          <div class="profile-pic-edit">
+            <ng-container *ngIf="getProfilePictureSrc(); else avatarFallbackEdit">
+              <img
+                [src]="getProfilePictureSrc()"
+                alt="Profile Picture"
+                class="profile-pic"
+              />
+            </ng-container>
+            <ng-template #avatarFallbackEdit>
+              <p-avatar [label]="getInitials()" styleClass="profile-pic"></p-avatar>
+            </ng-template>
+            <input type="file" accept="image/*" (change)="onProfilePictureChange($event)" />
+          </div>
         </div>
       </div>
 

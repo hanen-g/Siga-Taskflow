@@ -22,21 +22,26 @@ export class ProjectService {
   createProject(project: any): Observable<any> {
     return this.http.post<any>(this.apiUrl, project);
   }
-  updateProject(id: number, project: any) {
-  return this.http.put(`${this.apiUrl}/${id}`, project);
-}
 
-deleteProject(id: number): Observable<void> {
-  return this.http.delete<void>(`${this.apiUrl}/${id}`);
-}
+  updateProject(id: number, project: any): Observable<string> {
+    // The backend update currently returns a 200 response with a body Angular
+    // cannot parse as JSON, so we accept it as plain text.
+    return this.http.put(`${this.apiUrl}/${id}`, project, {
+      responseType: 'text'
+    });
+  }
 
-archiveProject(id: number, archived: boolean): Observable<any> {
-  return this.http.put<any>(`${this.apiUrl}/${id}/archive?archived=${archived}`, {});
-}
+  deleteProject(id: number): Observable<void> {
+    return this.http.delete<void>(`${this.apiUrl}/${id}`);
+  }
 
-getArchivedProjects(): Observable<any[]> {
-  return this.http.get<any[]>(`${this.apiUrl}/archived`);
-}
+  archiveProject(id: number, archived: boolean): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/${id}/archive?archived=${archived}`, {});
+  }
+
+  getArchivedProjects(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.apiUrl}/archived`);
+  }
 
   /** upload a file; server returns updated project object */
   uploadAttachment(projectId: number, file: File): Observable<any> {
