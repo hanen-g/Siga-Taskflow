@@ -9,18 +9,16 @@ import { AppMenuitem } from './app.menuitem';
     selector: 'app-menu',
     standalone: true,
     imports: [CommonModule, AppMenuitem, RouterModule],
-    template: `
-    <ul class="layout-menu">
-        @for (item of model; track item.label) {
-            @if (!item.separator) {
-                <li app-menuitem [item]="item" [root]="true"></li>
-            } @else {
-                <li class="menu-separator"></li>
-            }
-        }
-    </ul>
-    `
-})
+    template:`<ul class="layout-menu">
+  @for (item of model; track item.label) {
+    @if (!item.separator) {
+      <li app-menuitem [item]="item" [root]="true"></li>
+    } @else {
+      <li class="menu-separator"></li>
+    }
+  }
+</ul>
+`})
 export class AppMenu {
     model: MenuItem[] = [];
 
@@ -39,7 +37,6 @@ export class AppMenu {
     }
 
     logout() {
-        // make sure any active websocket connection is closed as user leaves
         this.ws.disconnect();
         localStorage.clear();
         this.router.navigate(['/login']);
@@ -81,6 +78,12 @@ export class AppMenu {
                     ]
                 },
                 {
+                    label: 'Projects',
+                    items: [
+                        { label: 'Project List', icon: 'pi pi-folder', routerLink: ['/dashboard/collab/projects'] }
+                    ]
+                },
+                {
                     label: 'Tasks',
                     items: [
                         { label: 'My Tasks', icon: 'pi pi-check-square', routerLink: ['/dashboard/collab/tasks'] }
@@ -103,13 +106,19 @@ export class AppMenu {
                         { label: 'All Projects', icon: 'pi pi-folder', routerLink: ['/dashboard/admin/projects'] },
                         { label: 'All Tasks', icon: 'pi pi-check-square', routerLink: ['/dashboard/admin/tasks'] }
                     ]
+                },
+                {
+                    label: 'Users',
+                    items: [
+                        { label: 'Users', icon: 'pi pi-users', routerLink: ['/dashboard/admin/users'] }
+                    ]
                 }
             ];
         }
 
         this.model.push({
             items: [
-                { label: 'Logout', icon: 'pi pi-sign-out', command: () => this.logout(), style: { 'color': '#ef4444' } }
+                { label: 'Logout', icon: 'pi pi-sign-out', command: () => this.logout(), style: { 'color': '#e61414' } }
             ]
         });
     }

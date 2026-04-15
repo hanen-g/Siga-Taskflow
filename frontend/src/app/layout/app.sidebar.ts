@@ -8,12 +8,10 @@ import { LayoutService } from '@/app/layout/service/layout.service';
     selector: 'app-sidebar',
     standalone: true,
     imports: [AppMenu, RouterModule],
-    template: `
-        <div class="layout-sidebar">
-            <app-menu></app-menu>
-        </div>
-    `
-})
+    template:`<div class="layout-sidebar">
+  <app-menu></app-menu>
+</div>
+`})
 export class AppSidebar implements OnInit, OnDestroy {
     layoutService = inject(LayoutService);
 

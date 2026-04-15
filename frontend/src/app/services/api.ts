@@ -79,6 +79,7 @@ export interface UpdateProfileRequest {
   profilePicture?: string;
 }
 
+/** Matches backend {@code UploadedFileResponse} for POST /api/files/upload. */
 export interface FileUploadResponse {
-  url: string;
+  fileUrl: string;
 }

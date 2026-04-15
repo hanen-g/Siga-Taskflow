@@ -1,11 +1,13 @@
-
 <div class="login-page">
   <p-toast></p-toast>
 
   <section class="left-panel">
     <div class="left-bg-overlay"></div>
-    <div class="left-top-logo" aria-label="SIGA logo">SIGA</div>
-
+    <img
+      [src]="logoSrc"
+      (error)="handleLogoError($event)"
+      alt="SIGA"
+      class="left-top-logo" />
     <div class="left-content">
       <h1>Join Us!</h1>
       <a routerLink="/signup" class="left-signup-btn">Sign Up</a>
@@ -26,7 +28,6 @@
 
         <div class="field icon-field">
           <i class="pi pi-user"></i>
-          
           <input
             pInputText
             type="email"
@@ -52,15 +53,12 @@
             required
             class="underline-input" />
         </div>
-
-        <p-button
-          type="submit"
-          [label]="isLoading ? 'Signing in...' : 'Sign in'"
-          [disabled]="isLoading"
-          [loading]="isLoading"
-          class="signin-btn"
-          [rounded]="true">
-        </p-button>
+<button
+  type="submit"
+  class="signin-btn"
+  [disabled]="isLoading">
+  {{ isLoading ? 'Signing in...' : 'Sign in' }}
+</button>
       </form>
     </div>
   </section>

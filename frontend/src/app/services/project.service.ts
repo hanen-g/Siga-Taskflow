@@ -43,10 +43,14 @@ export class ProjectService {
     return this.http.get<any[]>(`${this.apiUrl}/archived`);
   }
 
+  getProject(id: number): Observable<any> {
+    return this.http.get<any>(`${this.apiUrl}/${id}`);
+  }
+
   /** upload a file; server returns updated project object */
   uploadAttachment(projectId: number, file: File): Observable<any> {
     const form = new FormData();
     form.append('file', file);
-    return this.http.post<any>(`${this.apiUrl}/${projectId}/attachment`, form);
+    return this.http.post<any>('http://localhost:8080/api/files/projects/' + projectId, form);
   }
 }

@@ -1,8 +1,8 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { switchMap } from 'rxjs/operators';
-import { of } from 'rxjs';
+import { Subject, of } from 'rxjs';
+import { map, switchMap, takeUntil } from 'rxjs/operators';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { PasswordModule } from 'primeng/password';
@@ -12,6 +12,7 @@ import { ToastModule } from 'primeng/toast';
 import { AvatarModule } from 'primeng/avatar';
 import { MessageService } from 'primeng/api';
 import { ApiService, UpdateProfileRequest, UserProfile } from '../../services/api';
+import { FileAccessService } from '../../services/file-access.service';
 
 @Component({
   selector: 'app-profile',
@@ -31,8 +32,24 @@ import { ApiService, UpdateProfileRequest, UserProfile } from '../../services/ap
   templateUrl: './profile.html',
   styleUrls: ['./profile.css'],
 })
-export class ProfilePage implements OnInit {
-  private readonly maxProfileImageSizeBytes = 10 * 1024 * 1024;
+export class ProfilePage implements OnInit, OnDestroy {
+  // ── Private internals ──────────────────────────────────────────────────────
+
+  private readonly MAX_PROFILE_IMAGE_BYTES = 5 * 1024 * 1024;
+
+  private readonly destroy$ = new Subject<void>();
+  private readonly picturePath$ = new Subject<string | null>();
+
+  /** Object URL created from the last successfully fetched server-relative path. */
+  private profilePictureObjectUrl = '';
+  /** Server path that `profilePictureObjectUrl` was created from, if any. */
+  private profilePictureBlobSourcePath = '';
+
+  // ── Public state ───────────────────────────────────────────────────────────
+
+  /** Bound in the template; empty string falls back to initials avatar. */
+  profilePictureDisplaySrc = '';
+
   user: UserProfile | null = null;
   firstName = '';
   lastName = '';
@@ -41,109 +58,129 @@ export class ProfilePage implements OnInit {
   profilePicturePreview = '';
   selectedProfileImage: File | null = null;
 
+  // ── UI flags ───────────────────────────────────────────────────────────────
+
   isEditingProfile = false;
   isChangingPassword = false;
   showPasswordDialog = false;
+  isLoading = false;
+
+  // ── Form fields ────────────────────────────────────────────────────────────
 
   currentPassword = '';
   password = '';
   confirmPassword = '';
-  isLoading = false;
 
-  constructor(private api: ApiService, private messageService: MessageService) {}
+  // ── Constructor ────────────────────────────────────────────────────────────
 
-  ngOnInit() {
+  constructor(
+    private api: ApiService,
+    private messageService: MessageService,
+    private fileAccessService: FileAccessService,
+  ) {
+    this.picturePath$
+      .pipe(
+        switchMap((path) => {
+          if (!path || this.isDirectUrl(path)) return [];
+          if (this.profilePictureObjectUrl && this.profilePictureBlobSourcePath === path) return [];
+          this.revokePictureObjectUrl();
+          return this.fileAccessService.fetchFileBlob(path).pipe(
+            map((blob) => ({ path, blob })),
+          );
+        }),
+        takeUntil(this.destroy$),
+      )
+      .subscribe({
+        next: ({ path, blob }) => {
+          this.profilePictureObjectUrl = URL.createObjectURL(blob);
+          this.profilePictureBlobSourcePath = path;
+          this.profilePictureDisplaySrc = this.profilePictureObjectUrl;
+        },
+        error: () => {
+          this.profilePictureDisplaySrc = '';
+        },
+      });
+  }
+
+  // ── Lifecycle ──────────────────────────────────────────────────────────────
+
+  ngOnInit(): void {
     this.loadProfile();
   }
 
-  loadProfile() {
-    const storedUser = localStorage.getItem('user');
-    if (storedUser) {
-      try {
-        this.user = JSON.parse(storedUser);
-        if (this.user) {
-          this.firstName = this.user.firstName;
-          this.lastName = this.user.lastName;
-          this.email = this.user.email;
-          this.profilePicture = this.user.profilePicture || '';
-          this.profilePicturePreview = '';
-        }
-      } catch (e) {
-        console.error('Failed to parse stored user:', e);
-      }
-    }
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+    this.revokePictureObjectUrl();
+    this.revokePicturePreviewBlob();
+  }
+
+  // ── Data loading ───────────────────────────────────────────────────────────
+
+  loadProfile(): void {
+    this.applyProfile(this.readCachedUser());
 
     this.api.getProfile().subscribe({
       next: (profile) => {
-        this.user = profile;
-        this.firstName = profile.firstName;
-        this.lastName = profile.lastName;
-        this.email = profile.email;
-        this.profilePicture = profile.profilePicture || '';
-        this.profilePicturePreview = '';
-        this.selectedProfileImage = null;
+        this.applyProfile(profile);
         localStorage.setItem('user', JSON.stringify(profile));
       },
       error: (err) => {
         console.error('Failed to load profile:', err);
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: 'Unable to load profile information.',
-          life: 3000,
-        });
+        this.showError('Unable to load profile information.');
       },
     });
   }
 
-  enterEditMode() {
+  // ── Mode transitions ───────────────────────────────────────────────────────
+
+  enterEditMode(): void {
+    this.resetModes();
     this.isEditingProfile = true;
-    this.isChangingPassword = false;
-    this.password = '';
-    this.confirmPassword = '';
   }
 
-  enterChangePasswordMode() {
+  enterChangePasswordMode(): void {
+    this.resetModes();
     this.isChangingPassword = true;
-    this.isEditingProfile = false;
     this.showPasswordDialog = true;
-    this.currentPassword = '';
-    this.password = '';
-    this.confirmPassword = '';
   }
 
-  cancelEditing() {
-    this.isEditingProfile = false;
-    this.isChangingPassword = false;
-    this.showPasswordDialog = false;
+  cancelEditing(): void {
+    this.resetModes();
     this.loadProfile();
   }
 
-  onProfilePictureChange(event: Event) {
-    const input = event.target as HTMLInputElement;
-    if (!input.files || input.files.length === 0) {
-      return;
-    }
+  // ── Event handlers ─────────────────────────────────────────────────────────
 
-    const file = input.files[0];
-    if (file.size > this.maxProfileImageSizeBytes) {
+  onProfilePictureChange(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+
+    if (!file) return;
+
+    if (file.size > this.MAX_PROFILE_IMAGE_BYTES) {
       input.value = '';
       this.selectedProfileImage = null;
-      this.profilePicturePreview = '';
+      this.revokePicturePreviewBlob();
+      this.syncPictureDisplay();
       this.messageService.add({
         severity: 'warn',
-        summary: 'Image Too Large',
-        detail: 'Please choose an image smaller than 10 MB.',
+        summary: 'Image too large',
+        detail: 'Please choose an image smaller than 5 MB.',
         life: 3000,
       });
       return;
     }
 
     this.selectedProfileImage = file;
-    this.profilePicturePreview = URL.createObjectURL(this.selectedProfileImage);
+    this.revokePicturePreviewBlob();
+    this.profilePicturePreview = URL.createObjectURL(file);
+    this.syncPictureDisplay();
   }
 
-  saveProfile() {
+  // ── Save actions ───────────────────────────────────────────────────────────
+
+  saveProfile(): void {
     if (!this.firstName || !this.lastName) {
       this.messageService.add({
         severity: 'warn',
@@ -162,35 +199,23 @@ export class ProfilePage implements OnInit {
 
     const upload$ = this.selectedProfileImage
       ? this.api.uploadFile(this.selectedProfileImage).pipe(
-          switchMap((response) =>
-            of({
-              ...basePayload,
-              profilePicture: response.url,
-            }),
-          ),
+          map((res) => ({ ...basePayload, profilePicture: res.fileUrl })),
         )
       : of(basePayload);
 
     this.isLoading = true;
 
     upload$.subscribe({
-      next: (payload) => {
-        this.updateProfile(payload, 'Profile updated successfully.');
-      },
+      next: (payload) => this.updateProfile(payload, 'Profile updated successfully.'),
       error: (err) => {
         console.error('Profile picture upload error:', err);
         this.isLoading = false;
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: err.error?.error || err.error?.message || 'Failed to upload profile picture.',
-          life: 3000,
-        });
+        this.showError(err.error?.error ?? err.error?.message ?? 'Failed to upload profile picture.');
       },
     });
   }
 
-  savePassword() {
+  savePassword(): void {
     if (!this.currentPassword || !this.password || this.password !== this.confirmPassword) {
       this.messageService.add({
         severity: 'warn',
@@ -207,72 +232,120 @@ export class ProfilePage implements OnInit {
     );
   }
 
-  private updateProfile(payload: UpdateProfileRequest, successMessage: string) {
+  // ── Getters ────────────────────────────────────────────────────────────────
+
+  getInitials(): string {
+    const first = this.firstName?.charAt(0).toUpperCase() ?? '';
+    const last = this.lastName?.charAt(0).toUpperCase() ?? '';
+    if (first || last) return `${first}${last}`;
+    return this.email ? this.email.split('@')[0].substring(0, 2).toUpperCase() : 'U';
+  }
+
+  get roleLabel(): string {
+    return this.user?.role?.replaceAll('_', ' ') ?? 'Member';
+  }
+
+  // ── Private helpers ────────────────────────────────────────────────────────
+
+  private readCachedUser(): UserProfile | null {
+    try {
+      const raw = localStorage.getItem('user');
+      return raw ? (JSON.parse(raw) as UserProfile) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private applyProfile(profile: UserProfile | null): void {
+    if (!profile) return;
+    this.user = profile;
+    this.firstName = profile.firstName;
+    this.lastName = profile.lastName;
+    this.email = profile.email;
+    this.selectedProfileImage = null;
+    this.revokePictureObjectUrl();
+    this.revokePicturePreviewBlob();
+    this.profilePicture = profile.profilePicture ?? '';
+    this.syncPictureDisplay();
+  }
+
+  private updateProfile(payload: UpdateProfileRequest, successMessage: string): void {
     this.isLoading = true;
 
     this.api.updateProfile(payload).subscribe({
       next: (profile) => {
-        this.user = profile;
-        this.firstName = profile.firstName;
-        this.lastName = profile.lastName;
-        this.email = profile.email;
-        this.profilePicture = profile.profilePicture || '';
-        this.profilePicturePreview = '';
-        this.selectedProfileImage = null;
+        this.applyProfile(profile);
         localStorage.setItem('user', JSON.stringify(profile));
         this.isLoading = false;
         this.isEditingProfile = false;
         this.isChangingPassword = false;
-        this.password = '';
-        this.confirmPassword = '';
-        this.messageService.add({
-          severity: 'success',
-          summary: 'Saved',
-          detail: successMessage,
-          life: 3000,
-        });
+        this.clearPasswordFields();
+        this.messageService.add({ severity: 'success', summary: 'Saved', detail: successMessage, life: 3000 });
       },
       error: (err) => {
         console.error('Profile update error:', err);
         this.isLoading = false;
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: err.error?.message || 'Failed to update profile.',
-          life: 3000,
-        });
+        this.showError(err.error?.message ?? 'Failed to update profile.');
       },
     });
   }
 
-  getProfilePictureSrc(): string {
+  private syncPictureDisplay(): void {
     const picture = this.profilePicturePreview || this.profilePicture;
 
     if (!picture) {
-      return '';
+      this.revokePictureObjectUrl();
+      this.profilePictureDisplaySrc = '';
+      return;
     }
 
-    if (picture.startsWith('blob:') || picture.startsWith('data:') || picture.startsWith('http')) {
-      return picture;
+    if (this.isDirectUrl(picture)) {
+      this.revokePictureObjectUrl();
+      this.profilePictureDisplaySrc = picture;
+      return;
     }
 
-    // Use the API base URL without the /api suffix for file URLs
-    const baseUrl = this.api.getBaseUrl().replace('/api', '');
-    return `${baseUrl}${picture}`;
+    if (this.profilePictureObjectUrl && this.profilePictureBlobSourcePath === picture) {
+      this.profilePictureDisplaySrc = this.profilePictureObjectUrl;
+      return;
+    }
+
+    this.profilePictureDisplaySrc = '';
+    this.picturePath$.next(picture);
   }
 
-  getInitials(): string {
-    if (this.firstName || this.lastName) {
-      const firstInitial = this.firstName ? this.firstName.charAt(0).toUpperCase() : '';
-      const lastInitial = this.lastName ? this.lastName.charAt(0).toUpperCase() : '';
-      return `${firstInitial}${lastInitial}` || this.email.split('@')[0].substring(0, 2).toUpperCase();
-    }
+  private isDirectUrl(url: string): boolean {
+    return /^(blob:|data:|https?:)/.test(url);
+  }
 
-    if (this.email) {
-      return this.email.split('@')[0].substring(0, 2).toUpperCase();
-    }
+  private resetModes(): void {
+    this.isEditingProfile = false;
+    this.isChangingPassword = false;
+    this.showPasswordDialog = false;
+    this.clearPasswordFields();
+  }
 
-    return '';
+  private clearPasswordFields(): void {
+    this.currentPassword = '';
+    this.password = '';
+    this.confirmPassword = '';
+  }
+
+  private showError(detail: string): void {
+    this.messageService.add({ severity: 'error', summary: 'Error', detail, life: 3000 });
+  }
+
+  private revokePicturePreviewBlob(): void {
+    if (this.profilePicturePreview.startsWith('blob:')) {
+      URL.revokeObjectURL(this.profilePicturePreview);
+    }
+    this.profilePicturePreview = '';
+  }
+
+  private revokePictureObjectUrl(): void {
+    if (!this.profilePictureObjectUrl) return;
+    URL.revokeObjectURL(this.profilePictureObjectUrl);
+    this.profilePictureObjectUrl = '';
+    this.profilePictureBlobSourcePath = '';
   }
 }
-

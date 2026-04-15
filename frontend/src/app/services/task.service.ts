@@ -45,4 +45,10 @@ export class TaskService {
   getAllTasks(): Observable<Task[]> {
     return this.http.get<Task[]>(`${this.apiUrl}/all`);
   }
+
+  uploadTaskFile(taskId: number, file: File): Observable<any> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http.post<any>(`http://localhost:8080/api/files/tasks/${taskId}`, form);
+  }
 }

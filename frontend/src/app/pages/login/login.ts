@@ -43,6 +43,8 @@ export class Login implements OnInit {
   password = '';
   message = '';
   isLoading = false;
+  logoSrc = '/assets/images/LOGO_SIGA.png';
+  private readonly fallbackLogoSrc = 'https://www.siga.tn/wp-content/uploads/2018/02/NV_LOGO_SIGA_2_69.png';
 
   constructor(
     private api: ApiService,
@@ -52,10 +54,39 @@ export class Login implements OnInit {
   ) {}
 
   ngOnInit() {
-    // Check if already authenticated and redirect
     const token = localStorage.getItem('token');
-    if (token) {
-      this.router.navigate(['/dashboard']);
+    if (!token) {
+      return;
+    }
+    const role = this.api.getRole();
+    if (!role) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      return;
+    }
+    this.navigateByRole(role);
+  }
+
+  private navigateByRole(role: string): void {
+    if (role === 'PROJECT_MANAGER') {
+      this.router.navigate(['/dashboard/pm']);
+    } else if (role === 'COLLABORATOR') {
+      this.router.navigate(['/dashboard/collab']);
+    } else if (role === 'ADMIN') {
+      this.router.navigate(['/dashboard/admin']);
+    } else {
+      this.router.navigate(['/dashboard/collab']);
+    }
+  }
+
+  handleLogoError(event: Event) {
+    const img = event.target as HTMLImageElement | null;
+    if (!img) {
+      return;
+    }
+
+    if (img.src !== this.fallbackLogoSrc) {
+      this.logoSrc = this.fallbackLogoSrc;
     }
   }
 
@@ -70,7 +101,6 @@ export class Login implements OnInit {
     
     this.api.login(this.username, this.password).subscribe({
       next: (res) => {
-        // Store token and user data before navigation
         localStorage.setItem('token', res.token);
         localStorage.setItem(
           'user',
@@ -83,25 +113,14 @@ export class Login implements OnInit {
           }),
         );
         
-        // Navigate based on user role
-        if (res.role === 'PROJECT_MANAGER') {
-          this.router.navigate(['/dashboard/pm']);
-        } else if (res.role === 'COLLABORATOR') {
-          this.router.navigate(['/dashboard/collab']);
-        }
-         else if (res.role === 'ADMIN') {
-  this.router.navigate(['/dashboard/admin']);
-}
- else {
-          // Fallback to generic dashboard
-          this.router.navigate(['/dashboard']);
-        }
+        this.navigateByRole(res.role);
        
       },
       error: (err) => {
-        console.error('Login error:', err);
         if (err.status === 401) {
           this.message = 'Invalid email or password';
+        } else if (err.status === 403) {
+          this.message = err.error?.message || 'This account is deactivated. Please contact an administrator.';
         } else if (err.status === 0) {
           this.message = 'Unable to connect to server. Please check if backend is running.';
         } else {

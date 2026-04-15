@@ -1,0 +1,207 @@
+<div class="user-management-page">
+  <div class="page-header">
+    <div>
+      <h1>User Management</h1>
+      <p>Search, filter, and update employee access from one place.</p>
+    </div>
+  </div>
+
+  <div class="management-shell">
+    <div class="toolbar-panel">
+      <div class="toolbar-grid">
+        <label class="search-control">
+          <i class="pi pi-search"></i>
+          <input
+            pInputText
+            type="text"
+            placeholder="Search by Name or Email..."
+            [(ngModel)]="searchTerm"
+            (keyup.enter)="loadUsers()"
+            (blur)="loadUsers()"
+          />
+        </label>
+
+        <div class="filter-control">
+          <p-select
+            [options]="roleOptions"
+            [(ngModel)]="selectedRole"
+            optionLabel="label"
+            optionValue="value"
+            appendTo="body"
+            styleClass="filter-select"
+            (onChange)="onFiltersChange()"
+          ></p-select>
+        </div>
+
+        <div class="filter-control">
+          <p-select
+            [options]="statusOptions"
+            [(ngModel)]="selectedStatus"
+            optionLabel="label"
+            optionValue="value"
+            appendTo="body"
+            styleClass="filter-select"
+            (onChange)="onFiltersChange()"
+          ></p-select>
+        </div>
+      </div>
+    </div>
+
+    <div class="table-panel">
+      <p-table
+        [value]="(users$ | async) ?? []"
+        [loading]="!(users$ | async) && !error"
+        [tableStyle]="{ 'min-width': '100%' }"
+        styleClass="user-table"
+      >
+        <ng-template pTemplate="header">
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Member Since</th>
+            <th>Actions</th>
+          </tr>
+        </ng-template>
+
+        <ng-template pTemplate="body" let-user>
+          <tr>
+            <td>
+              <div class="identity-cell">
+                <p-avatar
+                  [image]="getProfilePictureSrc(user.profilePicture)"
+                  [label]="!user.profilePicture ? getUserInitials(user) : undefined"
+                  shape="circle"
+                  styleClass="user-avatar"
+                ></p-avatar>
+                <div class="identity-name">
+                  <span>{{ user.firstName }} {{ user.lastName }}</span>
+                </div>
+              </div>
+            </td>
+            <td class="email-cell">{{ user.email }}</td>
+            <td>
+              <p-tag
+                [value]="roleLabel(user.role)"
+                [severity]="roleSeverity(user.role)"
+                styleClass="role-tag"
+              ></p-tag>
+            </td>
+            <td class="member-since-cell">{{ memberSinceLabel(user) }}</td>
+            <td>
+              <div class="action-buttons">
+                <button
+                  pButton
+                  type="button"
+                  icon="pi pi-pencil"
+                  class="action-button edit-button"
+                  (click)="openEditDialog(user)"
+                ></button>
+
+                <button
+                  pButton
+                  type="button"
+                  [icon]="user.active ? 'pi pi-lock' : 'pi pi-lock-open'"
+                  [label]="user.active ? 'Deactivate' : 'Reactivate'"
+                  class="action-button status-button"
+                  [class.deactivate-button]="user.active"
+                  [class.reactivate-button]="!user.active"
+                  (click)="openStatusDialog(user)"
+                ></button>
+              </div>
+            </td>
+          </tr>
+        </ng-template>
+
+        <ng-template pTemplate="emptymessage">
+          <tr>
+            <td colspan="5">
+              <div class="empty-state">No users matched the current filters.</div>
+            </td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </div>
+
+    <div *ngIf="error" class="error-banner">{{ error }}</div>
+  </div>
+
+  <p-dialog
+    header="Edit User Information"
+    [(visible)]="editDialogVisible"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [style]="{ width: '32rem' }"
+  >
+    <div class="form-grid">
+      <label>First Name</label>
+      <input pInputText [(ngModel)]="editForm.firstName" />
+
+      <label>Last Name</label>
+      <input pInputText [(ngModel)]="editForm.lastName" />
+
+      <label>Email</label>
+      <input pInputText [(ngModel)]="editForm.email" />
+    </div>
+
+    <ng-template pTemplate="footer">
+      <button pButton type="button" label="Cancel" class="p-button-text" (click)="editDialogVisible = false"></button>
+      <button pButton type="button" label="Save" (click)="saveUserEdits()"></button>
+    </ng-template>
+  </p-dialog>
+
+  <p-dialog
+    [(visible)]="statusDialogVisible"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [closable]="false"
+    [style]="{ width: '300px' }"
+  >
+    <div
+      *ngIf="selectedUser"
+      class="status-confirmation-card"
+      [class.deactivate-card]="selectedUser.active"
+      [class.reactivate-card]="!selectedUser.active"
+    >
+      <div class="card">
+        <div class="header">
+          <div class="image">
+            <svg
+              *ngIf="selectedUser.active; else reactivateIcon"
+              aria-hidden="true"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              viewBox="0 0 24 24"
+              fill="none"
+            >
+              <path d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" strokeLinejoin="round" strokeLinecap="round" />
+            </svg>
+            <ng-template #reactivateIcon>
+              <svg aria-hidden="true" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24" fill="none">
+                <path d="M16.023 9.348h4.992V4.356m-.648 14.295a9 9 0 1 1 1.176-9.88l-4.992 4.992" strokeLinejoin="round" strokeLinecap="round" />
+              </svg>
+            </ng-template>
+          </div>
+          <div class="content">
+            <span class="title">{{ selectedUser.active ? 'Deactivate account' : 'Reactivate account' }}</span>
+            <p class="message">
+              {{
+                selectedUser.active
+                  ? 'Deactivating this user will revoke their access to TaskFlow. Their history will be archived for future audit needs. Proceed?'
+                  : 'Reactivating this user will restore their access to TaskFlow so they can sign in and continue working. Proceed?'
+              }}
+            </p>
+          </div>
+          <div class="actions">
+            <button class="confirm-action" type="button" (click)="confirmToggleStatus()">
+              {{ selectedUser.active ? 'Deactivate' : 'Reactivate' }}
+            </button>
+            <button class="cancel" type="button" (click)="statusDialogVisible = false">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </p-dialog>
+</div>

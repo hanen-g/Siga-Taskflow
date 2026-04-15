@@ -7,7 +7,8 @@
       <h1 class="workspace-title">{{ pageTitle }}</h1>
       <p class="workspace-subtitle">Manage your teams and track progress</p>
     </div>
-    <button pButton
+    <button *ngIf="canManageProjects"
+            pButton
             label="New Project"
             icon="pi pi-plus"
             class="workspace-create-button"
@@ -15,7 +16,17 @@
     </button>
   </div>
 
-  <div class="workspace-tools" *ngIf="projectsList.length">
+  <div *ngIf="error" class="empty-state">
+    <i class="pi pi-exclamation-triangle text-300 text-6xl mb-3"></i>
+    <span class="text-600 text-xl font-medium">{{ error }}</span>
+  </div>
+
+  <div *ngIf="!(projects$ | async) && !error" class="empty-state">
+    <app-loader label="Loading projects..." />
+  </div>
+
+  <ng-container *ngIf="projects$ | async as projects">
+  <div class="workspace-tools" *ngIf="projects.length">
     <div class="workspace-search">
       <div class="search-input-wrapper">
         <i class="pi pi-search search-icon"></i>
@@ -28,10 +39,12 @@
     </div>
   </div>
 
-  <div class="projects-grid" *ngIf="filteredProjects.length">
-    <div class="project-grid-item" *ngFor="let project of filteredProjects">
+  <div class="projects-grid" *ngIf="filteredProjects(projects).length">
+    <div class="project-grid-item" *ngFor="let project of filteredProjects(projects)">
       <app-project-panel
         [project]="project"
+        [detailBase]="projectDetailBase"
+        [canManage]="canManageProjects"
         (edit)="editProject($event)"
         (delete)="deleteProject($event)"
         (archive)="archiveProject($event)">
@@ -39,18 +52,20 @@
     </div>
   </div>
 
-  <div *ngIf="!projectsList.length" class="empty-state">
+  <div *ngIf="!projects.length" class="empty-state">
     <i class="pi pi-folder-open text-300 text-7xl mb-3"></i>
     <span class="text-600 text-xl font-medium">No projects found. Create one to get started!</span>
   </div>
 
-  <div *ngIf="projectsList.length && !filteredProjects.length" class="empty-state">
+  <div *ngIf="projects.length && !filteredProjects(projects).length" class="empty-state">
     <i class="pi pi-search text-300 text-6xl mb-3"></i>
     <span class="text-600 text-xl font-medium">No projects match your search.</span>
   </div>
+  </ng-container>
 </div>
 
 <p-dialog
+  *ngIf="canManageProjects"
   [header]="isEditMode ? 'Edit Project' : 'Launch new Project'"
   [visible]="displayDialog"
   [modal]="true"

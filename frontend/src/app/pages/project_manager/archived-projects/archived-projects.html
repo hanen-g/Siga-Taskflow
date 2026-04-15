@@ -9,17 +9,27 @@
     </div>
   </div>
 
-  <div class="grid">
-    <div class="col-12 md:col-6 lg:col-4 p-3" *ngFor="let project of (archivedProjects$ | async)">
+  <div *ngIf="error" class="flex flex-column align-items-center justify-content-center py-8">
+    <i class="pi pi-exclamation-triangle text-300 text-7xl mb-3"></i>
+    <span class="text-600 text-xl font-medium">{{ error }}</span>
+  </div>
+
+  <div *ngIf="!(archivedProjects$ | async) && !error" class="flex flex-column align-items-center justify-content-center py-8">
+    <app-loader label="Loading archived projects..." />
+  </div>
+
+  <div class="grid" *ngIf="archivedProjects$ | async as archivedProjects">
+    <div class="col-12 md:col-6 lg:col-4 p-3" *ngFor="let project of archivedProjects">
       <app-project-panel
         [project]="project"
+        [detailBase]="'/dashboard/pm/projects'"
         (archive)="unarchiveProject($event)">
       </app-project-panel>
     </div>
-  </div>
 
-  <div *ngIf="!(archivedProjects$ | async)?.length" class="flex flex-column align-items-center justify-content-center py-8">
-    <i class="pi pi-archive text-300 text-7xl mb-3"></i>
-    <span class="text-600 text-xl font-medium">No archived projects yet.</span>
+    <div *ngIf="!archivedProjects.length" class="flex flex-column align-items-center justify-content-center py-8 w-full">
+      <i class="pi pi-archive text-300 text-7xl mb-3"></i>
+      <span class="text-600 text-xl font-medium">No archived projects yet.</span>
+    </div>
   </div>
 </div>

@@ -1,7 +1,8 @@
 import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subscription } from 'rxjs';
+import { Observable, Subscription, of } from 'rxjs';
+import { catchError, map, startWith } from 'rxjs/operators';
 
 import { AutoCompleteModule } from 'primeng/autocomplete';
 import { AvatarModule } from 'primeng/avatar';
@@ -17,6 +18,7 @@ import { TaskMessage } from '../../models/task-message.model';
 import { TaskService } from '../../services/task.service';
 import { UserService } from '../../services/user.service';
 import { WebsocketService } from '../../services/websocket.service';
+import { AppLoaderComponent } from '../../layout/app-loader';
 import { TaskDetailsPanelComponent } from './components/task-details-panel';
 
 type TaskFilterKey = 'all' | 'pending' | 'inProgress' | 'completed';
@@ -70,10 +72,12 @@ const FILTER_TAB_CONFIG: ReadonlyArray<Omit<FilterTab, 'badge'>> = [
     InputTextModule,
     TextareaModule,
     TooltipModule,
+    AppLoaderComponent,
     TaskDetailsPanelComponent,
   ],
 })
 export class TasksPage implements OnInit, OnDestroy {
+  tasks$: Observable<Task[] | null> = of(null);
   tasks: Task[] = [];
   filteredTasks: Task[] = [];
   statuses: TaskStatus[] = [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.DONE];
@@ -168,40 +172,36 @@ export class TasksPage implements OnInit, OnDestroy {
   }
 
   loadTasks() {
-    this.isLoading = true;
     this.errorMessage = '';
-    this.cdr.detectChanges();
 
-    let tasks$;
+    let request$: Observable<Task[]>;
 
     if (this.isManager) {
-      tasks$ = this.taskService.getManagerTasks();
+      request$ = this.taskService.getManagerTasks();
     } else if (this.isCollaborator) {
-      tasks$ = this.taskService.getMyTasks();
+      request$ = this.taskService.getMyTasks();
     } else if (this.isAdmin) {
-      tasks$ = this.taskService.getAllTasks();
+      request$ = this.taskService.getAllTasks();
     } else {
       this.errorMessage = 'Unknown user role.';
-      this.isLoading = false;
-      this.cdr.detectChanges();
+      this.tasks$ = of([]);
       return;
     }
 
-    this.subscriptions.add(
-      tasks$?.subscribe({
-        next: (tasks: Task[]) => {
-          this.tasks = tasks;
-          this.isLoading = false;
-          this.refreshGrouping();
-          this.cdr.detectChanges();
-        },
-        error: (err) => {
-          this.isLoading = false;
-          this.errorMessage = 'Failed to load tasks. Please try again.';
-          console.error('Failed to load tasks', err);
-          this.cdr.detectChanges();
-        },
-      })
+    this.tasks$ = request$.pipe(
+      map((tasks: Task[]) => {
+        this.tasks = tasks;
+        this.refreshGrouping();
+        return tasks;
+      }),
+      catchError((err) => {
+        this.errorMessage = 'Failed to load tasks. Please try again.';
+        console.error('Failed to load tasks', err);
+        this.tasks = [];
+        this.refreshGrouping();
+        return of([]);
+      }),
+      startWith(null)
     );
   }
 

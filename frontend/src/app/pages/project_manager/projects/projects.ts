@@ -1,7 +1,7 @@
-import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Observable, Subject, of } from 'rxjs';
-import { switchMap, startWith } from 'rxjs/operators';
+import { catchError, switchMap, startWith, tap } from 'rxjs/operators';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
@@ -14,7 +14,8 @@ import { MessageService, ConfirmationService } from 'primeng/api';
 
 import { ProjectService } from '../../../services/project.service';
 import { WebsocketService } from '../../../services/websocket.service';
-import { ProjectPanel } from './components/project-panel';
+import { ProjectPanel } from './project-panel';
+import { AppLoaderComponent } from '../../../layout/app-loader';
 
 @Component({
   standalone: true,
@@ -29,6 +30,7 @@ import { ProjectPanel } from './components/project-panel';
     InputTextModule,
     MenuModule,
     ProjectPanel,
+    AppLoaderComponent,
     TextareaModule,
     ConfirmDialogModule,
     ToastModule
@@ -42,9 +44,9 @@ export class ProjectsPage implements OnInit {
 
   private refresh$ = new Subject<void>();
 
-  projects$: Observable<any[]> = of([]);
-
-  projectsList: any[] = [];
+  projects$: Observable<any[] | null> = of(null);
+  private latestProjects: any[] = [];
+  error: string | null = null;
   searchText = '';
 
   displayDialog = false;
@@ -57,8 +59,7 @@ export class ProjectsPage implements OnInit {
     private projectService: ProjectService,
     private ws: WebsocketService,
     private confirmationService: ConfirmationService,
-    private messageService: MessageService,
-    private cdr: ChangeDetectorRef
+    private messageService: MessageService
   ) {
     this.ws.getProjectUpdates().subscribe(() => {
       this.refresh$.next();
@@ -71,13 +72,20 @@ export class ProjectsPage implements OnInit {
 
     this.projects$ = this.refresh$.pipe(
       startWith(null),
-      switchMap(() => this.loadProjectsByRole())
-    );
-
-    this.projects$.subscribe(projects => {
-      this.projectsList = projects || [];
-      this.cdr.detectChanges();
-    });
+      switchMap(() => {
+        this.error = null;
+        return this.loadProjectsByRole().pipe(
+          tap((projects) => {
+            this.latestProjects = projects ?? [];
+          }),
+          catchError(() => {
+            this.error = 'Unable to load projects.';
+            this.latestProjects = [];
+            return of([]);
+          })
+        )
+      })
+    ) as Observable<any[] | null>;
   }
 
   private detectRole() {
@@ -112,18 +120,37 @@ export class ProjectsPage implements OnInit {
     return this.role === 'PROJECT_MANAGER';
   }
 
+  private get isCollaborator() {
+    return this.role === 'COLLABORATOR';
+  }
+
+  get canManageProjects(): boolean {
+    return this.isAdmin || this.isProjectManager;
+  }
+
+  get projectDetailBase(): string {
+    if (this.isAdmin) {
+      return '/dashboard/admin/projects';
+    }
+    if (this.isCollaborator) {
+      return '/dashboard/collab/projects';
+    }
+    return '/dashboard/pm/projects';
+  }
+
   private loadProjectsByRole(): Observable<any[]> {
     return this.isAdmin ? this.projectService.getAllProjects() : this.projectService.myProjects();
   }
 
-  get filteredProjects(): any[] {
+  filteredProjects(projects: any[] | null): any[] {
+    const safeProjects = projects ?? [];
     const search = this.searchText.trim().toLowerCase();
 
     if (!search) {
-      return this.projectsList;
+      return safeProjects;
     }
 
-    return this.projectsList.filter((project) => {
+    return safeProjects.filter((project) => {
       const name = String(project?.name ?? '').toLowerCase();
       const description = String(project?.description ?? '').toLowerCase();
       return name.includes(search) || description.includes(search);
@@ -162,7 +189,7 @@ export class ProjectsPage implements OnInit {
       return false;
     }
 
-    const exists = this.projectsList.some(project =>
+    const exists = this.latestProjects.some(project =>
       project.id !== this.selectedProjectId &&
       project.name.trim().toLowerCase() === name
     );

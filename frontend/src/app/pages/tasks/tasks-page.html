@@ -4,9 +4,8 @@
   </div>
 
   <!-- Loading State -->
-  <div *ngIf="isLoading" class="loading-state">
-    <i class="pi pi-spin pi-spinner"></i>
-    <span>Loading tasks...</span>
+  <div *ngIf="!(tasks$ | async) && !errorMessage" class="loading-state">
+    <app-loader label="Loading tasks..." />
   </div>
 
   <!-- Error State -->
@@ -16,7 +15,8 @@
     <button type="button" class="retry-btn" (click)="loadTasks()">Retry</button>
   </div>
 
-  <ng-container *ngIf="!isLoading && !errorMessage">
+  <ng-container *ngIf="tasks$ | async as tasks">
+  <ng-container *ngIf="!errorMessage">
     <div class="filters-row mb-4">
       <div class="tabs">
         <button
@@ -111,6 +111,7 @@
         <span>No tasks found.</span>
       </div>
     </div>
+  </ng-container>
   </ng-container>
 </div>
 

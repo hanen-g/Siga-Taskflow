@@ -1,93 +1,129 @@
-<div class="p-4 surface-ground min-h-screen">
+<div class="profile-page">
   <p-toast></p-toast>
 
-  <div class="flex align-items-center justify-content-between mb-5 bg-white p-4 border-round-xl shadow-1">
-    <div>
-      <h1 class="text-3xl font-bold m-0 text-900">My Profile</h1>
+  <section class="profile-shell">
+    <header class="profile-hero">
+      <h1>My Profile</h1>
       <p>Review and update your account information.</p>
-    </div>
-  </div>
+    </header>
 
-  <div class="bg-white shadow-1 border-round-xl p-5 max-w-2xl">
-    <ng-container *ngIf="!isEditingProfile && !isChangingPassword">
-      <div class="profile-pic-container mb-4 text-center">
-        <ng-container *ngIf="getProfilePictureSrc(); else avatarFallback">
-          <img
-            [src]="getProfilePictureSrc()"
-            alt="Profile Picture"
-            class="profile-pic"
-          />
-        </ng-container>
-        <ng-template #avatarFallback>
-          <p-avatar [label]="getInitials()" styleClass="profile-pic"></p-avatar>
-        </ng-template>
-      </div>
-      <div class="grid formgrid p-fluid">
-        <div class="field col-12 md:col-6">
-          <label>First Name</label>
-          <div class="profile-value">{{ firstName }}</div>
-        </div>
+    <div class="profile-body">
+      <aside class="picture-card">
+        <h2>Profile Picture</h2>
 
-        <div class="field col-12 md:col-6">
-          <label>Last Name</label>
-          <div class="profile-value">{{ lastName }}</div>
-        </div>
-
-        <div class="field col-12">
-          <label>Email</label>
-          <div class="profile-value">{{ email }}</div>
-        </div>
-
-      </div>
-
-      <div class="flex justify-content-end gap-3 mt-4">
-        <button pButton type="button" label="Edit Profile" class="p-button-outlined" (click)="enterEditMode()"></button>
-        <button pButton type="button" label="Change Password" class="p-button-primary" (click)="enterChangePasswordMode()"></button>
-      </div>
-    </ng-container>
-
-    <ng-container *ngIf="isEditingProfile">
-      <div class="grid formgrid p-fluid">
-        <div class="field col-12 md:col-6">
-          <label for="firstName">First Name</label>
-          <input id="firstName" type="text" pInputText [(ngModel)]="firstName" />
-        </div>
-
-        <div class="field col-12 md:col-6">
-          <label for="lastName">Last Name</label>
-          <input id="lastName" type="text" pInputText [(ngModel)]="lastName" />
-        </div>
-
-        <div class="field col-12">
-          <label for="email">Email</label>
-          <input id="email" type="text" pInputText [value]="email" readonly />
-        </div>
-
-        <div class="field col-12">
-          <label>Profile Picture</label>
-          <div class="profile-pic-edit">
-            <ng-container *ngIf="getProfilePictureSrc(); else avatarFallbackEdit">
+        <div class="avatar-stage">
+          <div class="circular-container">
+            <ng-container *ngIf="profilePictureDisplaySrc; else avatarFallback">
               <img
-                [src]="getProfilePictureSrc()"
-                alt="Profile Picture"
+                [src]="profilePictureDisplaySrc"
+                alt="Profile picture"
                 class="profile-pic"
               />
             </ng-container>
-            <ng-template #avatarFallbackEdit>
-              <p-avatar [label]="getInitials()" styleClass="profile-pic"></p-avatar>
+            <ng-template #avatarFallback>
+              <div class="avatar-fallback">
+                <p-avatar [label]="getInitials()" styleClass="profile-avatar-component" size="large"></p-avatar>
+              </div>
             </ng-template>
-            <input type="file" accept="image/*" (change)="onProfilePictureChange($event)" />
           </div>
         </div>
-      </div>
 
-      <div class="flex justify-content-end gap-3 mt-4">
-        <button pButton type="button" label="Cancel" class="p-button-text" (click)="cancelEditing()"></button>
-        <button pButton type="button" label="Save" class="p-button-primary" [loading]="isLoading" (click)="saveProfile()"></button>
-      </div>
-    </ng-container>
+        <input
+          id="profilePictureUpload"
+          type="file"
+          accept="image/*"
+          class="hidden-file-input"
+          (change)="onProfilePictureChange($event)" />
 
-    <p-dialog header="Change Password" [(visible)]="showPasswordDialog" [modal]="true" [closable]="false" [style]="{ width: '420px' }">
+        <label for="profilePictureUpload" class="upload-button">
+          <i class="pi pi-upload"></i>
+          <span>Change Profile Picture</span>
+        </label>
+      </aside>
+
+      <div class="details-column">
+        <div class="details-form">
+          <div class="field-group">
+            <label for="firstName">First Name</label>
+            <div class="field-shell" [class.readonly-shell]="!isEditingProfile">
+              <i class="pi pi-user"></i>
+              <input
+                id="firstName"
+                type="text"
+                pInputText
+                [(ngModel)]="firstName"
+                [readonly]="!isEditingProfile" />
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label for="lastName">Last Name</label>
+            <div class="field-shell" [class.readonly-shell]="!isEditingProfile">
+              <i class="pi pi-user"></i>
+              <input
+                id="lastName"
+                type="text"
+                pInputText
+                [(ngModel)]="lastName"
+                [readonly]="!isEditingProfile" />
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label for="email">Email</label>
+            <div class="field-shell readonly-shell">
+              <i class="pi pi-envelope"></i>
+              <input
+                id="email"
+                type="text"
+                pInputText
+                [value]="email"
+                readonly />
+            </div>
+          </div>
+        </div>
+
+        <div class="profile-footer-row">
+          <div class="action-row">
+            <button
+              *ngIf="!isEditingProfile"
+              pButton
+              type="button"
+              label="Edit Profile"
+              class="action-button"
+              [loading]="isLoading"
+              (click)="enterEditMode()"></button>
+            <button
+              *ngIf="isEditingProfile"
+              pButton
+              type="button"
+              label="Save Profile"
+              class="action-button"
+              [loading]="isLoading"
+              (click)="saveProfile()"></button>
+            <button
+              pButton
+              type="button"
+              [label]="isEditingProfile ? 'Cancel' : 'Change Password'"
+              class="action-button secondary-action"
+              [loading]="isLoading && !isEditingProfile"
+              (click)="isEditingProfile ? cancelEditing() : enterChangePasswordMode()"></button>
+          </div>
+
+          <section class="status-card">
+            <div class="status-header">
+              <h3>Account Status</h3>
+              <i class="pi pi-verified"></i>
+            </div>
+            <p>Role: {{ roleLabel }}</p>
+            <p>Member since: March 2026</p>
+          </section>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p-dialog header="Change Password" [(visible)]="showPasswordDialog" [modal]="true" [closable]="false" [style]="{ width: '420px' }">
       <div class="grid formgrid p-fluid">
         <div class="field col-12">
           <label for="currentPassword">Current Password</label>
@@ -111,6 +147,5 @@
           <button pButton type="button" label="Change Password" class="p-button-primary" [loading]="isLoading" (click)="savePassword()"></button>
         </div>
       </ng-template>
-    </p-dialog>
-  </div>
+  </p-dialog>
 </div>

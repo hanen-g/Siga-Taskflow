@@ -40,6 +40,7 @@ export class Signup {
   roles = [
     { label: 'Project Manager', value: 'PROJECT_MANAGER' },
     { label: 'Collaborator', value: 'COLLABORATOR' },
+    { label: 'Client', value: 'CLIENT' },
     { label: 'Admin', value: 'ADMIN' }
   ];
 

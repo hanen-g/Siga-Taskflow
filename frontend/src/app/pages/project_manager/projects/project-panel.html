@@ -1,0 +1,28 @@
+<article
+  class="project-card"
+  [class.project-card--navigable]="detailBase"
+  (click)="onCardNavigate($event)">
+  <div class="project-banner" [style.background]="bannerColor">
+    <p-menu *ngIf="canManage" #menu [popup]="true" [appendTo]="'body'" [model]="menuItems" (onShow)="onMenuShow()"></p-menu>
+    <button
+      *ngIf="canManage"
+      pButton
+      type="button"
+      icon="pi pi-ellipsis-v"
+      class="project-menu-button"
+      (click)="$event.stopPropagation(); toggleMenu($event)">
+    </button>
+  </div>
+
+  <div class="project-card-body">
+    <div class="project-copy">
+      <h2 class="project-title">{{ project.name }}</h2>
+      <p class="project-description">
+        {{ project.description || 'No description yet for this project.' }}
+      </p>
+      <p *ngIf="project.createdAt" class="project-created-at">
+        Created {{ project.createdAt | date: 'mediumDate' }}
+      </p>
+    </div>
+
+<input *ngIf="canManage" #fileInput type="file" style="display:none" (change)="onFileSelected($event)" />

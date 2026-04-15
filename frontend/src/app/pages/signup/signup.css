@@ -53,8 +53,7 @@
 }
 
 :deep(.p-inputtext),
-:deep(.p-password-input),
-:deep(.p-dropdown) {
+:deep(.p-password-input){
   border-radius: 8px;
   padding: 0.75rem 1rem;
   font-size: 0.95rem;
