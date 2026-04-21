@@ -26,7 +26,7 @@ public class AuthService {
 
     public AuthResponse signup(SignupRequest request) {
         if (request.getRole() == null) {
-            throw new IllegalArgumentException("Role is required. Must be PROJECT_MANAGER or COLLABORATOR.");
+            throw new IllegalArgumentException("Role is required. Must be PROJECT_MANAGER, COLLABORATOR, CLIENT or ADMIN.");
         }
         if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new RuntimeException("Email already exists");
@@ -51,6 +51,10 @@ public class AuthService {
     public AuthResponse login(LoginRequest request) {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
+
+        if (!user.isActive()) {
+            throw new IllegalStateException("Account is deactivated. Please contact an administrator.");
+        }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             throw new RuntimeException("Invalid credentials");

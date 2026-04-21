@@ -92,6 +92,15 @@
                 class="w-full"
                 placeholder="Enter project description"></textarea>
     </div>
+
+    <div class="flex flex-column mb-2">
+      <label class="font-bold mb-2">Deadline</label>
+      <input
+        pInputText
+        type="date"
+        [(ngModel)]="newProject.deadline"
+        class="w-full" />
+    </div>
   </ng-template>
 
   <ng-template pTemplate="footer">

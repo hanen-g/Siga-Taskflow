@@ -2,7 +2,11 @@ package com.taskflow.backend.entity;
 
 import jakarta.persistence.*;
 import java.util.Set;
+import lombok.Getter;
+import lombok.Setter;
 
+@Getter
+@Setter
 @Entity
 @Table(name = "users")
 public class User {
@@ -15,6 +19,9 @@ public class User {
     private String lastName;
     private String email;
     private String password;
+    private String profilePicture; // URL/base64 as string
+    @Column(name = "is_active")
+    private Boolean isActive = true;
 
     @Enumerated(EnumType.STRING)
     private UserRole role;
@@ -39,6 +46,12 @@ public class User {
 
     public UserRole getRole() { return role; }
     public void setRole(UserRole role) { this.role = role; }
+
+    public String getProfilePicture() { return profilePicture; }
+    public void setProfilePicture(String profilePicture) { this.profilePicture = profilePicture; }
+
+    public boolean isActive() { return isActive == null || isActive; }
+    public void setActive(boolean active) { isActive = active; }
 
     public Set<Project> getProjects() { return projects; }
     public void setProjects(Set<Project> projects) { this.projects = projects; }

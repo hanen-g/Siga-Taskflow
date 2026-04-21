@@ -41,6 +41,12 @@ public class JwtFilter extends OncePerRequestFilter {
             String email = jwtService.extractEmail(token);
 
             User user = userRepository.findByEmail(email).orElseThrow();
+            if (!user.isActive()) {
+                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"message\":\"Account is deactivated.\"}");
+                return;
+            }
 
             CustomUserDetails userDetails = new CustomUserDetails(user);
 

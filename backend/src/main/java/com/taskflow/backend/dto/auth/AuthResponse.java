@@ -14,6 +14,7 @@ public class AuthResponse {
     private String firstName;
     private String lastName;
     private String role;
+    private String profilePicture;
 
     public AuthResponse(String token, User user) {
         this.token = token;
@@ -22,6 +23,7 @@ public class AuthResponse {
         this.firstName = user.getFirstName();
         this.lastName = user.getLastName();
         this.role = user.getRole().name();
+        this.profilePicture = user.getProfilePicture();
     }
 
 }

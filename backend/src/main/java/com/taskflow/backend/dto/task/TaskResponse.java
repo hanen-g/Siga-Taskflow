@@ -4,6 +4,8 @@ import com.taskflow.backend.entity.Task;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -14,7 +16,9 @@ public class TaskResponse {
     private String title;
     private String description;
     private String status;
-    private String collaboratorEmail;
+    private String priority;
+    private LocalDateTime deadline;
+    private List<String> collaboratorEmails;
     private String projectName;
 
 
@@ -23,8 +27,14 @@ public class TaskResponse {
                 task.getId(),
                 task.getTitle(),
                 task.getDescription(),
-                task.getStatus().name(),
-                task.getCollaborator() != null ? task.getCollaborator().getEmail() : null,
+                task.getStatus() != null ? task.getStatus().name() : null,
+                task.getPriority() != null ? task.getPriority().name() : null,
+                task.getDeadline(),
+                task.getCollaborators() != null
+                        ? task.getCollaborators().stream()
+                                .map(u -> u != null ? u.getEmail() : null)
+                                .toList()
+                        : List.of(),
                 task.getProject() != null ? task.getProject().getName() : null
 
         );

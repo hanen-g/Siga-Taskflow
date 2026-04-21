@@ -31,7 +31,7 @@ public class JwtService {
 
         return Jwts.builder()
                 .setSubject(email)
-                .claim("role", role)   // ← ADD ROLE HERE
+                .claim("role", role)
                 .setIssuedAt(now)
                 .setExpiration(expiryDate)
                 .signWith(getSigningKey(), SignatureAlgorithm.HS256)

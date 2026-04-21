@@ -53,7 +53,7 @@ export class ProjectsPage implements OnInit {
   isEditMode = false;
   selectedProjectId: number | null = null;
 
-  newProject = { name: '', description: '' };
+  newProject = { name: '', description: '', deadline: '' };
 
   constructor(
     private projectService: ProjectService,
@@ -159,7 +159,7 @@ export class ProjectsPage implements OnInit {
 
   showDialog() {
     this.isEditMode = false;
-    this.newProject = { name: '', description: '' };
+    this.newProject = { name: '', description: '', deadline: '' };
     this.displayDialog = true;
   }
 

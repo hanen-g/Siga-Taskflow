@@ -4,6 +4,7 @@ export interface Project {
   id: number;
   name: string;
   description: string;
+  deadline?: string;
   createdAt?: string;
   managerId?: number;
   managerFirstName?: string;

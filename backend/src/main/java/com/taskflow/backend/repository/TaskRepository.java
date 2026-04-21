@@ -8,6 +8,7 @@ import java.util.List;
 
 public interface TaskRepository extends JpaRepository<Task, Long> {
     List<Task> findByProjectId(Long projectId);
-    List<Task> findByCollaborator(User user);
+    List<Task> findByCollaboratorsContaining(User user);
+    List<Task> findByProjectManager(User manager);
 
 }

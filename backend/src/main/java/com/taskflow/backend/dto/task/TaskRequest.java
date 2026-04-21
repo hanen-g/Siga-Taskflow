@@ -2,6 +2,8 @@ package com.taskflow.backend.dto.task;
 
 import lombok.Getter;
 import lombok.Setter;
+import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -10,5 +12,7 @@ public class TaskRequest {
     private String description;
     private Long projectId;
     private String collaboratorEmail;
-
+    private List<String> collaboratorEmails;
+    private String priority;
+    private LocalDateTime deadline;
 }

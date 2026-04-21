@@ -32,7 +32,7 @@ public class SignupRequest {
         try {
             return UserRole.valueOf(role.toUpperCase());
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("Invalid role: " + role + ". Must be PROJECT_MANAGER or COLLABORATOR");
+            throw new IllegalArgumentException("Invalid role: " + role + ". Must be PROJECT_MANAGER, COLLABORATOR, CLIENT or ADMIN");
         }
     }
 }

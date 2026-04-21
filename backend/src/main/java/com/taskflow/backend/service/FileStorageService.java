@@ -8,6 +8,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
+import java.net.URLConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -36,7 +37,9 @@ public class FileStorageService {
         String original = file.getOriginalFilename();
         String filename = UUID.randomUUID().toString();
         if (original != null && original.contains(".")) {
-            filename += "_" + original;
+            // Sanitize the original filename to make it URL-safe
+            String sanitized = original.replaceAll("[^a-zA-Z0-9.-]", "_");
+            filename += "_" + sanitized;
         }
 
         Path target = this.uploadDir.resolve(filename);
@@ -61,5 +64,45 @@ public class FileStorageService {
         } catch (MalformedURLException e) {
             throw new RuntimeException("File not found " + filename, e);
         }
+    }
+
+    /** True if {@code filename} resolves to a regular file under {@link #uploadDir}. */
+    public boolean storedFileExists(String filename) {
+        if (filename == null || filename.isBlank()) {
+            return false;
+        }
+        Path filePath = this.uploadDir.resolve(filename).normalize();
+        if (!filePath.startsWith(this.uploadDir)) {
+            return false;
+        }
+        return Files.isRegularFile(filePath);
+    }
+
+    public String resolveOriginalFilename(String storedFilename) {
+        if (storedFilename == null || storedFilename.isBlank()) {
+            return "download";
+        }
+
+        int separatorIndex = storedFilename.indexOf('_');
+        if (separatorIndex > 0 && separatorIndex + 1 < storedFilename.length()) {
+            return storedFilename.substring(separatorIndex + 1);
+        }
+
+        return storedFilename;
+    }
+
+    public String resolveContentType(String storedFilename) {
+        try {
+            Path filePath = this.uploadDir.resolve(storedFilename).normalize();
+            String detected = Files.probeContentType(filePath);
+            if (detected != null && !detected.isBlank()) {
+                return detected;
+            }
+        } catch (IOException ignored) {
+            // Fallback below when probing fails.
+        }
+
+        String fallback = URLConnection.guessContentTypeFromName(resolveOriginalFilename(storedFilename));
+        return fallback != null && !fallback.isBlank() ? fallback : "application/octet-stream";
     }
 }
