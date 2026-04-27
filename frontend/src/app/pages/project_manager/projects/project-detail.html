@@ -49,15 +49,22 @@
           type="button"
           class="project-detail-tab"
           [class.is-active]="activeTab === 'tasks'"
-          (click)="switchTab('tasks')">
+          (click)="switchTab('tasks', project)">
           Tasks
         </button>
         <button
           type="button"
           class="project-detail-tab"
           [class.is-active]="activeTab === 'files'"
-          (click)="switchTab('files')">
+          (click)="switchTab('files', project)">
           Files
+        </button>
+        <button
+          type="button"
+          class="project-detail-tab"
+          [class.is-active]="activeTab === 'team'"
+          (click)="switchTab('team', project)">
+          Team &amp; skills
         </button>
         <div class="workspace-search">
                 <div class="search-input-wrapper">
@@ -74,7 +81,7 @@
 
     <div class="project-detail-layout">
       <section class="project-detail-main">
-        <ng-container *ngIf="activeTab === 'tasks'; else filesPanel">
+        <ng-container *ngIf="activeTab === 'tasks'; else teamOrFiles">
           <ng-container *ngIf="project.tasks?.length; else noTasks">
             <div class="project-detail-tools">
               
@@ -128,6 +135,98 @@
             <div class="project-detail-empty-panel">No tasks yet for this project.</div>
           </ng-template>
         </ng-container>
+
+        <ng-template #teamOrFiles>
+          <ng-container *ngIf="activeTab === 'team'; else filesPanel">
+            <div class="team-skills-panel">
+              <p class="text-600 mb-3">
+                Define which skills this project needs, then see which project managers and collaborators match.
+                Users set their skills on the profile page.
+              </p>
+
+              <div *ngIf="skillsCatalogLoading" class="py-3 text-600">
+                <i class="pi pi-spinner pi-spin mr-2"></i> Loading skills…
+              </div>
+
+              <div *ngIf="!skillsCatalogLoading && canEditProjectSkills(project)" class="mb-4 surface-card p-3">
+                <label class="block font-bold mb-2">Required skills for this project</label>
+                <p-multiselect
+                  [options]="allSkills"
+                  optionLabel="name"
+                  optionValue="id"
+                  placeholder="Select required skills"
+                  [(ngModel)]="selectedRequiredSkillIds"
+                  [filter]="true"
+                  [showToggleAll]="true"
+                  display="chip"
+                  [maxSelectedLabels]="6"
+                  styleClass="w-full"
+                  [appendTo]="'body'">
+                </p-multiselect>
+                <div class="mt-2">
+                  <button
+                    pButton
+                    type="button"
+                    label="Save required skills"
+                    [loading]="savingRequiredSkills"
+                    [disabled]="savingRequiredSkills"
+                    (click)="saveProjectRequiredSkills(project)">
+                  </button>
+                </div>
+              </div>
+
+              <div *ngIf="!skillsCatalogLoading && !canEditProjectSkills(project)" class="mb-3 text-600 text-sm">
+                Only the project manager (or an administrator) can change required skills. You can still review the match list below.
+              </div>
+
+              <div *ngIf="teamPanelLoading" class="py-3">
+                <app-loader label="Loading team matches…" />
+              </div>
+
+              <div *ngIf="!teamPanelLoading && teamMatchResult" class="team-match-block">
+                <h3 class="project-detail-section-title mb-2">Match results</h3>
+                <p *ngIf="!teamMatchResult.requiredSkills.length" class="text-600 text-sm mb-2">
+                  No required skills are set yet. Add skills above to filter project managers and collaborators.
+                </p>
+                <div *ngIf="teamMatchResult.matches.length" class="team-match-table-wrap">
+                  <table class="team-match-table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Role</th>
+                        <th>Match</th>
+                        <th>Skills covered</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr *ngFor="let m of teamMatchResult.matches" [class.row-full-match]="m.fullMatch">
+                        <td>
+                          <div class="font-medium">{{ matchRowLabel(m) }}</div>
+                          <div class="text-500 text-sm">{{ m.email }}</div>
+                        </td>
+                        <td>{{ m.role.replaceAll('_', ' ') }}</td>
+                        <td>
+                          <span *ngIf="!teamMatchResult.requiredSkills.length" class="text-600">—</span>
+                          <span *ngIf="teamMatchResult.requiredSkills.length">
+                            {{ m.matchedCount }} / {{ m.requiredCount }}
+                            <i *ngIf="m.fullMatch" class="pi pi-check-circle text-green-600 ml-1" title="Full match"></i>
+                          </span>
+                        </td>
+                        <td>
+                          <span *ngFor="let s of m.matchedSkills" class="skill-chip mr-1 mb-1 inline-block">{{ s.name }}</span>
+                          <span *ngIf="!m.matchedSkills.length" class="text-500">—</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p *ngIf="!teamPanelLoading && teamMatchResult && !teamMatchResult.matches.length" class="text-600 text-sm">
+                  No project managers or collaborators found.
+                </p>
+              </div>
+            </div>
+          </ng-container>
+        </ng-template>
 
         <ng-template #filesPanel>
           <div class="project-detail-files-panel">

@@ -1,0 +1,17 @@
+.create-users-page{min-height:100%;padding:1.5rem;background:radial-gradient(circle at top right,rgba(188,220,255,.35),transparent 26%),linear-gradient(180deg,#f5f8fc 0%,#edf2f8 100%)}
+.page-header{margin-bottom:1.25rem}
+.page-header h1{margin:0;font-size:2rem;font-weight:700;color:#122033}
+.page-header p{margin:.45rem 0 0;max-width:40rem;color:#64748b;font-size:1rem}
+.shell{overflow:hidden;border:1px solid rgba(255,255,255,.85);border-radius:28px;background:rgba(255,255,255,.72);box-shadow:0 28px 70px rgba(148,163,184,.22),inset 0 1px 0 rgba(255,255,255,.85);backdrop-filter:blur(18px);padding:1.5rem 1.25rem 1.5rem}
+.field-label-row{display:flex;flex-direction:column;gap:.5rem;max-width:22rem}
+.field-label{font-weight:600;color:#1e293b;font-size:.9rem}
+:host ::ng-deep .role-select.p-select{min-width:0;width:100%;max-width:22rem;border:1px solid #b4bfd0;border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(242,246,252,.92))}
+.card-header-text h2{margin:0 0 .4rem;font-size:1.2rem;font-weight:700;color:#0f172a}
+.card-header-text p{margin:0;color:#64748b;font-size:.9rem;line-height:1.45;max-width:40rem}
+.password-note{margin:0 0 1rem;padding:.75rem 1rem;border-radius:12px;background:rgba(59,130,246,.08);color:#1e3a5f;font-size:.9rem;max-width:42rem}
+:host ::ng-deep .msg{margin-bottom:1rem}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem 1.25rem;max-width:40rem}
+.field{display:flex;flex-direction:column;gap:.4rem}
+.field label{font-size:.88rem;font-weight:600;color:#334155}
+.field-wide{grid-column:1/-1}
+@media (max-width:700px){.form-grid{grid-template-columns:1fr}.field-wide{grid-column:auto}}

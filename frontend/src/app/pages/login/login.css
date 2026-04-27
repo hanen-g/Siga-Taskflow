@@ -54,6 +54,15 @@
   color: #ffffff;
 }
 
+.left-panel-tagline {
+  margin: 0;
+  max-width: 32ch;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+}
+
 .left-signup-btn {
   display: inline-flex;
   align-items: center;

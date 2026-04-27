@@ -7,6 +7,7 @@
   </div>
 
   <div class="management-shell">
+    @let usersList = (users$ | async);
     <div class="toolbar-panel">
       <div class="toolbar-grid">
         <label class="search-control">
@@ -49,8 +50,8 @@
 
     <div class="table-panel">
       <p-table
-        [value]="(users$ | async) ?? []"
-        [loading]="!(users$ | async) && !error"
+        [value]="usersList ?? []"
+        [loading]="usersList === undefined && !error"
         [tableStyle]="{ 'min-width': '100%' }"
         styleClass="user-table"
       >
@@ -59,7 +60,7 @@
             <th>User</th>
             <th>Email</th>
             <th>Role</th>
-            <th>Member Since</th>
+            <th>Account created</th>
             <th>Actions</th>
           </tr>
         </ng-template>
@@ -143,6 +144,34 @@
 
       <label>Email</label>
       <input pInputText [(ngModel)]="editForm.email" />
+
+      <label>Role</label>
+      <p-select
+        [options]="editRoleOptions"
+        [(ngModel)]="editForm.role"
+        optionLabel="label"
+        optionValue="value"
+        appendTo="body"
+        (onChange)="onEditRoleChange()"
+      ></p-select>
+
+      <ng-container *ngIf="roleSupportsSkills(editForm.role)">
+        <label>Skills</label>
+        <p-multiselect
+          [options]="allSkills"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="Select skills"
+          [(ngModel)]="editForm.skillIds"
+          [filter]="true"
+          [showToggleAll]="true"
+          display="chip"
+          [maxSelectedLabels]="6"
+          styleClass="w-full"
+          [appendTo]="'body'"
+          [disabled]="skillsLoading"
+        ></p-multiselect>
+      </ng-container>
     </div>
 
     <ng-template pTemplate="footer">

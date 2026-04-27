@@ -30,7 +30,7 @@ export class BrowserHistoryAuthService {
         return;
       }
       const path = window.location.pathname;
-      const isPublic = path.includes('/login') || path.includes('/signup');
+      const isPublic = path.includes('/login');
       if (!isPublic && !localStorage.getItem('token')) {
         this.ngZone.run(() => {
           this.router.navigate(['/login'], { replaceUrl: true });

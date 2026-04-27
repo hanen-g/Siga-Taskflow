@@ -5,14 +5,24 @@
   <div class="workspace-header">
     <div>
       <h1 class="workspace-title">{{ pageTitle }}</h1>
-      <p class="workspace-subtitle">Manage your teams and track progress</p>
+      <p class="workspace-subtitle" *ngIf="!isClient">Manage your teams and track progress</p>
+      <p class="workspace-subtitle" *ngIf="isClient">Open a project to follow progress and shared files.</p>
     </div>
-    <button *ngIf="canManageProjects"
-            pButton
-            label="New Project"
-            icon="pi pi-plus"
-            class="workspace-create-button"
-            (click)="showDialog()">
+    <button
+      *ngIf="isAdmin"
+      pButton
+      label="New Project"
+      icon="pi pi-plus"
+      class="workspace-create-button"
+      (click)="showDialog()">
+    </button>
+    <button
+      *ngIf="isProjectManager"
+      pButton
+      label="Propose project"
+      icon="pi pi-lightbulb"
+      class="workspace-create-button"
+      (click)="showProposeDialog()">
     </button>
   </div>
 
@@ -54,7 +64,16 @@
 
   <div *ngIf="!projects.length" class="empty-state">
     <i class="pi pi-folder-open text-300 text-7xl mb-3"></i>
-    <span class="text-600 text-xl font-medium">No projects found. Create one to get started!</span>
+    <span class="text-600 text-xl font-medium" *ngIf="isAdmin">No projects found. Create a project to get started.</span>
+    <span class="text-600 text-xl font-medium" *ngIf="!isAdmin && canProposeIdea"
+      >No projects yet. Use <strong>Propose new project idea</strong> to send an idea to the administrator.</span
+    >
+    <span class="text-600 text-xl font-medium" *ngIf="isClient"
+      >No projects yet. When your administrator adds you to a project, it will show up here.</span
+    >
+    <span class="text-600 text-xl font-medium" *ngIf="!isAdmin && !canProposeIdea && !isClient"
+      >No projects found.</span
+    >
   </div>
 
   <div *ngIf="projects.length && !filteredProjects(projects).length" class="empty-state">
@@ -65,16 +84,30 @@
 </div>
 
 <p-dialog
-  *ngIf="canManageProjects"
-  [header]="isEditMode ? 'Edit Project' : 'Launch new Project'"
-  [visible]="displayDialog"
+  *ngIf="showNewProjectFormDialog"
+  [header]="isEditMode ? 'Edit project' : 'Create project (admin only)'"
+  [(visible)]="displayDialog"
   [modal]="true"
   [draggable]="false"
   [resizable]="false"
-  [style]="{width: '500px'}"
-  (onHide)="displayDialog = false">
+  [style]="{ width: '500px' }"
+  (onHide)="closeDialog()">
 
   <ng-template pTemplate="content">
+    <div *ngIf="!isEditMode && isAdmin" class="flex flex-column mb-4 mt-1">
+      <label class="font-bold mb-2">Project manager <span class="text-red-500">*</span></label>
+      <p-select
+        [options]="projectManagerOptions()"
+        [(ngModel)]="newProject.managerId"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Select who will own this project"
+        [showClear]="true"
+        appendTo="body"
+        styleClass="w-full"
+      />
+      <p *ngIf="projectManagersLoadError" class="text-sm text-red-500 mt-1">{{ projectManagersLoadError }}</p>
+    </div>
     <div class="flex flex-column mb-5 mt-3">
       <label class="font-bold mb-2">Name <span class="text-red-500">*</span></label>
       <input pInputText 
@@ -101,6 +134,24 @@
         [(ngModel)]="newProject.deadline"
         class="w-full" />
     </div>
+
+    <div class="flex flex-column mb-2">
+      <label class="font-bold mb-2">Required skills</label>
+      <p-multiselect
+        [options]="allSkills"
+        optionLabel="name"
+        optionValue="id"
+        placeholder="Select required skills"
+        [(ngModel)]="newProject.requiredSkillIds"
+        [filter]="true"
+        [showToggleAll]="true"
+        display="chip"
+        [maxSelectedLabels]="6"
+        styleClass="w-full"
+        [appendTo]="'body'"
+        [disabled]="skillsLoading">
+      </p-multiselect>
+    </div>
   </ng-template>
 
   <ng-template pTemplate="footer">
@@ -108,5 +159,56 @@
             [label]="isEditMode ? 'Update' : 'Create'" 
             (click)="isEditMode ? updateProject() : createProject()">
     </button>
+  </ng-template>
+</p-dialog>
+
+<p-dialog
+  header="Propose a project idea"
+  [(visible)]="displayProposeDialog"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '500px' }"
+  (onHide)="closeProposeDialog()"
+>
+  <ng-template pTemplate="content">
+    <p class="text-600 text-sm mb-3">
+      The administrator can approve your idea to create a real project.
+    </p>
+    <div class="flex flex-column mb-4">
+      <label class="font-bold mb-2">Project title <span class="text-red-500">*</span></label>
+      <input pInputText [(ngModel)]="proposeIdea.name" class="w-full" placeholder="Name for your project idea" />
+    </div>
+    <div class="flex flex-column mb-4">
+      <label class="font-bold mb-2">Description</label>
+      <textarea
+        pInputTextarea
+        rows="5"
+        [(ngModel)]="proposeIdea.description"
+        class="w-full"
+        placeholder="Describe the goals and scope"
+      ></textarea>
+    </div>
+    <div class="flex flex-column mb-2">
+      <label class="font-bold mb-2">Suggested deadline (optional)</label>
+      <input pInputText type="date" [(ngModel)]="proposeIdea.deadline" class="w-full" />
+    </div>
+  </ng-template>
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      class="p-button-outlined"
+      label="Cancel"
+      type="button"
+      (click)="closeProposeDialog()"
+    ></button>
+    <button
+      pButton
+      label="Submit idea"
+      type="button"
+      [loading]="proposeSubmitting"
+      [disabled]="proposeSubmitting"
+      (click)="submitProposal()"
+    ></button>
   </ng-template>
 </p-dialog>

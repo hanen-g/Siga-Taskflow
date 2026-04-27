@@ -11,11 +11,16 @@ import { TextareaModule } from 'primeng/textarea';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
 import { MessageService, ConfirmationService } from 'primeng/api';
+import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 
 import { ProjectService } from '../../../services/project.service';
+import { UserService, ProjectManagerOption } from '../../../services/user.service';
 import { WebsocketService } from '../../../services/websocket.service';
 import { ProjectPanel } from './project-panel';
 import { AppLoaderComponent } from '../../../layout/app-loader';
+import { Skill } from '../../../models/skill.model';
+import { SkillService } from '../../../services/skill.service';
 
 @Component({
   standalone: true,
@@ -33,7 +38,9 @@ import { AppLoaderComponent } from '../../../layout/app-loader';
     AppLoaderComponent,
     TextareaModule,
     ConfirmDialogModule,
-    ToastModule
+    ToastModule,
+    SelectModule,
+    MultiSelectModule
   ],
   providers: [ConfirmationService, MessageService]
 })
@@ -53,10 +60,26 @@ export class ProjectsPage implements OnInit {
   isEditMode = false;
   selectedProjectId: number | null = null;
 
-  newProject = { name: '', description: '', deadline: '' };
+  newProject: {
+    name: string;
+    description: string;
+    deadline: string;
+    managerId: number | null;
+    requiredSkillIds: number[];
+  } = { name: '', description: '', deadline: '', managerId: null, requiredSkillIds: [] };
+
+  displayProposeDialog = false;
+  proposeIdea = { name: '', description: '', deadline: '' as string | null };
+  proposeSubmitting = false;
+  projectManagers: ProjectManagerOption[] = [];
+  projectManagersLoadError: string | null = null;
+  allSkills: Skill[] = [];
+  skillsLoading = false;
 
   constructor(
     private projectService: ProjectService,
+    private userService: UserService,
+    private skillService: SkillService,
     private ws: WebsocketService,
     private confirmationService: ConfirmationService,
     private messageService: MessageService
@@ -68,7 +91,11 @@ export class ProjectsPage implements OnInit {
 
   ngOnInit() {
     this.detectRole();
-    this.pageTitle = this.isAdmin ? 'All Projects' : 'Project List';
+    if (this.isClient) {
+      this.pageTitle = 'My projects';
+    } else {
+      this.pageTitle = this.isAdmin ? 'All Projects' : 'Project List';
+    }
 
     this.projects$ = this.refresh$.pipe(
       startWith(null),
@@ -112,20 +139,45 @@ export class ProjectsPage implements OnInit {
     }
   }
 
-  private get isAdmin() {
+  get isAdmin(): boolean {
     return this.role === 'ADMIN';
   }
 
-  private get isProjectManager() {
+  get isProjectManager(): boolean {
     return this.role === 'PROJECT_MANAGER';
   }
 
-  private get isCollaborator() {
+  get isCollaborator(): boolean {
     return this.role === 'COLLABORATOR';
+  }
+
+  get isClient(): boolean {
+    return this.role === 'CLIENT';
   }
 
   get canManageProjects(): boolean {
     return this.isAdmin || this.isProjectManager;
+  }
+
+  get canProposeIdea(): boolean {
+    return this.isProjectManager || this.isCollaborator;
+  }
+
+  get showNewProjectFormDialog(): boolean {
+    if (!this.displayDialog) {
+      return false;
+    }
+    if (this.isEditMode) {
+      return this.canManageProjects;
+    }
+    return this.isAdmin;
+  }
+
+  projectManagerOptions(): { label: string; value: number }[] {
+    return this.projectManagers.map((u) => ({
+      label: `${u.firstName} ${u.lastName} (${u.email})`,
+      value: u.id
+    }));
   }
 
   get projectDetailBase(): string {
@@ -134,6 +186,9 @@ export class ProjectsPage implements OnInit {
     }
     if (this.isCollaborator) {
       return '/dashboard/collab/projects';
+    }
+    if (this.isClient) {
+      return '/dashboard/client/projects';
     }
     return '/dashboard/pm/projects';
   }
@@ -159,8 +214,20 @@ export class ProjectsPage implements OnInit {
 
   showDialog() {
     this.isEditMode = false;
-    this.newProject = { name: '', description: '', deadline: '' };
-    this.displayDialog = true;
+    this.newProject = { name: '', description: '', deadline: '', managerId: null, requiredSkillIds: [] };
+    this.projectManagersLoadError = null;
+    this.loadSkillsIfNeeded();
+    this.userService.getProjectManagersForAdmin().subscribe({
+      next: (m) => {
+        this.projectManagers = m;
+        this.displayDialog = true;
+      },
+      error: () => {
+        this.projectManagersLoadError = 'Could not load project managers.';
+        this.notify('error', 'Error', 'Could not load project managers for assignment.');
+        this.displayDialog = true;
+      }
+    });
   }
 
   closeDialog() {
@@ -172,8 +239,29 @@ export class ProjectsPage implements OnInit {
   editProject(project: any) {
     this.isEditMode = true;
     this.selectedProjectId = project.id;
-    this.newProject = { ...project };
+    this.newProject = {
+      ...project,
+      requiredSkillIds: (project.requiredSkills ?? []).map((s: Skill) => s.id)
+    };
+    this.loadSkillsIfNeeded();
     this.displayDialog = true;
+  }
+
+  private loadSkillsIfNeeded(): void {
+    if (this.allSkills.length > 0 || this.skillsLoading) {
+      return;
+    }
+    this.skillsLoading = true;
+    this.skillService.getAllSkills().subscribe({
+      next: (skills) => {
+        this.allSkills = skills;
+        this.skillsLoading = false;
+      },
+      error: () => {
+        this.skillsLoading = false;
+        this.notify('error', 'Error', 'Could not load skills catalog.');
+      }
+    });
   }
 
   private notify(severity: string, summary: string, detail: string) {
@@ -203,14 +291,31 @@ export class ProjectsPage implements OnInit {
   }
 
   private saveProject() {
-
     if (!this.validateProjectName()) return;
 
     const isEditing = this.isEditMode;
 
+    if (!isEditing && this.isAdmin) {
+      if (this.newProject.managerId == null) {
+        this.notify('error', 'Validation', 'Select a project manager for this new project.');
+        return;
+      }
+    }
+
     const request = isEditing
-      ? this.projectService.updateProject(this.selectedProjectId!, this.newProject)
-      : this.projectService.createProject(this.newProject);
+      ? this.projectService.updateProject(this.selectedProjectId!, {
+          name: this.newProject.name,
+          description: this.newProject.description,
+          deadline: this.newProject.deadline,
+          requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id }))
+        })
+      : this.projectService.createProject({
+          name: this.newProject.name,
+          description: this.newProject.description,
+          deadline: this.newProject.deadline || undefined,
+          manager: { id: this.newProject.managerId! },
+          requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id }))
+        });
 
     request.subscribe({
       next: () => {
@@ -225,11 +330,13 @@ export class ProjectsPage implements OnInit {
             : 'Project created successfully'
         );
       },
-      error: () => {
+      error: (err) => {
+        const msg = err?.error?.message;
         this.notify(
           'error',
           'Request Failed',
-          isEditing
+          typeof msg === 'string' ? msg
+            : isEditing
             ? 'Project was updated on the server, but the app could not finish the request cleanly.'
             : 'Unable to save the project.'
         );
@@ -237,8 +344,43 @@ export class ProjectsPage implements OnInit {
     });
   }
 
+  showProposeDialog() {
+    this.proposeIdea = { name: '', description: '', deadline: null };
+    this.displayProposeDialog = true;
+  }
+
+  closeProposeDialog() {
+    this.displayProposeDialog = false;
+  }
+
+  submitProposal() {
+    const name = this.proposeIdea.name?.trim();
+    if (!name) {
+      this.notify('error', 'Validation', 'Please enter a name for the idea.');
+      return;
+    }
+    this.proposeSubmitting = true;
+    this.projectService
+      .submitProjectProposal({
+        name,
+        description: this.proposeIdea.description,
+        deadline: this.proposeIdea.deadline || null
+      })
+      .subscribe({
+        next: () => {
+          this.proposeSubmitting = false;
+          this.closeProposeDialog();
+          this.notify('success', 'Submitted', 'Your project idea was sent to the administrator for review.');
+        },
+        error: (err) => {
+          this.proposeSubmitting = false;
+          const m = err?.error?.message;
+          this.notify('error', 'Error', typeof m === 'string' ? m : 'Could not submit the proposal.');
+        }
+      });
+  }
+
   createProject() {
-    this.isEditMode = false;
     this.saveProject();
   }
 

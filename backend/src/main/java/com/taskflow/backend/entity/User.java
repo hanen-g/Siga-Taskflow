@@ -1,9 +1,13 @@
 package com.taskflow.backend.entity;
 
 import jakarta.persistence.*;
-import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.Instant;
+import java.util.HashSet;
+import java.util.Set;
 
 @Getter
 @Setter
@@ -26,8 +30,20 @@ public class User {
     @Enumerated(EnumType.STRING)
     private UserRole role;
 
+    @CreationTimestamp
+    @Column(name = "created_at", updatable = false)
+    private Instant createdAt;
+
     @ManyToMany(mappedBy = "members")
     private Set<Project> projects;
+
+    @ManyToMany
+    @JoinTable(
+            name = "user_skills",
+            joinColumns = @JoinColumn(name = "user_id"),
+            inverseJoinColumns = @JoinColumn(name = "skill_id")
+    )
+    private Set<Skill> skills = new HashSet<>();
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

@@ -1,5 +1,6 @@
 import { Task } from "./task.model";
 import { UploadedFile } from "./uploaded-file.model";
+import { Skill } from "./skill.model";
 export interface Project {
   id: number;
   name: string;
@@ -14,4 +15,5 @@ export interface Project {
   archived?: boolean;
   tasks?: Task[];
   files?: UploadedFile[];
+  requiredSkills?: Skill[];
 }

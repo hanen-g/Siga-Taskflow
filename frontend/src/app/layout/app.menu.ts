@@ -104,6 +104,17 @@ export class AppMenu {
             ];
         }
 
+        if (role === 'CLIENT') {
+            this.model = [
+                {
+                    label: 'Home',
+                    items: [
+                        { label: 'My projects', icon: 'pi pi-folder', routerLink: ['/dashboard/client'] }
+                    ]
+                }
+            ];
+        }
+
         if (role === 'ADMIN') {
             this.model = [
                 {
@@ -116,13 +127,21 @@ export class AppMenu {
                     label: 'Projects & Tasks',
                     items: [
                         { label: 'All Projects', icon: 'pi pi-folder', routerLink: ['/dashboard/admin/projects'] },
+                        { label: 'Proposed project ideas', icon: 'pi pi-lightbulb', routerLink: ['/dashboard/admin/project-proposals'] },
                         { label: 'All Tasks', icon: 'pi pi-check-square', routerLink: ['/dashboard/admin/tasks'] }
                     ]
                 },
                 {
                     label: 'Users',
                     items: [
+                        { label: 'Create users', icon: 'pi pi-user-plus', routerLink: ['/dashboard/admin/create-users'] },
                         { label: 'Users', icon: 'pi pi-users', routerLink: ['/dashboard/admin/users'] }
+                    ]
+                },
+                {
+                    label: 'Skills',
+                    items: [
+                        { label: 'Skills catalog', icon: 'pi pi-list', routerLink: ['/dashboard/admin/skills'] }
                     ]
                 },
                 {

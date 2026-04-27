@@ -83,3 +83,12 @@ input,
 textarea {
   width: 100% !important;
 }
+
+.team-skills-panel{max-width:100%}
+.team-match-table-wrap{overflow-x:auto;border:1px solid rgba(203,213,225,.7);border-radius:.75rem;background:rgba(255,255,255,.9)}
+.team-match-table{width:100%;border-collapse:collapse;font-size:.95rem}
+.team-match-table th,.team-match-table td{padding:.75rem 1rem;text-align:left;border-bottom:1px solid rgba(226,232,240,.9)}
+.team-match-table th{color:#475569;font-weight:600;background:rgba(248,250,252,.9)}
+.team-match-table tr.row-full-match td:first-child{border-left:3px solid #22c55e}
+.skill-chip{padding:.15rem .5rem;border-radius:999px;background:rgba(219,234,254,.9);color:#1e3a5f;font-size:.8rem}
+.surface-card{border:1px solid rgba(203,213,225,.7);border-radius:.75rem;background:rgba(255,255,255,.85)}

@@ -22,13 +22,6 @@ login(email: string, password: string) {
   );
 }
 
-signup(data: { firstName: string; lastName: string; email: string; password: string; role: string }) {
-  return this.http.post<AuthResponse>(
-    `${this.baseUrl}/auth/signup`,
-    data
-  );
-}
-
 getProfile() {
   return this.http.get<UserProfile>(`${this.baseUrl}/user/me`);
 }

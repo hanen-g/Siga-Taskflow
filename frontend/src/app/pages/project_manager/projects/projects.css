@@ -10,6 +10,13 @@
   box-shadow: 0 18px 40px rgba(15, 23, 42, 0.06);
 }
 
+.workspace-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
 .workspace-title {
   margin: 0;
   font-size: 2rem;

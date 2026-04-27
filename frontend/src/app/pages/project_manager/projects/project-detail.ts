@@ -22,6 +22,9 @@ import { Priority, Task, TaskStatus } from '../../../models/task.model';
 import { TaskService } from '../../../services/task.service';
 import { UploadedFile } from '../../../models/uploaded-file.model';
 import { FileAccessService } from '../../../services/file-access.service';
+import { SkillService } from '../../../services/skill.service';
+import { Skill, ProjectSkillMatchResult, UserSkillMatch } from '../../../models/skill.model';
+import { MultiSelectModule } from 'primeng/multiselect';
 
 type ProjectAction = 'edit' | 'delete' | 'add-task' | 'archive';
 
@@ -50,7 +53,8 @@ interface ProjectActionItem {
     DialogModule,
     InputTextModule,
     TextareaModule,
-    FolderFileUploadComponent
+    FolderFileUploadComponent,
+    MultiSelectModule
   ],
   providers: [MessageService, ConfirmationService]
 })
@@ -62,7 +66,14 @@ export class ProjectDetailPage implements OnInit {
   error: string | null = null;
   uploadingAttachment = false;
   uploadingTaskFileIds = new Set<number>();
-  activeTab: 'tasks' | 'files' = 'tasks';
+  activeTab: 'tasks' | 'files' | 'team' = 'tasks';
+
+  allSkills: Skill[] = [];
+  selectedRequiredSkillIds: number[] = [];
+  teamMatchResult: ProjectSkillMatchResult | null = null;
+  teamPanelLoading = false;
+  savingRequiredSkills = false;
+  skillsCatalogLoading = false;
   searchText = '';
   displayDialog = false;
   taskDialogVisible = false;
@@ -149,7 +160,8 @@ export class ProjectDetailPage implements OnInit {
     private taskService: TaskService,
     private fileAccess: FileAccessService,
     private messageService: MessageService,
-    private confirmationService: ConfirmationService
+    private confirmationService: ConfirmationService,
+    private skillService: SkillService
   ) {}
 
   ngOnInit() {
@@ -266,9 +278,113 @@ export class ProjectDetailPage implements OnInit {
     return email || 'Unassigned';
   }
 
-  switchTab(tab: 'tasks' | 'files'): void {
+  switchTab(tab: 'tasks' | 'files' | 'team', project: Project | null): void {
     this.activeTab = tab;
     this.searchText = '';
+    if (tab === 'team' && project?.id) {
+      this.refreshTeamPanel(project);
+    }
+  }
+
+  canEditProjectSkills(project: Project | null): boolean {
+    if (!project) {
+      return false;
+    }
+    const role = this.currentUserRole();
+    const uid = this.readStoredUser()?.id;
+    if (role === 'ADMIN') {
+      return true;
+    }
+    if (role === 'PROJECT_MANAGER' && project.managerId != null && uid != null) {
+      return project.managerId === uid;
+    }
+    return false;
+  }
+
+  saveProjectRequiredSkills(project: Project | null): void {
+    if (!project?.id || !this.canEditProjectSkills(project)) {
+      return;
+    }
+    this.savingRequiredSkills = true;
+    this.projectService.setProjectRequiredSkills(project.id, this.selectedRequiredSkillIds).subscribe({
+      next: () => {
+        this.savingRequiredSkills = false;
+        this.loadProject(project.id);
+        this.reloadTeamMatches();
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Saved',
+          detail: 'Required skills were updated.'
+        });
+      },
+      error: (err) => {
+        this.savingRequiredSkills = false;
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: err.error?.error ?? err.error?.message ?? 'Could not save required skills.'
+        });
+      }
+    });
+  }
+
+  private refreshTeamPanel(project: Project): void {
+    if (!this.projectId) {
+      return;
+    }
+    this.selectedRequiredSkillIds = (project.requiredSkills ?? []).map((s) => s.id);
+    this.loadSkillsCatalogIfNeeded(() => this.reloadTeamMatches());
+  }
+
+  private reloadTeamMatches(): void {
+    if (!this.projectId) {
+      return;
+    }
+    this.teamPanelLoading = true;
+    this.projectService.getProjectSkillMatches(this.projectId).subscribe({
+      next: (res) => {
+        this.teamMatchResult = res;
+        this.teamPanelLoading = false;
+      },
+      error: () => {
+        this.teamMatchResult = null;
+        this.teamPanelLoading = false;
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'Could not load team matches.'
+        });
+      }
+    });
+  }
+
+  private loadSkillsCatalogIfNeeded(done: () => void): void {
+    if (this.allSkills.length > 0) {
+      done();
+      return;
+    }
+    this.skillsCatalogLoading = true;
+    this.skillService.getAllSkills().subscribe({
+      next: (skills) => {
+        this.allSkills = skills;
+        this.skillsCatalogLoading = false;
+        done();
+      },
+      error: () => {
+        this.skillsCatalogLoading = false;
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'Could not load skills catalog.'
+        });
+        done();
+      }
+    });
+  }
+
+  matchRowLabel(m: UserSkillMatch): string {
+    const parts = [m.firstName, m.lastName].filter(Boolean);
+    return parts.length ? parts.join(' ') : m.email ?? 'User';
   }
 
   filteredTasks(project: Project | null): Task[] {
@@ -433,6 +549,9 @@ export class ProjectDetailPage implements OnInit {
         if (role === 'COLLABORATOR') {
           return '/dashboard/collab/projects';
         }
+        if (role === 'CLIENT') {
+          return '/dashboard/client/projects';
+        }
       } catch {
         /* ignore */
       }
@@ -585,7 +704,7 @@ export class ProjectDetailPage implements OnInit {
     return [...new Set(emails)];
   }
 
-  private readStoredUser(): { firstName?: string; lastName?: string; role?: string; email?: string } | null {
+  private readStoredUser(): { id?: number; firstName?: string; lastName?: string; role?: string; email?: string } | null {
     const userData = localStorage.getItem('user');
     if (!userData) {
       return null;

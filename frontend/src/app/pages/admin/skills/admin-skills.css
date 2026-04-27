@@ -1,0 +1,10 @@
+.add-row {
+  border-radius: 0.75rem;
+  border: 1px solid var(--surface-border, rgba(15, 23, 42, 0.08));
+}
+
+.empty-state {
+  display: flex;
+  justify-content: center;
+  padding: 3rem 1rem;
+}

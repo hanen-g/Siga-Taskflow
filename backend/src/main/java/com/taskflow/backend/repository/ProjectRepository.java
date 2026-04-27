@@ -18,6 +18,6 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 
     List<Project> findByArchived(boolean archived);
 
-    @EntityGraph(attributePaths = { "manager", "tasks", "tasks.collaborators" })
+    @EntityGraph(attributePaths = { "manager", "tasks", "tasks.collaborators", "requiredSkills" })
     Optional<Project> findDetailedById(Long id);
 }

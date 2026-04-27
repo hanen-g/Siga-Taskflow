@@ -83,6 +83,39 @@
           </div>
         </div>
 
+        <section *ngIf="canEditSkills" class="skills-card surface-card p-3 mb-3">
+          <h3>Your skills</h3>
+          <p class="text-600 text-sm mb-3">These skills are used to match you with project needs. Admins define the catalog under Skills catalog.</p>
+          <div *ngIf="skillsUiLoading" class="py-3">
+            <i class="pi pi-spin pi-spinner"></i> Loading…
+          </div>
+          <ng-container *ngIf="!skillsUiLoading">
+            <p-multiselect
+              [options]="allSkills"
+              optionLabel="name"
+              optionValue="id"
+              placeholder="Select your skills"
+              [(ngModel)]="selectedSkillIds"
+              [filter]="true"
+              [showToggleAll]="true"
+              display="chip"
+              [maxSelectedLabels]="5"
+              styleClass="w-full"
+              [appendTo]="'body'">
+            </p-multiselect>
+            <div class="mt-2">
+              <button
+                pButton
+                type="button"
+                label="Save skills"
+                [loading]="skillsSaving"
+                [disabled]="skillsSaving"
+                (click)="saveMySkills()">
+              </button>
+            </div>
+          </ng-container>
+        </section>
+
         <div class="profile-footer-row">
           <div class="action-row">
             <button

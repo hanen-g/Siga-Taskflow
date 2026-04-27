@@ -1,4 +1,12 @@
-
+.skills-card h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1.1rem;
+}
+.skills-card {
+  border: 1px solid rgba(203, 213, 225, 0.7);
+  border-radius: 0.75rem;
+  background: rgba(255, 255, 255, 0.9);
+}
 
 .profile-page::before,
 .profile-page::after {

@@ -2,12 +2,14 @@ package com.taskflow.backend.dto.project;
 
 import com.taskflow.backend.dto.task.TaskResponse;
 import com.taskflow.backend.dto.file.UploadedFileResponse;
+import com.taskflow.backend.dto.skill.SkillResponse;
 import com.taskflow.backend.entity.Project;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -29,6 +31,7 @@ public class ProjectResponse {
     private String managerEmail;
     private List<TaskResponse> tasks;
     private List<UploadedFileResponse> files;
+    private List<SkillResponse> requiredSkills;
 
     public static ProjectResponse fromProject(Project project) {
         return fromProject(project, task -> true);
@@ -54,6 +57,14 @@ public class ProjectResponse {
                     .stream()
                     .filter(taskFilter)
                     .map(TaskResponse::fromTask)
+                    .collect(Collectors.toList());
+        }
+
+        if (project.getRequiredSkills() != null) {
+            response.requiredSkills = project.getRequiredSkills()
+                    .stream()
+                    .map(SkillResponse::fromEntity)
+                    .sorted(Comparator.comparing(SkillResponse::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
                     .collect(Collectors.toList());
         }
 

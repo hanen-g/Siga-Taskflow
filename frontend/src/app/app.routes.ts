@@ -1,6 +1,5 @@
 import { Routes } from '@angular/router';
 import { Login } from './pages/login/login';
-import { Signup } from './pages/signup/signup';
 import { Dashboard } from './pages/dashboard/dashboard';
 import { ProjectsPage } from './pages/project_manager/projects/projects';
 import { IAChatComponent } from './ia-dashbord/ia-chat.component';
@@ -12,7 +11,7 @@ export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
 
   { path: 'login', component: Login },
-  { path: 'signup', component: Signup },
+  { path: 'signup', redirectTo: 'login', pathMatch: 'full' },
 
   {
     path: '',
@@ -57,6 +56,17 @@ export const routes: Routes = [
         data: { roles: ['COLLABORATOR'] }
       },
       {
+        path: 'dashboard/client',
+        component: ProjectsPage,
+        data: { roles: ['CLIENT'] }
+      },
+      {
+        path: 'dashboard/client/projects/:projectId',
+        loadComponent: () =>
+          import('./pages/project_manager/projects/project-detail').then(m => m.ProjectDetailPage),
+        data: { roles: ['CLIENT'] }
+      },
+      {
         path: 'dashboard/pm/tasks',
         loadComponent: () => import('./pages/tasks/tasks-page').then(m => m.TasksPage),
         data: { roles: ['PROJECT_MANAGER'] }
@@ -79,7 +89,7 @@ export const routes: Routes = [
       {
         path: 'dashboard/profile',
         loadComponent: () => import('./pages/profile/profile').then(m => m.ProfilePage),
-        data: { roles: ['PROJECT_MANAGER', 'COLLABORATOR', 'ADMIN'] }
+        data: { roles: ['PROJECT_MANAGER', 'COLLABORATOR', 'ADMIN', 'CLIENT'] }
       },
       {
         path: 'dashboard/admin',
@@ -98,6 +108,12 @@ export const routes: Routes = [
         data: { roles: ['ADMIN'] }
       },
       {
+        path: 'dashboard/admin/project-proposals',
+        loadComponent: () =>
+          import('./pages/admin/project-proposals/project-proposals').then(m => m.ProjectProposalsPage),
+        data: { roles: ['ADMIN'] }
+      },
+      {
         path: 'dashboard/admin/tasks',
         loadComponent: () => import('./pages/tasks/tasks-page').then(m => m.TasksPage),
         data: { roles: ['ADMIN'] }
@@ -105,6 +121,16 @@ export const routes: Routes = [
       {
         path: 'dashboard/admin/users',
         loadComponent: () => import('./pages/admin/user-management/user-management').then(m => m.UserManagementPage),
+        data: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'dashboard/admin/create-users',
+        loadComponent: () => import('./pages/admin/create-users/create-users').then(m => m.CreateUsersPage),
+        data: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'dashboard/admin/skills',
+        loadComponent: () => import('./pages/admin/skills/admin-skills').then(m => m.AdminSkillsPage),
         data: { roles: ['ADMIN'] }
       },
       {

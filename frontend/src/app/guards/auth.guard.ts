@@ -41,11 +41,12 @@ export class AuthGuard implements CanActivate {
         this.router.navigate(['/dashboard/pm']);
       } else if (role === 'COLLABORATOR') {
         this.router.navigate(['/dashboard/collab']);
-      }else{     
-           this.router.navigate(['/dashboard/admin']);
-
-
-        
+      } else if (role === 'CLIENT') {
+        this.router.navigate(['/dashboard/client']);
+      } else if (role === 'ADMIN') {
+        this.router.navigate(['/dashboard/admin']);
+      } else {
+        this.router.navigate(['/dashboard/collab']);
       }
       return false;
     }

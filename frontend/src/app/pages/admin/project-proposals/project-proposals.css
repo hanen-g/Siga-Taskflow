@@ -1,0 +1,47 @@
+.proposals-page {
+  min-height: 100%;
+  padding: 1.5rem;
+  background: linear-gradient(180deg, #f5f8fc 0%, #edf2f8 100%);
+}
+.header-block h1 {
+  margin: 0 0 0.35rem;
+  font-size: 1.75rem;
+  color: #122033;
+}
+.header-block p {
+  margin: 0 0 1.25rem;
+  color: #64748b;
+  max-width: 42rem;
+}
+.err {
+  color: #b91c1c;
+  margin-bottom: 1rem;
+}
+.loading {
+  color: #64748b;
+}
+.idea-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+.idea-desc {
+  font-size: 0.9rem;
+  color: #64748b;
+  margin-top: 0.25rem;
+  max-width: 28rem;
+}
+.muted {
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+.empty {
+  text-align: center;
+  padding: 1.5rem;
+  color: #64748b;
+}
+:host ::ng-deep .proposals-table th {
+  font-weight: 700;
+}
+.ml-2 {
+  margin-left: 0.5rem;
+}

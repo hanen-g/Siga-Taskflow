@@ -1,12 +1,13 @@
 package com.taskflow.backend.dto.auth;
 
 import com.taskflow.backend.entity.UserRole;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Getter;
+import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 @Getter
 @Setter
+@NoArgsConstructor
 public class SignupRequest {
 
     private String firstName;
@@ -14,15 +15,6 @@ public class SignupRequest {
     private String email;
     private String password;
     private String role;
-
-
-    public SignupRequest(String firstName, String lastName, String email, String password, String role) {
-        this.firstName = firstName;
-        this.lastName = lastName;
-        this.email = email;
-        this.password = password;
-        this.role = role;
-    }
 
 
     public UserRole getRoleAsEnum() {

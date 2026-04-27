@@ -8,6 +8,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByEmail(String email);
@@ -35,4 +36,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     List<User> findByRoleAndIsActive(UserRole role, boolean isActive);
     List<User> findByIsActive(boolean isActive);
+
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT DISTINCT u FROM User u
+            LEFT JOIN FETCH u.skills
+            WHERE u.role IN :roles
+              AND (u.isActive = true OR u.isActive IS null)
+            """)
+    List<User> findActiveByRolesWithSkills(@Param("roles") Set<UserRole> roles);
 }

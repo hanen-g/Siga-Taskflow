@@ -11,7 +11,7 @@ import { InputIconModule } from 'primeng/inputicon';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 
-import { RouterModule,Router, RouterLink } from '@angular/router';
+import { RouterModule, Router } from '@angular/router';
 import { ApiService } from '../../services/api';
 import { Location } from '@angular/common';
 import { CommonModule } from '@angular/common';
@@ -24,7 +24,6 @@ import { CommonModule } from '@angular/common';
     InputTextModule,
     PasswordModule,
     FormsModule,
-    RouterLink,
     RouterModule,
     IconFieldModule,
     InputIconModule,
@@ -74,6 +73,8 @@ export class Login implements OnInit {
       this.router.navigate(['/dashboard/collab']);
     } else if (role === 'ADMIN') {
       this.router.navigate(['/dashboard/admin']);
+    } else if (role === 'CLIENT') {
+      this.router.navigate(['/dashboard/client']);
     } else {
       this.router.navigate(['/dashboard/collab']);
     }

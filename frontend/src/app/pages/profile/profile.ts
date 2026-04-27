@@ -13,6 +13,9 @@ import { AvatarModule } from 'primeng/avatar';
 import { MessageService } from 'primeng/api';
 import { ApiService, UpdateProfileRequest, UserProfile } from '../../services/api';
 import { FileAccessService } from '../../services/file-access.service';
+import { SkillService } from '../../services/skill.service';
+import { Skill } from '../../models/skill.model';
+import { MultiSelectModule } from 'primeng/multiselect';
 
 @Component({
   selector: 'app-profile',
@@ -27,6 +30,7 @@ import { FileAccessService } from '../../services/file-access.service';
     DialogModule,
     ToastModule,
     AvatarModule,
+    MultiSelectModule,
   ],
   providers: [MessageService],
   templateUrl: './profile.html',
@@ -71,12 +75,18 @@ export class ProfilePage implements OnInit, OnDestroy {
   password = '';
   confirmPassword = '';
 
+  allSkills: Skill[] = [];
+  selectedSkillIds: number[] = [];
+  skillsUiLoading = false;
+  skillsSaving = false;
+
   // ── Constructor ────────────────────────────────────────────────────────────
 
   constructor(
     private api: ApiService,
     private messageService: MessageService,
     private fileAccessService: FileAccessService,
+    private skillService: SkillService,
   ) {
     this.picturePath$
       .pipe(
@@ -106,6 +116,30 @@ export class ProfilePage implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadProfile();
+  }
+
+  get canEditSkills(): boolean {
+    const r = this.user?.role;
+    return r === 'PROJECT_MANAGER' || r === 'COLLABORATOR' || r === 'ADMIN';
+  }
+
+  saveMySkills(): void {
+    this.skillsSaving = true;
+    this.skillService.putMySkills(this.selectedSkillIds).subscribe({
+      next: () => {
+        this.skillsSaving = false;
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Saved',
+          detail: 'Your skills were updated.',
+          life: 3000,
+        });
+      },
+      error: (err) => {
+        this.skillsSaving = false;
+        this.showError(err.error?.message ?? err.error?.error ?? 'Could not update skills.');
+      },
+    });
   }
 
   ngOnDestroy(): void {
@@ -245,6 +279,34 @@ export class ProfilePage implements OnInit, OnDestroy {
     return this.user?.role?.replaceAll('_', ' ') ?? 'Member';
   }
 
+  private loadSkillsUi(): void {
+    if (!this.canEditSkills) {
+      this.allSkills = [];
+      this.selectedSkillIds = [];
+      return;
+    }
+    this.skillsUiLoading = true;
+    this.skillService.getAllSkills().subscribe({
+      next: (all) => {
+        this.allSkills = all;
+        this.skillService.getMySkills().subscribe({
+          next: (mine) => {
+            this.selectedSkillIds = mine.map((s) => s.id);
+            this.skillsUiLoading = false;
+          },
+          error: () => {
+            this.skillsUiLoading = false;
+            this.showError('Could not load your skills.');
+          },
+        });
+      },
+      error: () => {
+        this.skillsUiLoading = false;
+        this.showError('Could not load the skills catalog.');
+      },
+    });
+  }
+
   // ── Private helpers ────────────────────────────────────────────────────────
 
   private readCachedUser(): UserProfile | null {
@@ -259,6 +321,7 @@ export class ProfilePage implements OnInit, OnDestroy {
   private applyProfile(profile: UserProfile | null): void {
     if (!profile) return;
     this.user = profile;
+    this.loadSkillsUi();
     this.firstName = profile.firstName;
     this.lastName = profile.lastName;
     this.email = profile.email;
