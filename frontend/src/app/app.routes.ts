@@ -51,6 +51,11 @@ export const routes: Routes = [
         data: { roles: ['PROJECT_MANAGER'] }
       },
       {
+        path: 'dashboard/admin/archives',
+        loadComponent: () => import('./pages/project_manager/archived-projects/archived-projects').then(m => m.ArchivedProjectsPage),
+        data: { roles: ['ADMIN'] }
+      },
+      {
         path: 'dashboard/collab',
         component: Dashboard,
         data: { roles: ['COLLABORATOR'] }

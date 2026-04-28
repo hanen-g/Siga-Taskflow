@@ -36,8 +36,10 @@ public class TaskController {
     }
 
     @DeleteMapping("/{id:\\d+}")
-    public void deleteProject(@PathVariable Long id) {
-        taskService.deleteTask(id);
+    public void deleteTask(
+            @PathVariable Long id,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        taskService.deleteTask(id, userDetails.getUser());
     }
 
     @GetMapping("/my-tasks")

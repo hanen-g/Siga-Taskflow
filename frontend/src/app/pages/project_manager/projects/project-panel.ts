@@ -5,8 +5,10 @@ import {
   ElementRef,
   EventEmitter,
   Input,
+  OnChanges,
   OnInit,
   Output,
+  SimpleChanges,
   ViewChild
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -112,23 +114,31 @@ import { ProjectService } from '../../../services/project.service';
 
   `]
 })
-export class ProjectPanel implements OnInit {
+export class ProjectPanel implements OnInit, OnChanges {
   @Input() project!: Project;
   @Input() detailBase = '';
-  /** Show card menu (archive, upload); PM sees this without edit/delete unless also admin. */
-  @Input() canManage = true;
-  /** Edit / delete project — administrators only when projects are centrally managed. */
-  @Input() canEditOrDeleteProject = true;
+
+  /** When true, show full lifecycle menu (archived, delete, pause, mark delivered) — administrators only. */
+  @Input() adminProjectControls = false;
+
+  /** When true, show “edit” and file upload in the context of a project manager. */
+  @Input() managerMenu = false;
 
   @Output() edit = new EventEmitter<Project>();
   @Output() delete = new EventEmitter<{ id: number; nativeEvent: Event }>();
   @Output() archive = new EventEmitter<{ id: number; archived: boolean; nativeEvent: Event }>();
+  @Output() setPaused = new EventEmitter<{ id: number; paused: boolean; nativeEvent: Event }>();
+  @Output() setDelivered = new EventEmitter<{ id: number; delivered: boolean; nativeEvent: Event }>();
 
   @ViewChild('fileInput') fileInput?: ElementRef<HTMLInputElement>;
   @ViewChild('menu') menu?: Menu;
 
   menuItems: MenuItem[] = [];
   bannerColor = '#dbeafe';
+
+  get showMenu(): boolean {
+    return this.adminProjectControls || this.managerMenu;
+  }
 
   constructor(
     private projectService: ProjectService,
@@ -137,9 +147,25 @@ export class ProjectPanel implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    const archived = !!this.project.archived;
     this.bannerColor = this.resolveBannerColor();
-    if (this.canManage) {
+    this.rebuildMenu();
+  }
+
+  ngOnChanges(_changes: SimpleChanges): void {
+    this.rebuildMenu();
+  }
+
+  private rebuildMenu(): void {
+    this.bannerColor = this.resolveBannerColor();
+    if (!this.project) {
+      this.menuItems = [];
+      return;
+    }
+    const archived = !!this.project.archived;
+    const paused = !!this.project.paused;
+    const delivered = !!this.project.delivered;
+
+    if (this.adminProjectControls) {
       this.menuItems = [
         {
           label: archived ? 'Unarchive' : 'Archive',
@@ -151,24 +177,53 @@ export class ProjectPanel implements OnInit {
               nativeEvent: event.originalEvent as Event
             })
         },
-        ...(this.canEditOrDeleteProject
-          ? ([
-              {
-                label: 'Edit',
-                icon: 'pi pi-pencil',
-                command: () => this.edit.emit(this.project)
-              },
-              {
-                label: 'Delete',
-                icon: 'pi pi-trash',
-                command: (event: { originalEvent?: Event }) =>
-                  this.delete.emit({
-                    id: this.project.id,
-                    nativeEvent: event.originalEvent as Event
-                  })
-              }
-            ] as MenuItem[])
-          : []),
+        {
+          label: paused ? 'Resume project' : 'Pause project',
+          icon: paused ? 'pi pi-play' : 'pi pi-pause',
+          command: (event) =>
+            this.setPaused.emit({
+              id: this.project.id,
+              paused: !paused,
+              nativeEvent: event.originalEvent as Event
+            })
+        },
+        {
+          label: delivered ? 'Reopen (not delivered)' : 'Mark as delivered',
+          icon: delivered ? 'pi pi-replay' : 'pi pi-check-circle',
+          command: (event) =>
+            this.setDelivered.emit({
+              id: this.project.id,
+              delivered: !delivered,
+              nativeEvent: event.originalEvent as Event
+            })
+        },
+        {
+          label: 'Edit',
+          icon: 'pi pi-pencil',
+          command: () => this.edit.emit(this.project)
+        },
+        {
+          label: 'Delete',
+          icon: 'pi pi-trash',
+          command: (event) =>
+            this.delete.emit({
+              id: this.project.id,
+              nativeEvent: event.originalEvent as Event
+            })
+        },
+        {
+          label: 'Upload File',
+          icon: 'pi pi-upload',
+          command: () => this.openFilePicker()
+        }
+      ];
+    } else if (this.managerMenu) {
+      this.menuItems = [
+        {
+          label: 'Edit',
+          icon: 'pi pi-pencil',
+          command: () => this.edit.emit(this.project)
+        },
         {
           label: 'Upload File',
           icon: 'pi pi-upload',
@@ -178,17 +233,19 @@ export class ProjectPanel implements OnInit {
     } else {
       this.menuItems = [];
     }
+    this.cdr.markForCheck();
   }
 
   onCardNavigate(event: MouseEvent): void {
-    if (!this.detailBase) {
+    if (!this.detailBase || this.project?.id == null) {
       return;
     }
     const target = event.target as HTMLElement;
     if (target.closest('button')) {
       return;
     }
-    this.router.navigate([this.detailBase, this.project.id]);
+    const base = this.detailBase.replace(/\/$/, '');
+    void this.router.navigateByUrl(`${base}/${this.project.id}`);
   }
 
   toggleMenu(event: Event): void {
@@ -211,7 +268,7 @@ export class ProjectPanel implements OnInit {
   }
 
   openFilePicker(): void {
-    if (!this.canManage) {
+    if (!this.showMenu) {
       return;
     }
     this.fileInput?.nativeElement.click();

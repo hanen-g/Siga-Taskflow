@@ -49,18 +49,68 @@
     </div>
   </div>
 
-  <div class="projects-grid" *ngIf="filteredProjects(projects).length">
-    <div class="project-grid-item" *ngFor="let project of filteredProjects(projects)">
-      <app-project-panel
-        [project]="project"
-        [detailBase]="projectDetailBase"
-        [canManage]="canManageProjects"
-        [canEditOrDeleteProject]="isAdmin"
-        (edit)="editProject($event)"
-        (delete)="deleteProject($event)"
-        (archive)="archiveProject($event)">
-      </app-project-panel>
+  <p-message
+    *ngIf="projects.length && filteredOtherStatusProjects(projects).length"
+    severity="warn"
+    [closable]="false"
+    styleClass="projects-top-alert w-full">
+    Des projets ne sont pas au statut « en cours » (en pause, livrés ou archivés). Voir le panneau à droite.
+  </p-message>
+
+  <div
+    class="projects-layout-row"
+    *ngIf="projects.length && filteredProjects(projects).length">
+    <div class="projects-main-column">
+      <h2 class="projects-section-title">{{ isClient ? 'Projets actifs' : 'Projets en cours' }}</h2>
+
+      <div class="projects-grid" *ngIf="filteredInProgressProjects(projects).length">
+        <div class="project-grid-item" *ngFor="let project of filteredInProgressProjects(projects)">
+          <app-project-panel
+            [project]="project"
+            [detailBase]="projectDetailBase"
+            [adminProjectControls]="isAdmin"
+            [managerMenu]="isProjectManager"
+            (edit)="editProject($event)"
+            (delete)="deleteProject($event)"
+            (archive)="archiveProject($event)"
+            (setPaused)="pauseProject($event)"
+            (setDelivered)="deliverProject($event)">
+          </app-project-panel>
+        </div>
+      </div>
+
+      <div
+        *ngIf="!filteredInProgressProjects(projects).length"
+        class="projects-main-empty text-center p-5 border-round-xl surface-ground">
+        <i class="pi pi-info-circle text-400 text-4xl mb-3 block"></i>
+        <p class="m-0 text-600">
+          Aucun projet <strong>en cours</strong> pour cette vue — les correspondances ci-dessous sont à droite (autres statuts).
+        </p>
+      </div>
     </div>
+
+    <aside
+      *ngIf="filteredOtherStatusProjects(projects).length"
+      class="projects-aside-column"
+      aria-label="Projets en pause, livrés ou archivés">
+      <div class="projects-aside-alert border-round-xl">
+        <div class="projects-aside-alert-header">
+          <i class="pi pi-bell" aria-hidden="true"></i>
+          <span>Autres statuts</span>
+        </div>
+        <p class="projects-aside-alert-sub m-0 mb-3">Pause, livré ou archivé — nécessitent une attention particulière.</p>
+        <ul class="projects-aside-list">
+          <li *ngFor="let p of filteredOtherStatusProjects(projects)" class="projects-aside-item">
+            <a [routerLink]="projectDetailBase + '/' + p.id" class="projects-aside-link">{{ p.name }}</a>
+            <span class="projects-aside-badge" [ngClass]="{
+              'is-archived': p.archived,
+              'is-paused': p.paused && !p.archived,
+              'is-delivered': p.delivered && !p.archived
+            }">{{ otherProjectStateLabel(p) }}</span>
+          </li>
+        </ul>
+      </div>
+    </aside>
   </div>
 
   <div *ngIf="!projects.length" class="empty-state">
@@ -79,7 +129,7 @@
 
   <div *ngIf="projects.length && !filteredProjects(projects).length" class="empty-state">
     <i class="pi pi-search text-300 text-6xl mb-3"></i>
-    <span class="text-600 text-xl font-medium">No projects match your search.</span>
+    <span class="text-600 text-xl font-medium">Aucun projet ne correspond à votre recherche.</span>
   </div>
   </ng-container>
 </div>
@@ -128,7 +178,16 @@
     </div>
 
     <div class="flex flex-column mb-2">
-      <label class="font-bold mb-2">Deadline</label>
+      <label class="font-bold mb-2">Début du projet (optionnel)</label>
+      <input
+        pInputText
+        type="date"
+        [(ngModel)]="newProject.startDate"
+        class="w-full" />
+    </div>
+
+    <div class="flex flex-column mb-2">
+      <label class="font-bold mb-2">Date limite (optionnel)</label>
       <input
         pInputText
         type="date"

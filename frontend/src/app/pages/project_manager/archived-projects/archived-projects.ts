@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Observable, Subject, of, switchMap, startWith } from 'rxjs';
 import { catchError } from 'rxjs/operators';
@@ -12,6 +12,8 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
 import { MessageService, ConfirmationService } from 'primeng/api';
 
+import { Router } from '@angular/router';
+import { Project } from '../../../models/project.model';
 import { ProjectService } from '../../../services/project.service';
 import { WebsocketService } from '../../../services/websocket.service';
 import { ProjectMessage } from '../../../models/project-message.model';
@@ -38,7 +40,10 @@ import { AppLoaderComponent } from '../../../layout/app-loader';
   ],
   providers: [ConfirmationService, MessageService]
 })
-export class ArchivedProjectsPage {
+export class ArchivedProjectsPage implements OnInit {
+  role: string | null = null;
+  /** Project detail link: admin vs project manager area */
+  detailBase = '/dashboard/pm/projects';
 
   private refresh$ = new Subject<void>();
 
@@ -56,8 +61,13 @@ export class ArchivedProjectsPage {
   );
   error: string | null = null;
 
+  get isAdmin(): boolean {
+    return this.role === 'ADMIN';
+  }
+
   constructor(
     private projectService: ProjectService,
+    private router: Router,
     private ws: WebsocketService,
     private confirmationService: ConfirmationService,
     private messageService: MessageService
@@ -67,8 +77,121 @@ export class ArchivedProjectsPage {
     });
   }
 
-  unarchiveProject(event: { id: number; archived: boolean; nativeEvent: Event }) {
-    // event.archived is the desired archived value. For unarchive, it will be false.
+  ngOnInit(): void {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        this.role = JSON.parse(userData)?.role ?? null;
+      } catch {
+        this.role = null;
+      }
+    }
+    if (!this.role) {
+      const token = localStorage.getItem('token');
+      if (token) {
+        try {
+          this.role = JSON.parse(atob(token.split('.')[1]))?.role ?? null;
+        } catch {
+          this.role = null;
+        }
+      }
+    }
+    this.detailBase = this.isAdmin ? '/dashboard/admin/projects' : '/dashboard/pm/projects';
+  }
+
+  goToProject(project: Project): void {
+    if (project?.id) {
+      void this.router.navigate([this.detailBase, project.id]);
+    }
+  }
+
+  deleteProject(event: { id: number; nativeEvent: Event }): void {
+    this.confirmationService.confirm({
+      target: event.nativeEvent.target as EventTarget,
+      message: 'Do you want to delete this project?',
+      header: 'Delete Confirmation',
+      icon: 'pi pi-info-circle',
+      rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
+      acceptButtonProps: { label: 'Delete', severity: 'danger' },
+      accept: () => {
+        this.projectService.deleteProject(event.id).subscribe({
+          next: () => {
+            this.refresh$.next();
+            this.messageService.add({ severity: 'info', summary: 'Deleted', detail: 'Project deleted successfully.' });
+          },
+          error: (err) => {
+            const m = err?.error?.message ?? err?.error?.error;
+            this.messageService.add({
+              severity: 'error',
+              summary: 'Delete failed',
+              detail: typeof m === 'string' ? m : 'Could not delete the project.'
+            });
+          }
+        });
+      }
+    });
+  }
+
+  pauseProject(event: { id: number; paused: boolean; nativeEvent: Event }): void {
+    const action = event.paused ? 'pause' : 'resume';
+    this.confirmationService.confirm({
+      target: event.nativeEvent.target as EventTarget,
+      message: event.paused
+        ? 'Pause this project?'
+        : 'Resume this project and clear the paused state?',
+      header: event.paused ? 'Pause project' : 'Resume project',
+      icon: 'pi pi-info-circle',
+      rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
+      acceptButtonProps: { label: event.paused ? 'Pause' : 'Resume', severity: 'warning' },
+      accept: () => {
+        this.projectService.setProjectLifecycle(event.id, { paused: event.paused }).subscribe({
+          next: () => {
+            this.refresh$.next();
+            this.messageService.add({ severity: 'success', summary: 'Updated', detail: `Project ${action}d successfully.` });
+          },
+          error: (err) => {
+            const m = err?.error?.message ?? err?.error?.error;
+            this.messageService.add({
+              severity: 'error',
+              summary: 'Error',
+              detail: typeof m === 'string' ? m : 'Could not update the project.'
+            });
+          }
+        });
+      }
+    });
+  }
+
+  deliverProject(event: { id: number; delivered: boolean; nativeEvent: Event }): void {
+    this.confirmationService.confirm({
+      target: event.nativeEvent.target as EventTarget,
+      message: event.delivered
+        ? 'Mark this project as delivered (closed)?'
+        : 'Reopen this project and clear the delivered state?',
+      header: event.delivered ? 'Mark as delivered' : 'Reopen project',
+      icon: 'pi pi-info-circle',
+      rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
+      acceptButtonProps: { label: event.delivered ? 'Mark delivered' : 'Reopen', severity: 'success' },
+      accept: () => {
+        this.projectService.setProjectLifecycle(event.id, { delivered: event.delivered }).subscribe({
+          next: () => {
+            this.refresh$.next();
+            this.messageService.add({ severity: 'success', summary: 'Updated', detail: 'Project status was updated.' });
+          },
+          error: (err) => {
+            const m = err?.error?.message ?? err?.error?.error;
+            this.messageService.add({
+              severity: 'error',
+              summary: 'Error',
+              detail: typeof m === 'string' ? m : 'Could not update the project.'
+            });
+          }
+        });
+      }
+    });
+  }
+
+  unarchiveProject(event: { id: number; archived: boolean; nativeEvent: Event }): void {
     const action = event.archived ? 'Archive' : 'Unarchive';
 
     this.confirmationService.confirm({
@@ -87,15 +210,25 @@ export class ArchivedProjectsPage {
         severity: 'success'
       },
       accept: () => {
-        this.projectService.archiveProject(event.id, event.archived).subscribe(() => {
-          this.refresh$.next();
-          this.messageService.add({
-            severity: 'info',
-            summary: `${action}d`,
-            detail: `Project ${action.toLowerCase()}d successfully`
-          });
+        this.projectService.archiveProject(event.id, event.archived).subscribe({
+          next: () => {
+            this.refresh$.next();
+            this.messageService.add({
+              severity: 'info',
+              summary: `${action}d`,
+              detail: `Project ${action.toLowerCase()}d successfully`
+            });
+          },
+          error: (err) => {
+            const m = err?.error?.message ?? err?.error?.error;
+            this.messageService.add({
+              severity: 'error',
+              summary: 'Error',
+              detail: typeof m === 'string' ? m : `Could not ${action.toLowerCase()} this project.`
+            });
+          }
         });
-      },
+      }
     });
   }
 }

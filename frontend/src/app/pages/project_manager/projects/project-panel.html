@@ -3,9 +3,9 @@
   [class.project-card--navigable]="detailBase"
   (click)="onCardNavigate($event)">
   <div class="project-banner" [style.background]="bannerColor">
-    <p-menu *ngIf="canManage" #menu [popup]="true" [appendTo]="'body'" [model]="menuItems" (onShow)="onMenuShow()"></p-menu>
+    <p-menu *ngIf="showMenu" #menu [popup]="true" [appendTo]="'body'" [model]="menuItems" (onShow)="onMenuShow()"></p-menu>
     <button
-      *ngIf="canManage"
+      *ngIf="showMenu"
       pButton
       type="button"
       icon="pi pi-ellipsis-v"
@@ -25,4 +25,4 @@
       </p>
     </div>
 
-<input *ngIf="canManage" #fileInput type="file" style="display:none" (change)="onFileSelected($event)" />
+<input *ngIf="showMenu" #fileInput type="file" style="display:none" (change)="onFileSelected($event)" />

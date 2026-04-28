@@ -11,12 +11,7 @@
 
       <form (ngSubmit)="signup()" class="signup-form">
         <!-- Error Message -->
-        <p-message 
-          *ngIf="message" 
-          severity="error" 
-          [text]="message"
-          styleClass="w-full mb-4">
-        </p-message>
+        <p-message *ngIf="message" severity="error" styleClass="w-full mb-4">{{ message }}</p-message>
 
         <!-- First Name Field -->
         <div class="field">

@@ -23,9 +23,17 @@ public class Project {
 
     private String name;
     private String description;
+    /** Planned or actual project start (optional). */
+    private LocalDate startDate;
     private LocalDate deadline;
 
     private boolean archived = false;
+
+    /** Work temporarily stopped; only an administrator may change this. */
+    private boolean paused = false;
+
+    /** Project closed / delivered; only an administrator may change this. */
+    private boolean delivered = false;
 
     @CreationTimestamp
     @Column(updatable = false)
