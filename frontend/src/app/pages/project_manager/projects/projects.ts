@@ -3,7 +3,9 @@ import { CommonModule } from '@angular/common';
 import { Observable, Subject, of } from 'rxjs';
 import { catchError, switchMap, startWith, tap } from 'rxjs/operators';
 import { FormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
+import { MessageModule } from 'primeng/message';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { MenuModule } from 'primeng/menu';
@@ -30,6 +32,8 @@ import { SkillService } from '../../../services/skill.service';
   imports: [
     CommonModule,
     FormsModule,
+    RouterLink,
+    MessageModule,
     ButtonModule,
     DialogModule,
     InputTextModule,
@@ -63,10 +67,11 @@ export class ProjectsPage implements OnInit {
   newProject: {
     name: string;
     description: string;
+    startDate: string;
     deadline: string;
     managerId: number | null;
     requiredSkillIds: number[];
-  } = { name: '', description: '', deadline: '', managerId: null, requiredSkillIds: [] };
+  } = { name: '', description: '', startDate: '', deadline: '', managerId: null, requiredSkillIds: [] };
 
   displayProposeDialog = false;
   proposeIdea = { name: '', description: '', deadline: '' as string | null };
@@ -212,9 +217,36 @@ export class ProjectsPage implements OnInit {
     });
   }
 
+  /** Active work: not archived, not paused, not marked delivered. */
+  isProjectInProgress(project: any): boolean {
+    return !project?.archived && !project?.paused && !project?.delivered;
+  }
+
+  filteredInProgressProjects(projects: any[] | null): any[] {
+    return this.filteredProjects(projects).filter((p) => this.isProjectInProgress(p));
+  }
+
+  /** Paused, delivered, or archived — shown in the alert area. */
+  filteredOtherStatusProjects(projects: any[] | null): any[] {
+    return this.filteredProjects(projects).filter((p) => !this.isProjectInProgress(p));
+  }
+
+  otherProjectStateLabel(project: any): string {
+    if (project?.archived) {
+      return 'Archived';
+    }
+    if (project?.delivered) {
+      return 'Delivered';
+    }
+    if (project?.paused) {
+      return 'Paused';
+    }
+    return 'Other';
+  }
+
   showDialog() {
     this.isEditMode = false;
-    this.newProject = { name: '', description: '', deadline: '', managerId: null, requiredSkillIds: [] };
+    this.newProject = { name: '', description: '', startDate: '', deadline: '', managerId: null, requiredSkillIds: [] };
     this.projectManagersLoadError = null;
     this.loadSkillsIfNeeded();
     this.userService.getProjectManagersForAdmin().subscribe({
@@ -302,16 +334,27 @@ export class ProjectsPage implements OnInit {
       }
     }
 
+    if (
+      this.newProject.startDate &&
+      this.newProject.deadline &&
+      this.newProject.startDate > this.newProject.deadline
+    ) {
+      this.notify('error', 'Validation', 'Start date must be on or before the deadline.');
+      return;
+    }
+
     const request = isEditing
       ? this.projectService.updateProject(this.selectedProjectId!, {
           name: this.newProject.name,
           description: this.newProject.description,
-          deadline: this.newProject.deadline,
+          startDate: this.newProject.startDate || undefined,
+          deadline: this.newProject.deadline || undefined,
           requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id }))
         })
       : this.projectService.createProject({
           name: this.newProject.name,
           description: this.newProject.description,
+          startDate: this.newProject.startDate || undefined,
           deadline: this.newProject.deadline || undefined,
           manager: { id: this.newProject.managerId! },
           requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id }))
@@ -441,17 +484,77 @@ export class ProjectsPage implements OnInit {
       },
       accept: () => {
 
-        this.projectService.archiveProject(event.id, event.archived)
-          .subscribe(() => {
-
+        this.projectService.archiveProject(event.id, event.archived).subscribe({
+          next: () => {
             this.refresh$.next();
-
             this.notify(
               'info',
               `${action}d`,
-              `Project ${action.toLowerCase()}d successfully`
+              event.archived
+                ? 'Projet archivé. Il apparaît dans le menu « Archived projects » / Projets archivés.'
+                : `Project ${action.toLowerCase()}d successfully.`
             );
-          });
+          },
+          error: (err) => {
+            const m = err?.error?.message ?? err?.error?.error;
+            this.notify(
+              'error',
+              'Échec',
+              typeof m === 'string' ? m : 'Impossible de modifier le statut d’archivage. Vérifiez d’être connecté en administrateur.'
+            );
+          }
+        });
+      }
+    });
+  }
+
+  pauseProject(event: { id: number; paused: boolean; nativeEvent: Event }): void {
+    const action = event.paused ? 'pause' : 'resume';
+    this.confirmationService.confirm({
+      target: event.nativeEvent.target as EventTarget,
+      message: event.paused
+        ? 'Pause this project? The team can still view it; task changes should follow your internal process.'
+        : 'Resume this project and clear the paused state?',
+      header: event.paused ? 'Pause project' : 'Resume project',
+      icon: 'pi pi-info-circle',
+      rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
+      acceptButtonProps: { label: event.paused ? 'Pause' : 'Resume', severity: 'warning' },
+      accept: () => {
+        this.projectService.setProjectLifecycle(event.id, { paused: event.paused }).subscribe({
+          next: () => {
+            this.refresh$.next();
+            this.notify('success', 'Updated', `Project ${action}d successfully.`);
+          },
+          error: (err) => {
+            const m = err?.error?.message ?? err?.error?.error;
+            this.notify('error', 'Error', typeof m === 'string' ? m : 'Could not update the project.');
+          }
+        });
+      }
+    });
+  }
+
+  deliverProject(event: { id: number; delivered: boolean; nativeEvent: Event }): void {
+    this.confirmationService.confirm({
+      target: event.nativeEvent.target as EventTarget,
+      message: event.delivered
+        ? 'Mark this project as delivered (closed) for delivery tracking?'
+        : 'Reopen this project and clear the delivered state?',
+      header: event.delivered ? 'Mark as delivered' : 'Reopen project',
+      icon: 'pi pi-info-circle',
+      rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
+      acceptButtonProps: { label: event.delivered ? 'Mark delivered' : 'Reopen', severity: 'success' },
+      accept: () => {
+        this.projectService.setProjectLifecycle(event.id, { delivered: event.delivered }).subscribe({
+          next: () => {
+            this.refresh$.next();
+            this.notify('success', 'Updated', 'Project status was updated.');
+          },
+          error: (err) => {
+            const m = err?.error?.message ?? err?.error?.error;
+            this.notify('error', 'Error', typeof m === 'string' ? m : 'Could not update the project.');
+          }
+        });
       }
     });
   }

@@ -136,15 +136,19 @@ public class TaskService {
                 .toList();
     }
 
-    public void deleteTask(Long taskId) {
-        // retrieve before deletion to send message
-        taskRepository.findById(taskId).ifPresent(task -> {
-            TaskMessage msg = new TaskMessage("DELETED", TaskResponse.fromTask(task));
-            messagingTemplate.convertAndSend("/topic/tasks/project/" + task.getProject().getId(), msg);
+    public void deleteTask(Long taskId, User user) {
+        Task task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new ResourceNotFoundException("Task", taskId));
+        if (!task.getProject().getManager().getId().equals(user.getId())) {
+            throw new UnauthorizedException("You are not the manager of this project");
+        }
+        TaskMessage msg = new TaskMessage("DELETED", TaskResponse.fromTask(task));
+        messagingTemplate.convertAndSend("/topic/tasks/project/" + task.getProject().getId(), msg);
+        if (task.getCollaborators() != null) {
             for (User collab : task.getCollaborators()) {
                 messagingTemplate.convertAndSend("/topic/tasks/user/" + collab.getId(), msg);
             }
-        });
+        }
         taskRepository.deleteById(taskId);
     }
 

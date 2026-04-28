@@ -55,6 +55,9 @@ const FILTER_TAB_CONFIG: ReadonlyArray<Omit<FilterTab, 'badge'>> = [
   { key: 'completed', label: 'Completed', icon: 'pi-check' },
 ];
 
+/** Section order when showing “All”: in progress first, completed last. */
+const GROUP_SECTION_ORDER: ReadonlyArray<Exclude<TaskFilterKey, 'all'>> = ['inProgress', 'pending', 'completed'];
+
 @Component({
   selector: 'app-tasks-page',
   standalone: true,
@@ -128,9 +131,18 @@ export class TasksPage implements OnInit, OnDestroy {
     return this.role === 'ADMIN';
   }
 
+  /** Only project managers may create, edit, or delete tasks. Admins have read-only access. */
+  get canManageTasks(): boolean {
+    return this.isManager;
+  }
+
   ngOnInit() {
     this.detectRole();
-    this.pageTitle = this.isManager ? 'Tasks' : this.isCollaborator ? 'My Tasks' : 'All Tasks';
+    this.pageTitle = this.isManager
+      ? 'Tasks'
+      : this.isCollaborator
+        ? 'My Tasks'
+        : 'All tasks';
     this.updateFilterTabs();
     this.loadTasks();
 
@@ -282,7 +294,7 @@ export class TasksPage implements OnInit, OnDestroy {
   }
 
   editTask(task: Task) {
-    if (!this.isManager && !this.isAdmin) {
+    if (!this.canManageTasks) {
       return;
     }
 
@@ -300,7 +312,7 @@ export class TasksPage implements OnInit, OnDestroy {
   }
 
   deleteTask(task: Task) {
-    if (!this.isManager && !this.isAdmin) {
+    if (!this.canManageTasks) {
       return;
     }
 
@@ -372,7 +384,7 @@ export class TasksPage implements OnInit, OnDestroy {
   }
 
   searchMembers(event: { query?: string }) {
-    if (!this.isManager && !this.isAdmin) {
+    if (!this.canManageTasks) {
       return;
     }
 
@@ -430,13 +442,14 @@ export class TasksPage implements OnInit, OnDestroy {
   }
 
   private buildGroupedTasks(tasks: Task[]): GroupedTasks[] {
-    return (Object.values(STATUS_CONFIG) as Array<(typeof STATUS_CONFIG)[keyof typeof STATUS_CONFIG]>).map(
-      ({ status, titleSuffix }) => ({
-        status,
-        title: `${this.countByStatus(status)} ${titleSuffix}`,
-        tasks: tasks.filter((task) => task.status === status),
-      })
-    );
+    return GROUP_SECTION_ORDER.map((key) => {
+      const cfg = STATUS_CONFIG[key];
+      return {
+        status: cfg.status,
+        title: `${this.countByStatus(cfg.status)} ${cfg.titleSuffix}`,
+        tasks: tasks.filter((task) => task.status === cfg.status),
+      };
+    });
   }
 
   private updateFilterTabs() {

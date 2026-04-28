@@ -8,10 +8,20 @@
 
   <div class="layout-topbar-actions">
     <div class="layout-config-menu">
+      <button
+        type="button"
+        class="layout-topbar-action"
+        (click)="openProjectsCalendar()"
+        title="Calendrier des projets"
+        aria-label="Calendrier des projets">
+        <i class="pi pi-calendar"></i>
+      </button>
       <button type="button" class="layout-topbar-action" (click)="toggleDarkMode()">
         <i [ngClass]="{ 'pi ': true, 'pi-moon': layoutService.isDarkTheme(), 'pi-sun': !layoutService.isDarkTheme() }"></i>
       </button>
     </div>
+
+    <app-projects-calendar-dialog [(visible)]="projectsCalendarOpen" />
 
     <button
       #topbarMenuButton

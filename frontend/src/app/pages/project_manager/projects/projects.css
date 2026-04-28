@@ -79,6 +79,125 @@
   color: #b3b3b3;
 }
 
+.projects-layout-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: flex-start;
+}
+
+.projects-main-column {
+  flex: 1;
+  min-width: 0;
+}
+
+.projects-section-title {
+  margin: 0 0 1rem;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.projects-aside-column {
+  width: 100%;
+  max-width: 22rem;
+  flex-shrink: 0;
+}
+
+.projects-aside-alert {
+  background: linear-gradient(145deg, #fffbeb 0%, #fef3c7 100%);
+  border: 1px solid #fcd34d;
+  padding: 1.25rem;
+  box-shadow: 0 8px 24px rgba(180, 83, 9, 0.12);
+}
+
+.projects-aside-alert-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+  color: #92400e;
+  margin-bottom: 0.35rem;
+  font-size: 1rem;
+}
+
+.projects-aside-alert-header .pi {
+  font-size: 1.1rem;
+}
+
+.projects-aside-alert-sub {
+  font-size: 0.875rem;
+  color: #a16207;
+  line-height: 1.4;
+}
+
+.projects-aside-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.projects-aside-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.65rem 0;
+  border-bottom: 1px solid rgba(180, 83, 9, 0.2);
+}
+
+.projects-aside-item:last-child {
+  border-bottom: none;
+}
+
+.projects-aside-link {
+  color: #0f172a;
+  font-weight: 500;
+  text-decoration: none;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.projects-aside-link:hover {
+  text-decoration: underline;
+  color: #b45309;
+}
+
+.projects-aside-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  background: #fef9c3;
+  color: #854d0e;
+  white-space: nowrap;
+}
+
+.projects-aside-badge.is-archived {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.projects-aside-badge.is-paused {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.projects-aside-badge.is-delivered {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+:host ::ng-deep .projects-top-alert.p-message,
+:host ::ng-deep .projects-top-alert {
+  width: 100%;
+}
+
 .projects-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -131,6 +250,10 @@ label {
 @media (max-width: 1024px) {
   .projects-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .projects-aside-column {
+    max-width: none;
   }
 }
 

@@ -3,6 +3,7 @@ import { MenuItem } from 'primeng/api';
 import { RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { OverlayBadgeModule } from 'primeng/overlaybadge';
+import { ProjectsCalendarDialog } from './projects-calendar-dialog';
 import { LayoutService } from './service/layout.service';
 import { WebsocketService } from '../services/websocket.service';
 import { Notification } from '../models/notification.model';
@@ -13,7 +14,7 @@ import { takeUntil } from 'rxjs/operators';
 @Component({
     selector: 'app-topbar',
     standalone: true,
-    imports: [RouterModule, CommonModule, OverlayBadgeModule],
+    imports: [RouterModule, CommonModule, OverlayBadgeModule, ProjectsCalendarDialog],
     templateUrl: './app.topbar.html',
     styles: [`
         .logo-image {
@@ -204,6 +205,7 @@ export class AppTopbar implements OnInit, OnDestroy {
     showNotificationPanel = false;
     showShake = false;
     userName = '';
+    projectsCalendarOpen = false;
     mobileTopbarMenuVisible = false;
     isDesktopView = window.innerWidth > 991;
 
@@ -246,6 +248,10 @@ export class AppTopbar implements OnInit, OnDestroy {
             ...state,
             darkTheme: !state.darkTheme
         }));
+    }
+
+    openProjectsCalendar() {
+        this.projectsCalendarOpen = true;
     }
 
     toggleTopbarMenu(event: Event) {

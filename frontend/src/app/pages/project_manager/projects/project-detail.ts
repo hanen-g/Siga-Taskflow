@@ -26,7 +26,15 @@ import { SkillService } from '../../../services/skill.service';
 import { Skill, ProjectSkillMatchResult, UserSkillMatch } from '../../../models/skill.model';
 import { MultiSelectModule } from 'primeng/multiselect';
 
-type ProjectAction = 'edit' | 'delete' | 'add-task' | 'archive';
+type ProjectAction =
+  | 'edit'
+  | 'delete'
+  | 'add-task'
+  | 'archive'
+  | 'pause'
+  | 'resume'
+  | 'deliver'
+  | 'reopen-delivery';
 
 interface ProjectActionItem {
   action: ProjectAction;
@@ -80,17 +88,54 @@ export class ProjectDetailPage implements OnInit {
   isSavingProject = false;
   isSavingTask = false;
   readonly priorities: Priority[] = [Priority.LOW, Priority.MEDIUM, Priority.HIGH];
-  editableProject: Pick<Project, 'name' | 'description'> = { name: '', description: '' };
+  editableProject: Pick<Project, 'name' | 'description' | 'startDate' | 'deadline'> = {
+    name: '',
+    description: '',
+    startDate: '',
+    deadline: ''
+  };
   newTask: Task = this.createEmptyTask();
 
   backLink = '/dashboard/pm/projects';
 
-  readonly projectActions: ProjectActionItem[] = [
-    { action: 'edit', icon: 'pi pi-pencil', label: 'Edit project', tone: 'neutral' },
-    { action: 'delete', icon: 'pi pi-trash', label: 'Delete project', tone: 'danger' },
-    { action: 'add-task', icon: 'pi pi-plus', label: 'Add task', tone: 'success' },
-    { action: 'archive', icon: 'pi pi-building-columns', label: 'Archive project', tone: 'warning' }
-  ];
+  /** Admin: lifecycle + edit. PM (owner): add task. */
+  projectToolbarActions(project: Project | null): ProjectActionItem[] {
+    if (!project) {
+      return [];
+    }
+    const role = this.currentUserRole();
+    const admin = role === 'ADMIN';
+    const actions: ProjectActionItem[] = [];
+    if (admin) {
+      actions.push({ action: 'edit', icon: 'pi pi-pencil', label: 'Edit project', tone: 'neutral' });
+      if (project.paused) {
+        actions.push({ action: 'resume', icon: 'pi pi-play', label: 'Resume project', tone: 'success' });
+      } else {
+        actions.push({ action: 'pause', icon: 'pi pi-pause', label: 'Pause project', tone: 'warning' });
+      }
+      if (project.delivered) {
+        actions.push({ action: 'reopen-delivery', icon: 'pi pi-replay', label: 'Reopen (not delivered)', tone: 'neutral' });
+      } else {
+        actions.push({ action: 'deliver', icon: 'pi pi-check-circle', label: 'Mark as delivered', tone: 'success' });
+      }
+      actions.push({
+        action: 'archive',
+        icon: 'pi pi-building-columns',
+        label: project.archived ? 'Unarchive project' : 'Archive project',
+        tone: 'warning'
+      });
+      actions.push({ action: 'delete', icon: 'pi pi-trash', label: 'Delete project', tone: 'danger' });
+    }
+    if (
+      this.isProjectManagerOfProject(project) &&
+      !project.archived &&
+      !project.paused &&
+      !project.delivered
+    ) {
+      actions.push({ action: 'add-task', icon: 'pi pi-plus', label: 'Add task', tone: 'success' });
+    }
+    return actions;
+  }
 
   bannerColor(project: Project | null): string {
     if (!project) {
@@ -390,23 +435,38 @@ export class ProjectDetailPage implements OnInit {
   filteredTasks(project: Project | null): Task[] {
     const tasks = project?.tasks ?? [];
     const q = this.searchText.trim().toLowerCase();
-    if (!q) {
-      return tasks;
+    const filtered = !q
+      ? [...tasks]
+      : tasks.filter((task) => {
+          const title = String(task.title ?? '').toLowerCase();
+          const desc = String(task.description ?? '').toLowerCase();
+          const assignee = this.taskAssignee(task).toLowerCase();
+          const statusRaw = String(task.status ?? '').toLowerCase();
+          const statusLabel = this.statusLabel(task.status).toLowerCase();
+          return (
+            title.includes(q) ||
+            desc.includes(q) ||
+            assignee.includes(q) ||
+            statusRaw.includes(q) ||
+            statusLabel.includes(q)
+          );
+        });
+    return filtered.sort((a, b) => this.taskDisplayOrder(a.status) - this.taskDisplayOrder(b.status));
+  }
+
+  /** In progress first, then pending, completed last (same idea as tasks list page). */
+  private taskDisplayOrder(status: TaskStatus | string | undefined): number {
+    const s = String(status ?? '').toUpperCase();
+    if (s === TaskStatus.IN_PROGRESS) {
+      return 0;
     }
-    return tasks.filter((task) => {
-      const title = String(task.title ?? '').toLowerCase();
-      const desc = String(task.description ?? '').toLowerCase();
-      const assignee = this.taskAssignee(task).toLowerCase();
-      const statusRaw = String(task.status ?? '').toLowerCase();
-      const statusLabel = this.statusLabel(task.status).toLowerCase();
-      return (
-        title.includes(q) ||
-        desc.includes(q) ||
-        assignee.includes(q) ||
-        statusRaw.includes(q) ||
-        statusLabel.includes(q)
-      );
-    });
+    if (s === TaskStatus.TODO) {
+      return 1;
+    }
+    if (s === TaskStatus.DONE) {
+      return 2;
+    }
+    return 9;
   }
 
   filteredProjectFiles(project: Project | null): UploadedFile[] {
@@ -429,19 +489,37 @@ export class ProjectDetailPage implements OnInit {
   }
 
   actionLabel(project: Project | null, action: ProjectActionItem): string {
-    if (action.action === 'archive') {
-      return project?.archived ? 'Unarchive project' : action.label;
+    if (action.action === 'archive' && project) {
+      return project.archived ? 'Unarchive project' : action.label;
     }
     return action.label;
   }
 
-  canManageProject(project: Project | null): boolean {
+  /**
+   * True when the current user is the project manager for this project (not just any PM user).
+   * Task creation and task file uploads use this; admins are read-only for tasks.
+   */
+  isProjectManagerOfProject(project: Project | null): boolean {
+    if (!project) {
+      return false;
+    }
     const role = this.currentUserRole();
-    return !!project && (role === 'PROJECT_MANAGER' || role === 'ADMIN');
+    if (role !== 'PROJECT_MANAGER') {
+      return false;
+    }
+    const uid = this.readStoredUser()?.id;
+    return project.managerId != null && uid != null && project.managerId === uid;
   }
 
   handleProjectAction(action: ProjectAction, project: Project | null, event: Event): void {
-    if (!project || !this.canManageProject(project)) {
+    if (!project) {
+      return;
+    }
+    if (action === 'add-task') {
+      if (!this.isProjectManagerOfProject(project) || project.archived || project.paused || project.delivered) {
+        return;
+      }
+    } else if (this.currentUserRole() !== 'ADMIN') {
       return;
     }
 
@@ -458,13 +536,27 @@ export class ProjectDetailPage implements OnInit {
       case 'archive':
         this.confirmArchiveProject(project, event);
         break;
+      case 'pause':
+        this.confirmSetPaused(project, true, event);
+        break;
+      case 'resume':
+        this.confirmSetPaused(project, false, event);
+        break;
+      case 'deliver':
+        this.confirmSetDelivered(project, true, event);
+        break;
+      case 'reopen-delivery':
+        this.confirmSetDelivered(project, false, event);
+        break;
     }
   }
 
   openEditProjectDialog(project: Project): void {
     this.editableProject = {
       name: project.name ?? '',
-      description: project.description ?? ''
+      description: project.description ?? '',
+      startDate: project.startDate ?? '',
+      deadline: project.deadline ?? ''
     };
     this.displayDialog = true;
   }
@@ -475,8 +567,28 @@ export class ProjectDetailPage implements OnInit {
       return;
     }
 
+    if (
+      this.editableProject.startDate &&
+      this.editableProject.deadline &&
+      this.editableProject.startDate > this.editableProject.deadline
+    ) {
+      this.messageService.add({
+        severity: 'error',
+        summary: 'Validation',
+        detail: 'Start date must be on or before the deadline.'
+      });
+      return;
+    }
+
     this.isSavingProject = true;
-    this.projectService.updateProject(project.id, this.editableProject).subscribe({
+    this.projectService
+      .updateProject(project.id, {
+        name: this.editableProject.name,
+        description: this.editableProject.description,
+        startDate: this.editableProject.startDate || undefined,
+        deadline: this.editableProject.deadline || undefined
+      })
+      .subscribe({
       next: () => {
         this.displayDialog = false;
         this.loadProject(project.id);
@@ -498,7 +610,7 @@ export class ProjectDetailPage implements OnInit {
   }
 
   openTaskDialog(project: Project): void {
-    if (project.archived) {
+    if (project.archived || project.paused || project.delivered || !this.isProjectManagerOfProject(project)) {
       return;
     }
     this.newTask = this.createEmptyTask(project.id);
@@ -511,7 +623,7 @@ export class ProjectDetailPage implements OnInit {
   }
 
   saveTask(project: Project): void {
-    if (!project.id || this.isSavingTask || !this.newTask.title.trim()) {
+    if (!project.id || this.isSavingTask || !this.newTask.title.trim() || !this.isProjectManagerOfProject(project)) {
       return;
     }
 
@@ -561,7 +673,13 @@ export class ProjectDetailPage implements OnInit {
 
   canUploadAttachment(project: Project | null): boolean {
     const role = this.currentUserRole();
-    return role === 'PROJECT_MANAGER' && !!project && !project.archived;
+    if (!project || project.archived) {
+      return false;
+    }
+    if (role === 'ADMIN') {
+      return true;
+    }
+    return role === 'PROJECT_MANAGER';
   }
 
   onAttachmentFile(file: File, project: Project | null) {
@@ -594,10 +712,10 @@ export class ProjectDetailPage implements OnInit {
     if (!task?.id || !project || project.archived) {
       return false;
     }
-    const role = this.currentUserRole();
-    if (role === 'PROJECT_MANAGER' || role === 'ADMIN') {
+    if (this.isProjectManagerOfProject(project)) {
       return true;
     }
+    const role = this.currentUserRole();
     if (role !== 'COLLABORATOR') {
       return false;
     }
@@ -762,6 +880,66 @@ export class ProjectDetailPage implements OnInit {
     return true;
   }
 
+  private confirmSetPaused(project: Project, paused: boolean, event: Event): void {
+    const action = paused ? 'Pause' : 'Resume';
+    this.confirmationService.confirm({
+      target: event.target as EventTarget,
+      message: paused
+        ? 'Pause this project? The team can still view it.'
+        : 'Resume this project and clear the paused state?',
+      header: `${action} project`,
+      icon: 'pi pi-info-circle',
+      rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
+      acceptButtonProps: { label: action, severity: 'warning' },
+      accept: () => {
+        this.projectService.setProjectLifecycle(project.id, { paused }).subscribe({
+          next: () => {
+            this.loadProject(project.id);
+            this.messageService.add({ severity: 'success', summary: 'Updated', detail: `Project ${action.toLowerCase()}d.` });
+          },
+          error: (err) => {
+            const m = err?.error?.message ?? err?.error?.error;
+            this.messageService.add({
+              severity: 'error',
+              summary: 'Error',
+              detail: typeof m === 'string' ? m : 'Could not update the project.'
+            });
+          }
+        });
+      }
+    });
+  }
+
+  private confirmSetDelivered(project: Project, delivered: boolean, event: Event): void {
+    const action = delivered ? 'Mark as delivered' : 'Reopen';
+    this.confirmationService.confirm({
+      target: event.target as EventTarget,
+      message: delivered
+        ? 'Mark this project as delivered (closed)?'
+        : 'Reopen this project and clear the delivered state?',
+      header: action,
+      icon: 'pi pi-info-circle',
+      rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
+      acceptButtonProps: { label: action, severity: 'success' },
+      accept: () => {
+        this.projectService.setProjectLifecycle(project.id, { delivered }).subscribe({
+          next: () => {
+            this.loadProject(project.id);
+            this.messageService.add({ severity: 'success', summary: 'Updated', detail: 'Project status was updated.' });
+          },
+          error: (err) => {
+            const m = err?.error?.message ?? err?.error?.error;
+            this.messageService.add({
+              severity: 'error',
+              summary: 'Error',
+              detail: typeof m === 'string' ? m : 'Could not update the project.'
+            });
+          }
+        });
+      }
+    });
+  }
+
   private confirmDeleteProject(project: Project, event: Event): void {
     this.confirmationService.confirm({
       target: event.target as EventTarget,
@@ -823,14 +1001,20 @@ export class ProjectDetailPage implements OnInit {
             this.messageService.add({
               severity: 'info',
               summary: `${action}d`,
-              detail: `Project ${action.toLowerCase()}d successfully.`
+              detail: archived
+                ? 'Projet archivé. Il n’apparaît plus dans la liste principale ; utilisez « Archived projects » / Projets archivés.'
+                : 'Project unarchived successfully.'
             });
           },
-          error: () => {
+          error: (err) => {
+            const m = err?.error?.message ?? err?.error?.error;
             this.messageService.add({
               severity: 'error',
               summary: `${action} failed`,
-              detail: `Could not ${action.toLowerCase()} this project. Try again.`
+              detail:
+                typeof m === 'string'
+                  ? m
+                  : `Could not ${action.toLowerCase()} this project. Try again.`
             });
           }
         });

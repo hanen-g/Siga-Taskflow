@@ -21,7 +21,14 @@ export class ProjectService {
     return this.http.get<any[]>(this.apiUrl);
   }
 
-  createProject(project: { name: string; description?: string; deadline?: string; manager: { id: number }; requiredSkills?: Array<{ id: number }> }): Observable<any> {
+  createProject(project: {
+    name: string;
+    description?: string;
+    startDate?: string;
+    deadline?: string;
+    manager: { id: number };
+    requiredSkills?: Array<{ id: number }>;
+  }): Observable<any> {
     return this.http.post<any>(this.apiUrl, project);
   }
 
@@ -56,6 +63,14 @@ export class ProjectService {
 
   archiveProject(id: number, archived: boolean): Observable<any> {
     return this.http.put<any>(`${this.apiUrl}/${id}/archive?archived=${archived}`, {});
+  }
+
+  /** Admin-only: partial update of archived / paused / delivered */
+  setProjectLifecycle(
+    id: number,
+    body: { archived?: boolean; paused?: boolean; delivered?: boolean }
+  ): Observable<any> {
+    return this.http.put<any>(`${this.apiUrl}/${id}/lifecycle`, body);
   }
 
   getArchivedProjects(): Observable<any[]> {

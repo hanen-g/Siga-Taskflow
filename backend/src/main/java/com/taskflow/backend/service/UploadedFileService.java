@@ -210,9 +210,6 @@ public class UploadedFileService {
     }
 
     private boolean canUploadToTask(Task task, User actor) {
-        if (actor.getRole() == UserRole.ADMIN) {
-            return true;
-        }
         if (task.getProject() != null
                 && task.getProject().getManager() != null
                 && task.getProject().getManager().getId().equals(actor.getId())) {

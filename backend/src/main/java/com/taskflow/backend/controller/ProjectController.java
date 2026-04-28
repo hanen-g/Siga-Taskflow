@@ -1,5 +1,6 @@
 package com.taskflow.backend.controller;
 
+import com.taskflow.backend.dto.project.ProjectLifecycleRequest;
 import com.taskflow.backend.dto.project.ProjectResponse;
 import com.taskflow.backend.dto.skill.ProjectSkillMatchResponse;
 import com.taskflow.backend.dto.skill.SkillIdsRequest;
@@ -72,9 +73,12 @@ public class ProjectController {
     }
 
     @GetMapping("/archived")
-    @PreAuthorize("hasRole('PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyRole('PROJECT_MANAGER', 'ADMIN')")
     public List<ProjectResponse> myArchivedProjects(
             @AuthenticationPrincipal CustomUserDetails userDetails) {
+        if (userDetails.getUser().getRole() == UserRole.ADMIN) {
+            return projectService.getAllArchivedForAdmin();
+        }
         return projectService.myArchivedProjects(userDetails.getUser());
     }
 
@@ -101,7 +105,7 @@ public class ProjectController {
     }
 
     @PutMapping("/{id}/archive")
-    @PreAuthorize("hasRole('PROJECT_MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ProjectResponse archiveProject(
             @PathVariable Long id,
             @RequestParam boolean archived,
@@ -109,8 +113,17 @@ public class ProjectController {
         return projectService.setArchived(id, userDetails.getUser(), archived);
     }
 
+    @PutMapping("/{id}/lifecycle")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ProjectResponse setProjectLifecycle(
+            @PathVariable Long id,
+            @RequestBody ProjectLifecycleRequest request,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return projectService.setProjectLifecycle(id, request, userDetails.getUser());
+    }
+
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyRole('PROJECT_MANAGER', 'ADMIN')")
     public Project updateProject(
             @PathVariable Long id,
             @RequestBody Project projectDetails,
@@ -124,7 +137,7 @@ public class ProjectController {
      * the updated project including the attachment URL.
      */
     @PostMapping("/{id}/attachment")
-    @PreAuthorize("hasRole('PROJECT_MANAGER')")
+    @PreAuthorize("hasAnyRole('PROJECT_MANAGER', 'ADMIN')")
     public ProjectResponse uploadAttachment(
             @PathVariable Long id,
             @RequestParam("file") MultipartFile file,
@@ -134,10 +147,10 @@ public class ProjectController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public void deleteProject(
             @PathVariable Long id,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-
         projectService.deleteProject(id, userDetails.getUser());
     }
 

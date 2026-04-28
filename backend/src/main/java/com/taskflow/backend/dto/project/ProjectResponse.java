@@ -21,9 +21,12 @@ public class ProjectResponse {
     private Long id;
     private String name;
     private String description;
+    private LocalDate startDate;
     private LocalDate deadline;
     private String file;
     private boolean archived;
+    private boolean paused;
+    private boolean delivered;
     private LocalDateTime createdAt;
     private Long managerId;
     private String managerFirstName;
@@ -42,8 +45,11 @@ public class ProjectResponse {
         response.id = project.getId();
         response.name = project.getName();
         response.description = project.getDescription();
+        response.startDate = project.getStartDate();
         response.deadline = project.getDeadline();
         response.archived = project.isArchived();
+        response.setPaused(project.isPaused());
+        response.setDelivered(project.isDelivered());
         response.createdAt = project.getCreatedAt();
         if (project.getManager() != null) {
             response.managerId = project.getManager().getId();

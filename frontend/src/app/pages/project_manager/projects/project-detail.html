@@ -16,7 +16,7 @@
     <app-loader label="Loading project details..." />
   </div>
 
-  <p-message *ngIf="error" severity="error" [text]="error" [closable]="false" />
+  <p-message *ngIf="error" severity="error" [closable]="false">{{ error }}</p-message>
 
   <ng-container *ngIf="project$ | async as project">
   <ng-container *ngIf="project && !error">
@@ -35,6 +35,8 @@
         </div>
 
         <p-tag *ngIf="project.archived" severity="warn" value="Archived" />
+        <p-tag *ngIf="project.paused" class="ml-1" severity="secondary" value="Paused" />
+        <p-tag *ngIf="project.delivered" class="ml-1" severity="success" value="Delivered" />
       </div>
 
       <div class="project-detail-progress">
@@ -277,16 +279,16 @@
 
       <aside class="project-detail-sidebar">
         <section class="project-info-card">
-          <div *ngIf="canManageProject(project)" class="project-actions-toolbar" aria-label="Project actions">
-            <button
-              *ngFor="let action of projectActions"
-              type="button"
-              [class]="actionIconClass(action)"
-              [attr.aria-label]="actionLabel(project, action)"
-              [disabled]="action.action === 'add-task' && project.archived"
-              (click)="handleProjectAction(action.action, project, $event)">
-              <i [class]="action.icon"></i>
-            </button>
+          <div *ngIf="projectToolbarActions(project).length" class="project-actions-toolbar" aria-label="Project actions">
+            <ng-container *ngFor="let action of projectToolbarActions(project)">
+              <button
+                type="button"
+                [class]="actionIconClass(action)"
+                [attr.aria-label]="actionLabel(project, action)"
+                (click)="handleProjectAction(action.action, project, $event)">
+                <i [class]="action.icon"></i>
+              </button>
+            </ng-container>
           </div>
 
           <div class="project-info-grid">
@@ -301,6 +303,18 @@
             <div class="project-info-row">
               <span class="project-info-label">Team Members:</span>
               <span class="project-info-value">{{ teamMembersLabel(project) }}</span>
+            </div>
+            <div class="project-info-row">
+              <span class="project-info-label">Début du projet</span>
+              <span class="project-info-value">
+                {{ project.startDate ? (project.startDate | date: 'mediumDate') : '—' }}
+              </span>
+            </div>
+            <div class="project-info-row">
+              <span class="project-info-label">Date limite</span>
+              <span class="project-info-value">
+                {{ project.deadline ? (project.deadline | date: 'mediumDate') : '—' }}
+              </span>
             </div>
           </div>
 
@@ -425,6 +439,16 @@
           [(ngModel)]="editableProject.description"
           class="w-full"
           placeholder="Enter project description"></textarea>
+      </div>
+
+      <div class="flex flex-column mb-2">
+        <label class="font-bold mb-2">Début du projet (optionnel)</label>
+        <input pInputText type="date" [(ngModel)]="editableProject.startDate" class="w-full" />
+      </div>
+
+      <div class="flex flex-column mb-2">
+        <label class="font-bold mb-2">Date limite (optionnel)</label>
+        <input pInputText type="date" [(ngModel)]="editableProject.deadline" class="w-full" />
       </div>
     </ng-template>
 
