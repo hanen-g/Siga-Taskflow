@@ -164,13 +164,7 @@ export class ProjectsPage implements OnInit {
   }
 
   get showNewProjectFormDialog(): boolean {
-    if (!this.displayDialog) {
-      return false;
-    }
-    if (this.isEditMode) {
-      return this.canManageProjects;
-    }
-    return this.isAdmin;
+    return this.displayDialog && this.isAdmin;
   }
 
   projectManagerOptions(): { label: string; value: number }[] {

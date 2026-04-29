@@ -1,232 +1,128 @@
-<div class="my-tasks-wrapper p-4">
-  <div class="header-row flex align-items-center justify-content-between mb-5">
-    <h2 class="m-0">{{ pageTitle }}</h2>
+<p-toast></p-toast>
+
+<div class="kanban-page">
+  <div class="header-row">
+    <div class="priority-legend" aria-label="Task priorities">
+      <span class="legend-label">Priority:</span>
+      <span class="legend-item">
+        <span class="legend-dot priority-dot urgent"></span>
+        High
+      </span>
+      <span class="legend-item">
+        <span class="legend-dot priority-dot high"></span>
+        Medium
+      </span>
+      <span class="legend-item">
+        <span class="legend-dot priority-dot low"></span>
+        Low
+      </span>
+    </div>
   </div>
 
-  <!-- Loading State -->
-  <div *ngIf="!(tasks$ | async) && !errorMessage" class="loading-state">
+  <div *ngIf="isLoading && !errorMessage" class="loading-state">
     <app-loader label="Loading tasks..." />
   </div>
 
-  <!-- Error State -->
   <div *ngIf="errorMessage" class="error-state">
-    <i class="pi pi-exclamation-triangle"></i>
     <span>{{ errorMessage }}</span>
     <button type="button" class="retry-btn" (click)="loadTasks()">Retry</button>
   </div>
 
-  <ng-container *ngIf="tasks$ | async as tasks">
-  <ng-container *ngIf="!errorMessage">
-    <div class="filters-row mb-4">
-      <div class="tabs">
-        <button
-          *ngFor="let tab of filterTabs; trackBy: trackByFilter"
-          type="button"
-          class="tab-button"
-          [class.active]="activeFilter === tab.key"
-          (click)="setFilter(tab.key)">
-          <i class="pi" [ngClass]="tab.icon"></i>
-          <span class="tab-label">{{ tab.label }}</span>
-          <span *ngIf="tab.badge !== null" class="tab-badge">{{ tab.badge }}</span>
-        </button>
-      </div>
-
-      <div class="search-bar">
-        <div class="search-input-wrapper">
-          <i class="pi pi-search search-icon"></i>
-          <input
-            type="text"
-            placeholder="Search"
-            [(ngModel)]="searchText"
-            (input)="refreshGrouping()"
-            class="search-input"
-          />
+  <div class="board-wrapper" *ngIf="!isLoading && !errorMessage">
+    <div class="kanban-board">
+      <div class="kanban-column" *ngFor="let column of columns; trackBy: trackByColumn" [ngClass]="column.colorClass">
+        <div class="column-header">
+          <div class="header-pill">
+            <span class="title">{{ column.title }}</span>
+            <p-badge [value]="countByStatus(column.status)"></p-badge>
+          </div>
+          <span class="header-connector" aria-hidden="true"></span>
+          <span class="header-node" aria-hidden="true"></span>
         </div>
-      </div>
-    </div>
 
-    <div class="sections">
-      <ng-container *ngFor="let group of groupedTasks; trackBy: trackByGroup">
-        <div class="section" *ngIf="activeFilter === 'all' || group.status === activeStatus">
+        <div
+          class="column-body"
+          cdkDropList
+          [id]="statusListId(column.status)"
+          [cdkDropListData]="tasksByStatus(column.status)"
+          [cdkDropListConnectedTo]="connectedDropLists()"
+          [cdkDropListDisabled]="!canDropInColumn(column)"
+          [cdkDropListEnterPredicate]="canEnterColumn"
+          (cdkDropListDropped)="onTaskDrop($event, column.status)"
+        >
+          <div class="empty-column" *ngIf="tasksByStatus(column.status).length === 0">No tasks</div>
 
-          <button
-            class="section-header"
-            type="button"
-            *ngIf="activeFilter === 'all'"
-            (click)="toggleSection(group.status)">
-            <div>
-              <span class="section-title">{{ group.title }}</span>
+          <div
+            class="task-card"
+            *ngFor="let task of tasksByStatus(column.status); trackBy: trackByTask"
+            [class.on-hold]="task.status === 'ON_HOLD'"
+            [class.in-review]="task.status === 'IN_REVIEW'"
+            [class.done-card]="task.status === 'DONE'"
+            cdkDrag
+            [cdkDragDisabled]="!canDragTask(task)"
+            [cdkDragData]="task"
+            (click)="selectTask(task)"
+          >
+            <span class="card-priority-dot" [ngClass]="getPriorityClass(task.priority)"></span>
+            <div class="task-title">{{ task.title }}</div>
+            <div class="task-description">{{ task.description || task.projectName || 'No description provided.' }}</div>
+            <div class="task-deadline" [class.overdue]="isOverdue(task)">
+              <span class="label">Due Date:</span>
+              <span class="value">{{ formatDeadline(task.deadline) }}</span>
             </div>
-            <i
-              class="pi"
-              [ngClass]="{
-                'pi-chevron-down': !collapsedSections[group.status],
-                'pi-chevron-right': collapsedSections[group.status]
-              }">
-            </i>
-          </button>
-
-          <div class="section-body" *ngIf="activeFilter !== 'all' || !collapsedSections[group.status]">
-            <div *ngIf="group.tasks.length === 0" class="empty-state">
-              <i class="pi pi-info-circle"></i>
-              <span>No tasks in this section.</span>
-            </div>
-
-            <div class="task-card" *ngFor="let task of group.tasks; trackBy: trackByTask" [class.selected]="selectedTask?.id === task.id" (click)="selectTask(task)">
-              <div class="task-header">
-                <div class="task-title">{{ task.title }}</div>
-          
-              </div>
-              <div class="task-meta">
-                <span class="task-project">
-                  <i class="pi pi-folder"></i>
-                  {{ task.projectName }}
-                </span>      
-              </div>
-
-              <div class="task-actions">
-                <ng-container *ngIf="isManager || isAdmin">
-                  <button type="button" class="action-btn edit-btn" (click)="editTask(task)" pTooltip="Edit Task">
-                    <i class="pi pi-pencil"></i>
-                  </button>
-                  <button type="button" class="action-btn delete-btn" (click)="deleteTask(task)" pTooltip="Delete Task">
-                    <i class="pi pi-trash"></i>
-                  </button>
-                </ng-container>
-
-                <ng-container *ngIf="isCollaborator">
-                  <span class="task-action-label">Change status:</span>
-                  <select [(ngModel)]="task.status" (change)="updateStatus(task)">
-                    <option *ngFor="let s of statuses" [value]="s">{{ statusLabel(s) }}</option>
-                  </select>
-                </ng-container>
-              </div>
+            <div class="hold-reason" *ngIf="task.status === 'ON_HOLD' && task.holdReason">
+              {{ task.holdReason }}
             </div>
           </div>
         </div>
-      </ng-container>
-
-      <div *ngIf="groupedTasks.length === 0" class="empty-overall">
-        <i class="pi pi-info-circle"></i>
-        <span>No tasks found.</span>
       </div>
     </div>
-  </ng-container>
-  </ng-container>
+  </div>
 </div>
 
 <app-task-details-panel
   *ngIf="selectedTask"
   [task]="selectedTask"
-  (close)="closeTaskDetails()">
-</app-task-details-panel>
+  [showAssignedTo]="!isCollaborator"
+  [canManageStatus]="isCollaborator"
+  (requestStart)="requestStartFromPanel($event)"
+  (requestPause)="requestPauseFromPanel($event)"
+  (requestResume)="requestResumeFromPanel($event)"
+  (close)="closeTaskDetails()"
+></app-task-details-panel>
 
 <p-dialog
-  *ngIf="isManager || isAdmin"
-  [(visible)]="isEditDialogOpen"
+  [(visible)]="pauseDialogVisible"
   [modal]="true"
   [draggable]="false"
   [resizable]="false"
-  [style]="{ width: '600px' }"
-  header="Edit Task"
-  (onHide)="closeEditDialog()"
+  [style]="{ width: '30rem' }"
+  header="Put task on hold"
+  (onHide)="cancelPauseDialog()"
 >
-  <div *ngIf="drawerErrorMessage" class="error-state mb-3">
-    <i class="pi pi-exclamation-triangle"></i>
-    <span>{{ drawerErrorMessage }}</span>
-  </div>
-
-  <div class="form-group">
-    <label for="taskTitle">Title</label>
-    <input
-      id="taskTitle"
-      pInputText
-      [(ngModel)]="editForm.title"
-      placeholder="Task title"
-      class="w-full"
-    />
-  </div>
-
-  <div class="form-group">
-    <label for="taskDescription">Description</label>
-    <textarea
-      id="taskDescription"
-      pInputTextarea
-      [(ngModel)]="editForm.description"
-      placeholder="Enter task description..."
-      rows="4"
-      class="w-full"
-    ></textarea>
-  </div>
-
-  <div class="form-group">
-    <label for="taskPriority">Priority</label>
-    <select
-      id="taskPriority"
-      [(ngModel)]="editForm.priority"
-      class="w-full"
-    >
-      <option [ngValue]="null">No priority</option>
-      <option *ngFor="let p of priorities" [ngValue]="p">{{ priorityLabel(p) }}</option>
-    </select>
-  </div>
-
-  <div class="form-group">
-    <label for="taskDeadline">Deadline</label>
-    <input
-      id="taskDeadline"
-      type="datetime-local"
-      pInputText
-      [(ngModel)]="editForm.deadline"
-      class="w-full"
-    />
-  </div>
-
-  <div class="form-group">
-    <label>Team Members</label>
-    <div class="members-section">
-      <div class="member-chips">
-        <div class="member-chip" *ngFor="let email of editForm.collaboratorEmails">
-          <p-avatar [label]="getInitialsFromEmail(email)" size="normal"></p-avatar>
-          <span>{{ email }}</span>
-          <button type="button" class="remove-btn" (click)="removeMemberEmail(email)">
-            <i class="pi pi-times"></i>
-          </button>
-        </div>
-      </div>
-      <p-autoComplete
-        [(ngModel)]="memberSearch"
-        [suggestions]="memberSuggestions"
-        (completeMethod)="searchMembers($event)"
-        placeholder="Add team member..."
-        [multiple]="false"
-        (onSelect)="addMemberEmail($event.value)"
-        class="member-search"
-      >
-        <ng-template let-email pTemplate="item">
-          <div class="member-suggestion">
-            <p-avatar [label]="getInitialsFromEmail(email)" size="normal"></p-avatar>
-            <span>{{ email }}</span>
-          </div>
-        </ng-template>
-      </p-autoComplete>
-    </div>
-  </div>
+  <label class="dialog-label" for="pauseReason">Reason for hold:</label>
+  <input id="pauseReason" pInputText [(ngModel)]="pauseReason" class="w-full" />
 
   <ng-template pTemplate="footer">
-    <p-button
-      label="Cancel"
-      icon="pi pi-times"
-      styleClass="p-button-text"
-      (onClick)="closeEditDialog()"
-    ></p-button>
-    <p-button
-      label="Update Task"
-      icon="pi pi-check"
-      styleClass="p-button-primary"
-      [loading]="isSaving"
-      [disabled]="isSaving"
-      (onClick)="updateTask()"
-    ></p-button>
+    <p-button label="Cancel" styleClass="p-button-text" (onClick)="cancelPauseDialog()"></p-button>
+    <p-button label="Confirm" styleClass="p-button-warning" (onClick)="confirmPause()"></p-button>
+  </ng-template>
+</p-dialog>
+
+<p-dialog
+  [(visible)]="reviewDialogVisible"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '30rem' }"
+  header="Submit for review"
+  (onHide)="cancelReviewDialog()"
+>
+  <label class="dialog-label" for="reviewNote">Note for project manager (optional):</label>
+  <input id="reviewNote" pInputText [(ngModel)]="reviewNote" class="w-full" />
+
+  <ng-template pTemplate="footer">
+    <p-button label="Cancel" styleClass="p-button-text" (onClick)="cancelReviewDialog()"></p-button>
+    <p-button label="Submit" styleClass="p-button-help" (onClick)="confirmReview()"></p-button>
   </ng-template>
 </p-dialog>

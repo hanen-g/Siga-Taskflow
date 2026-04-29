@@ -23,6 +23,7 @@
       <app-project-panel
         [project]="project"
         [detailBase]="'/dashboard/pm/projects'"
+        [canEditOrDeleteProject]="false"
         (archive)="unarchiveProject($event)">
       </app-project-panel>
     </div>

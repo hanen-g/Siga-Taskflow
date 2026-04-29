@@ -2,6 +2,7 @@ package com.taskflow.backend.service;
 
 import com.taskflow.backend.dto.task.TaskRequest;
 import com.taskflow.backend.dto.task.TaskResponse;
+import com.taskflow.backend.dto.task.TaskStatusUpdateRequest;
 import com.taskflow.backend.entity.Project;
 import com.taskflow.backend.entity.Task;
 import com.taskflow.backend.entity.Priority;
@@ -16,6 +17,7 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import com.taskflow.backend.dto.websocket.Notification;
 import com.taskflow.backend.dto.websocket.TaskMessage;
+import com.taskflow.backend.exception.BadRequestException;
 import com.taskflow.backend.exception.ResourceNotFoundException;
 import com.taskflow.backend.exception.UnauthorizedException;
 
@@ -169,7 +171,7 @@ public class TaskService {
                 .toList();
     }
 
-    public TaskResponse updateStatus(Long taskId, String status, User user) {
+    public TaskResponse updateStatus(Long taskId, TaskStatusUpdateRequest request, User user) {
 
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task", taskId));
@@ -178,7 +180,21 @@ public class TaskService {
             throw new UnauthorizedException("You are not assigned to this task");
         }
 
-        task.setStatus(TaskStatus.valueOf(status.toUpperCase(Locale.ROOT)));
+        if (request == null || request.getStatus() == null || request.getStatus().isBlank()) {
+            throw new BadRequestException("Status is required");
+        }
+
+        TaskStatus nextStatus;
+        try {
+            nextStatus = TaskStatus.valueOf(request.getStatus().trim().toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ex) {
+            throw new BadRequestException("Invalid task status: " + request.getStatus());
+        }
+
+        validateCollaboratorTransition(nextStatus);
+        applyHoldReasonRules(task, nextStatus, request.getHoldReason());
+
+        task.setStatus(nextStatus);
         taskRepository.save(task);
 
         // broadcast update
@@ -189,6 +205,35 @@ public class TaskService {
         }
 
         return TaskResponse.fromTask(task);
+    }
+
+    private void validateCollaboratorTransition(TaskStatus nextStatus) {
+        if (nextStatus != TaskStatus.IN_PROGRESS
+                && nextStatus != TaskStatus.ON_HOLD
+                && nextStatus != TaskStatus.IN_REVIEW) {
+            throw new BadRequestException("Collaborators can only move tasks to IN_PROGRESS, ON_HOLD or IN_REVIEW");
+        }
+    }
+
+    private void applyHoldReasonRules(Task task, TaskStatus nextStatus, String holdReason) {
+        String trimmedReason = holdReason == null ? null : holdReason.trim();
+
+        if (nextStatus == TaskStatus.ON_HOLD) {
+            if (trimmedReason == null || trimmedReason.isEmpty()) {
+                throw new BadRequestException("holdReason is required when setting status to ON_HOLD");
+            }
+            task.setHoldReason(trimmedReason);
+            return;
+        }
+
+        if (task.getStatus() == TaskStatus.ON_HOLD && nextStatus == TaskStatus.IN_PROGRESS) {
+            task.setHoldReason(null);
+            return;
+        }
+
+        if (nextStatus != TaskStatus.ON_HOLD) {
+            task.setHoldReason(null);
+        }
     }
 
     private boolean isAssignedCollaborator(Task task, User user) {

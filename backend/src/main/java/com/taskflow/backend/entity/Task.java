@@ -21,6 +21,9 @@ public class Task {
     @Enumerated(EnumType.STRING)
     private TaskStatus status;
 
+    @Column
+    private String holdReason;
+
     @Enumerated(EnumType.STRING)
     private Priority priority;
 

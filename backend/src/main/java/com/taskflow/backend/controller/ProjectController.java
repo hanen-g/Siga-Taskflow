@@ -110,7 +110,7 @@ public class ProjectController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('PROJECT_MANAGER')")
+    @PreAuthorize("hasRole('ADMIN')")
     public Project updateProject(
             @PathVariable Long id,
             @RequestBody Project projectDetails,
@@ -134,6 +134,7 @@ public class ProjectController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public void deleteProject(
             @PathVariable Long id,
             @AuthenticationPrincipal CustomUserDetails userDetails) {

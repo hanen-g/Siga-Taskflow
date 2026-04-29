@@ -2,6 +2,7 @@ package com.taskflow.backend.controller;
 
 import com.taskflow.backend.dto.task.TaskRequest;
 import com.taskflow.backend.dto.task.TaskResponse;
+import com.taskflow.backend.dto.task.TaskStatusUpdateRequest;
 import com.taskflow.backend.entity.Task;
 import com.taskflow.backend.security.CustomUserDetails;
 import com.taskflow.backend.service.TaskService;
@@ -65,11 +66,11 @@ public class TaskController {
         return taskService.updateTask(id, request, userDetails.getUser());
     }
 
-    @PutMapping("/{id:\\d+}/status")
+    @PatchMapping("/{id:\\d+}/status")
     public TaskResponse updateTaskStatus(
             @PathVariable Long id,
-            @RequestParam String status,
+            @RequestBody TaskStatusUpdateRequest request,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return taskService.updateStatus(id, status, userDetails.getUser());
+        return taskService.updateStatus(id, request, userDetails.getUser());
     }
 }

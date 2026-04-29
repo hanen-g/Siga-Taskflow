@@ -33,7 +33,6 @@ import { SkillService } from '../../../services/skill.service';
 })
 export class CreateUsersPage {
   createRole: CreateUserRole | null = null;
-  supportsSkills = false;
   form = { firstName: '', lastName: '', email: '' };
   selectedSkillIds: number[] = [];
   allSkills: Skill[] = [];
@@ -83,15 +82,16 @@ export class CreateUsersPage {
   }
 
   onCreateRoleChange(): void {
-    setTimeout(() => {
-      this.supportsSkills = this.createRole === 'PROJECT_MANAGER' || this.createRole === 'COLLABORATOR';
-      this.createError = null;
-      if (!this.supportsSkills) {
-        this.selectedSkillIds = [];
-        return;
-      }
-      this.loadSkillsIfNeeded();
-    }, 0);
+    this.createError = null;
+    if (!this.roleSupportsSkills) {
+      this.selectedSkillIds = [];
+      return;
+    }
+    this.loadSkillsIfNeeded();
+  }
+
+  get roleSupportsSkills(): boolean {
+    return this.createRole === 'PROJECT_MANAGER' || this.createRole === 'COLLABORATOR';
   }
 
   private loadSkillsIfNeeded(): void {
@@ -161,7 +161,7 @@ export class CreateUsersPage {
         lastName: this.form.lastName.trim(),
         email: this.form.email.trim().toLowerCase(),
         role: this.createRole,
-        skillIds: this.supportsSkills ? this.selectedSkillIds : []
+        skillIds: this.roleSupportsSkills ? this.selectedSkillIds : []
       })
       .subscribe({
         next: (res) => {

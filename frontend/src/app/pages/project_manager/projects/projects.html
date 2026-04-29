@@ -55,6 +55,7 @@
         [project]="project"
         [detailBase]="projectDetailBase"
         [canManage]="canManageProjects"
+        [canEditOrDeleteProject]="isAdmin"
         (edit)="editProject($event)"
         (delete)="deleteProject($event)"
         (archive)="archiveProject($event)">

@@ -54,7 +54,7 @@ public class SecurityConfig {
                         .requestMatchers("/ws/**").permitAll()
 
                         .requestMatchers(HttpMethod.DELETE, "/api/projects/**")
-                        .hasAnyRole("PROJECT_MANAGER", "ADMIN")
+                        .hasRole("ADMIN")
 
                         .requestMatchers("/api/projects/**").authenticated()
 

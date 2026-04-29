@@ -60,6 +60,7 @@
           Files
         </button>
         <button
+          *ngIf="!isCollaborator"
           type="button"
           class="project-detail-tab"
           [class.is-active]="activeTab === 'team'"
@@ -137,7 +138,7 @@
         </ng-container>
 
         <ng-template #teamOrFiles>
-          <ng-container *ngIf="activeTab === 'team'; else filesPanel">
+          <ng-container *ngIf="activeTab === 'team' && !isCollaborator; else filesPanel">
             <div class="team-skills-panel">
               <p class="text-600 mb-3">
                 Define which skills this project needs, then see which project managers and collaborators match.
@@ -186,7 +187,7 @@
               <div *ngIf="!teamPanelLoading && teamMatchResult" class="team-match-block">
                 <h3 class="project-detail-section-title mb-2">Match results</h3>
                 <p *ngIf="!teamMatchResult.requiredSkills.length" class="text-600 text-sm mb-2">
-                  No required skills are set yet. Add skills above to filter project managers and collaborators.
+                  No required skills are set yet. Add skills above to show project managers and collaborators who overlap with them.
                 </p>
                 <div *ngIf="teamMatchResult.matches.length" class="team-match-table-wrap">
                   <table class="team-match-table">
@@ -221,7 +222,10 @@
                   </table>
                 </div>
                 <p *ngIf="!teamPanelLoading && teamMatchResult && !teamMatchResult.matches.length" class="text-600 text-sm">
-                  No project managers or collaborators found.
+                  <ng-container *ngIf="teamMatchResult.requiredSkills.length; else nobodyInSystem">
+                    No project managers or collaborators share the required skills yet.
+                  </ng-container>
+                  <ng-template #nobodyInSystem>No project managers or collaborators found.</ng-template>
                 </p>
               </div>
             </div>
@@ -279,7 +283,7 @@
         <section class="project-info-card">
           <div *ngIf="canManageProject(project)" class="project-actions-toolbar" aria-label="Project actions">
             <button
-              *ngFor="let action of projectActions"
+              *ngFor="let action of projectActionsVisible(project)"
               type="button"
               [class]="actionIconClass(action)"
               [attr.aria-label]="actionLabel(project, action)"
@@ -298,7 +302,7 @@
               <span class="project-info-label">Project Manager:</span>
               <span class="project-info-value">{{ projectManagerLabel(project) }}</span>
             </div>
-            <div class="project-info-row">
+            <div class="project-info-row" *ngIf="!isCollaborator">
               <span class="project-info-label">Team Members:</span>
               <span class="project-info-value">{{ teamMembersLabel(project) }}</span>
             </div>

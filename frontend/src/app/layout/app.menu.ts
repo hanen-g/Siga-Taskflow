@@ -63,7 +63,8 @@ export class AppMenu {
                 {
                     label: 'Tasks',
                     items: [
-                        { label: 'Tasks List', icon: 'pi pi-check-square', routerLink: ['/dashboard/pm/tasks'] }
+                        { label: 'Tasks List', icon: 'pi pi-check-square', routerLink: ['/dashboard/pm/tasks'] },
+                        { label: 'Task Reports', icon: 'pi pi-flag', routerLink: ['/dashboard/pm/task-reports'] }
                     ]
                 },
                 {

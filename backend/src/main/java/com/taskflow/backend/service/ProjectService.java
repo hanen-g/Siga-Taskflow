@@ -134,8 +134,8 @@ public class ProjectService {
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", id));
 
-        if (project.getManager() == null || !project.getManager().getId().equals(actor.getId())) {
-            throw new UnauthorizedException("You are not the manager of this project");
+        if (actor.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Only an administrator can change project details");
         }
 
         project.setName(details.getName());
@@ -304,6 +304,9 @@ public class ProjectService {
                     full,
                     matched
             ));
+        }
+        if (reqCount > 0) {
+            rows.removeIf(match -> match.getMatchedCount() == 0);
         }
         rows.sort(Comparator
                 .comparing(UserSkillMatchResponse::isFullMatch)

@@ -115,7 +115,10 @@ import { ProjectService } from '../../../services/project.service';
 export class ProjectPanel implements OnInit {
   @Input() project!: Project;
   @Input() detailBase = '';
+  /** Show card menu (archive, upload); PM sees this without edit/delete unless also admin. */
   @Input() canManage = true;
+  /** Edit / delete project — administrators only when projects are centrally managed. */
+  @Input() canEditOrDeleteProject = true;
 
   @Output() edit = new EventEmitter<Project>();
   @Output() delete = new EventEmitter<{ id: number; nativeEvent: Event }>();
@@ -148,20 +151,24 @@ export class ProjectPanel implements OnInit {
               nativeEvent: event.originalEvent as Event
             })
         },
-        {
-          label: 'Edit',
-          icon: 'pi pi-pencil',
-          command: () => this.edit.emit(this.project)
-        },
-        {
-          label: 'Delete',
-          icon: 'pi pi-trash',
-          command: (event) =>
-            this.delete.emit({
-              id: this.project.id,
-              nativeEvent: event.originalEvent as Event
-            })
-        },
+        ...(this.canEditOrDeleteProject
+          ? ([
+              {
+                label: 'Edit',
+                icon: 'pi pi-pencil',
+                command: () => this.edit.emit(this.project)
+              },
+              {
+                label: 'Delete',
+                icon: 'pi pi-trash',
+                command: (event: { originalEvent?: Event }) =>
+                  this.delete.emit({
+                    id: this.project.id,
+                    nativeEvent: event.originalEvent as Event
+                  })
+              }
+            ] as MenuItem[])
+          : []),
         {
           label: 'Upload File',
           icon: 'pi pi-upload',
