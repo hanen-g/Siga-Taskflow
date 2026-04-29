@@ -55,6 +55,9 @@ public class TaskReportService {
 
         TaskReport saved = taskReportRepository.save(report);
 
+        if (task.getProject() == null || task.getProject().getManager() == null) {
+            throw new BadRequestException("Task project has no assigned manager");
+        }
         User manager = task.getProject().getManager();
         Notification notification = notificationService.createTaskReportNotification(manager, saved);
         messagingTemplate.convertAndSend("/topic/notifications/user/" + manager.getId(), notification);
@@ -75,7 +78,11 @@ public class TaskReportService {
         TaskReport report = taskReportRepository.findById(reportId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task report", reportId));
 
-        if (!report.getTask().getProject().getManager().getId().equals(manager.getId())) {
+        User projectManager = report.getTask() != null
+                && report.getTask().getProject() != null
+                ? report.getTask().getProject().getManager()
+                : null;
+        if (projectManager == null || !projectManager.getId().equals(manager.getId())) {
             throw new UnauthorizedException("You are not the manager of this project");
         }
 
