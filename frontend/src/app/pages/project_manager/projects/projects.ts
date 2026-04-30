@@ -19,6 +19,7 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { ProjectService } from '../../../services/project.service';
 import { UserService, ProjectManagerOption } from '../../../services/user.service';
 import { WebsocketService } from '../../../services/websocket.service';
+import { ApiService } from '../../../services/api';
 import { ProjectPanel } from './project-panel';
 import { AppLoaderComponent } from '../../../layout/app-loader';
 import { Skill } from '../../../models/skill.model';
@@ -85,6 +86,7 @@ export class ProjectsPage implements OnInit {
     private projectService: ProjectService,
     private userService: UserService,
     private skillService: SkillService,
+    private api: ApiService,
     private ws: WebsocketService,
     private confirmationService: ConfirmationService,
     private messageService: MessageService
@@ -121,27 +123,7 @@ export class ProjectsPage implements OnInit {
   }
 
   private detectRole() {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      try {
-        const user = JSON.parse(userData);
-        this.role = user?.role ?? null;
-      } catch {
-        this.role = null;
-      }
-    }
-
-    if (!this.role) {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          const payload = JSON.parse(atob(token.split('.')[1]));
-          this.role = payload.role;
-        } catch {
-          this.role = null;
-        }
-      }
-    }
+    this.role = this.api.getResolvedRole();
   }
 
   get isAdmin(): boolean {
@@ -206,23 +188,64 @@ export class ProjectsPage implements OnInit {
 
     return safeProjects.filter((project) => {
       const name = String(project?.name ?? '').toLowerCase();
-      const description = String(project?.description ?? '').toLowerCase();
-      return name.includes(search) || description.includes(search);
+      // Search by project "name" only (requested: subject by name).
+      return name.includes(search);
     });
   }
 
   /** Active work: not archived, not paused, not marked delivered. */
   isProjectInProgress(project: any): boolean {
-    return !project?.archived && !project?.paused && !project?.delivered;
+    return !project?.archived && !project?.paused && !project?.delivered && !this.isProjectNotStarted(project);
+  }
+
+  /** Planned for the future: created but start date is after today. */
+  isProjectNotStarted(project: any): boolean {
+    if (!project?.startDate) {
+      return false;
+    }
+    const start = new Date(project.startDate);
+    if (Number.isNaN(start.getTime())) {
+      return false;
+    }
+    const today = new Date();
+    start.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    return start.getTime() > today.getTime();
   }
 
   filteredInProgressProjects(projects: any[] | null): any[] {
     return this.filteredProjects(projects).filter((p) => this.isProjectInProgress(p));
   }
 
-  /** Paused, delivered, or archived — shown in the alert area. */
-  filteredOtherStatusProjects(projects: any[] | null): any[] {
-    return this.filteredProjects(projects).filter((p) => !this.isProjectInProgress(p));
+  filteredPausedProjects(projects: any[] | null): any[] {
+    return this.filteredProjects(projects).filter((p) => !!p?.paused && !p?.archived && !p?.delivered);
+  }
+
+  /** Alert panel: only projects that are created but not started yet. */
+  filteredNotStartedProjects(projects: any[] | null): any[] {
+    return this.filteredProjects(projects)
+      .filter((p) => this.isProjectNotStarted(p) && !p?.archived && !p?.delivered && !p?.paused)
+      // Show the soonest-starting projects first.
+      .sort((a, b) => {
+        const aTime = new Date(a?.startDate ?? '').getTime();
+        const bTime = new Date(b?.startDate ?? '').getTime();
+        const safeA = Number.isNaN(aTime) ? Number.POSITIVE_INFINITY : aTime;
+        const safeB = Number.isNaN(bTime) ? Number.POSITIVE_INFINITY : bTime;
+        if (safeA !== safeB) return safeA - safeB;
+        return String(a?.name ?? '').localeCompare(String(b?.name ?? ''));
+      });
+  }
+
+  deliveredProjects(projects: any[] | null): any[] {
+    return this.filteredProjects(projects).filter((p) => !!p?.delivered && !p?.archived);
+  }
+
+  completionRate(projects: any[] | null): number {
+    const total = this.filteredProjects(projects).length;
+    if (!total) {
+      return 0;
+    }
+    return Math.round((this.deliveredProjects(projects).length / total) * 100);
   }
 
   otherProjectStateLabel(project: any): string {
@@ -234,6 +257,9 @@ export class ProjectsPage implements OnInit {
     }
     if (project?.paused) {
       return 'Paused';
+    }
+    if (this.isProjectNotStarted(project)) {
+      return 'Not started';
     }
     return 'Other';
   }
@@ -424,38 +450,6 @@ export class ProjectsPage implements OnInit {
   updateProject() {
     this.isEditMode = true;
     this.saveProject();
-  }
-
-  deleteProject(event: { id: number; nativeEvent: Event }) {
-
-    this.confirmationService.confirm({
-      target: event.nativeEvent.target as EventTarget,
-      message: 'Do you want to delete this project?',
-      header: 'Delete Confirmation',
-      icon: 'pi pi-info-circle',
-      rejectButtonProps: {
-        label: 'Cancel',
-        severity: 'secondary',
-        outlined: true
-      },
-      acceptButtonProps: {
-        label: 'Delete',
-        severity: 'danger'
-      },
-      accept: () => {
-
-        this.projectService.deleteProject(event.id).subscribe(() => {
-
-          this.refresh$.next();
-
-          this.notify(
-            'info',
-            'Deleted',
-            'Project deleted successfully'
-          );
-        });
-      }
-    });
   }
 
   archiveProject(event: { id: number; archived: boolean; nativeEvent: Event }) {

@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
@@ -31,8 +31,9 @@ import { SkillService } from '../../../services/skill.service';
   styleUrls: ['./create-users.css'],
   providers: [MessageService]
 })
-export class CreateUsersPage {
-  createRole: CreateUserRole | null = null;
+export class CreateUsersPage implements OnInit {
+  createRole: CreateUserRole | null = 'COLLABORATOR';
+  supportsSkills = true;
   form = { firstName: '', lastName: '', email: '' };
   selectedSkillIds: number[] = [];
   allSkills: Skill[] = [];
@@ -43,10 +44,16 @@ export class CreateUsersPage {
   createInfoMessage: string | null = null;
   createError: string | null = null;
 
+  /** Avoid NG0100 when async subscriptions set bindable error text after stabilisation. */
+  private setDeferredCreateError(message: string | null): void {
+    setTimeout(() => {
+      this.createError = message;
+    }, 0);
+  }
+
   readonly createRoleOptions: { label: string; value: CreateUserRole }[] = [
-    { label: 'Project manager', value: 'PROJECT_MANAGER' },
     { label: 'Collaborator', value: 'COLLABORATOR' },
-    { label: 'Client', value: 'CLIENT' },
+    { label: 'Project Manager', value: 'PROJECT_MANAGER' },
     { label: 'Admin', value: 'ADMIN' }
   ];
 
@@ -55,6 +62,10 @@ export class CreateUsersPage {
     private messageService: MessageService,
     private skillService: SkillService
   ) {}
+
+  ngOnInit(): void {
+    this.onCreateRoleChange();
+  }
 
   getCreateRoleTitle(): string {
     if (!this.createRole) {
@@ -82,16 +93,23 @@ export class CreateUsersPage {
   }
 
   onCreateRoleChange(): void {
-    this.createError = null;
-    if (!this.roleSupportsSkills) {
-      this.selectedSkillIds = [];
-      return;
-    }
-    this.loadSkillsIfNeeded();
+    setTimeout(() => {
+      this.supportsSkills = this.createRole === 'PROJECT_MANAGER' || this.createRole === 'COLLABORATOR';
+      this.createError = null;
+      if (!this.supportsSkills) {
+        this.selectedSkillIds = [];
+        return;
+      }
+      this.loadSkillsIfNeeded();
+    }, 0);
   }
 
-  get roleSupportsSkills(): boolean {
-    return this.createRole === 'PROJECT_MANAGER' || this.createRole === 'COLLABORATOR';
+  setCreateRole(role: CreateUserRole): void {
+    if (this.createRole === role) {
+      return;
+    }
+    this.createRole = role;
+    this.onCreateRoleChange();
   }
 
   private loadSkillsIfNeeded(): void {
@@ -106,7 +124,7 @@ export class CreateUsersPage {
       },
       error: () => {
         this.skillsLoading = false;
-        this.createError = 'Could not load skills catalog.';
+        this.setDeferredCreateError('Could not load skills catalog.');
       }
     });
   }
@@ -136,7 +154,7 @@ export class CreateUsersPage {
       error: (err) => {
         this.addingSkill = false;
         const msg = err?.error?.message ?? err?.error?.error;
-        this.createError = typeof msg === 'string' ? msg : 'Could not create skill.';
+        this.setDeferredCreateError(typeof msg === 'string' ? msg : 'Could not create skill.');
       }
     });
   }
@@ -161,7 +179,7 @@ export class CreateUsersPage {
         lastName: this.form.lastName.trim(),
         email: this.form.email.trim().toLowerCase(),
         role: this.createRole,
-        skillIds: this.roleSupportsSkills ? this.selectedSkillIds : []
+        skillIds: this.supportsSkills ? this.selectedSkillIds : []
       })
       .subscribe({
         next: (res) => {
@@ -187,7 +205,7 @@ export class CreateUsersPage {
         error: (err) => {
           this.createLoading = false;
           const msg = err?.error?.message;
-          this.createError = typeof msg === 'string' ? msg : 'Could not create the account.';
+          this.setDeferredCreateError(typeof msg === 'string' ? msg : 'Could not create the account.');
         }
       });
   }

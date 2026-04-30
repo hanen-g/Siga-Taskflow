@@ -12,11 +12,12 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { ToastModule } from 'primeng/toast';
 import { MessageService, ConfirmationService } from 'primeng/api';
 
-import { Router } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { Project } from '../../../models/project.model';
 import { ProjectService } from '../../../services/project.service';
 import { WebsocketService } from '../../../services/websocket.service';
 import { ProjectMessage } from '../../../models/project-message.model';
+import { ApiService } from '../../../services/api';
 import { ProjectPanel } from '../projects/project-panel';
 import { AppLoaderComponent } from '../../../layout/app-loader';
 
@@ -42,6 +43,7 @@ import { AppLoaderComponent } from '../../../layout/app-loader';
 })
 export class ArchivedProjectsPage implements OnInit {
   role: string | null = null;
+  viewMode: 'archived' | 'delivered' = 'archived';
   /** Project detail link: admin vs project manager area */
   detailBase = '/dashboard/pm/projects';
 
@@ -51,9 +53,19 @@ export class ArchivedProjectsPage implements OnInit {
     startWith(void 0),
     switchMap(() => {
       this.error = null;
-      return this.projectService.getArchivedProjects().pipe(
+      const request$ =
+        this.viewMode === 'delivered'
+          ? this.projectService.getAllProjects().pipe(
+              switchMap((projects) => of(projects.filter((project) => !!project?.delivered)))
+            )
+          : this.projectService.getArchivedProjects();
+
+      return request$.pipe(
         catchError(() => {
-          this.error = 'Unable to load archived projects.';
+          this.error =
+            this.viewMode === 'delivered'
+              ? 'Unable to load delivered projects.'
+              : 'Unable to load archived projects.';
           return of([]);
         })
       );
@@ -67,7 +79,9 @@ export class ArchivedProjectsPage implements OnInit {
 
   constructor(
     private projectService: ProjectService,
+    private api: ApiService,
     private router: Router,
+    private route: ActivatedRoute,
     private ws: WebsocketService,
     private confirmationService: ConfirmationService,
     private messageService: MessageService
@@ -78,24 +92,9 @@ export class ArchivedProjectsPage implements OnInit {
   }
 
   ngOnInit(): void {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      try {
-        this.role = JSON.parse(userData)?.role ?? null;
-      } catch {
-        this.role = null;
-      }
-    }
-    if (!this.role) {
-      const token = localStorage.getItem('token');
-      if (token) {
-        try {
-          this.role = JSON.parse(atob(token.split('.')[1]))?.role ?? null;
-        } catch {
-          this.role = null;
-        }
-      }
-    }
+    this.viewMode = this.route.snapshot.data['mode'] === 'delivered' ? 'delivered' : 'archived';
+
+    this.role = this.api.getResolvedRole();
     this.detailBase = this.isAdmin ? '/dashboard/admin/projects' : '/dashboard/pm/projects';
   }
 
@@ -103,33 +102,6 @@ export class ArchivedProjectsPage implements OnInit {
     if (project?.id) {
       void this.router.navigate([this.detailBase, project.id]);
     }
-  }
-
-  deleteProject(event: { id: number; nativeEvent: Event }): void {
-    this.confirmationService.confirm({
-      target: event.nativeEvent.target as EventTarget,
-      message: 'Do you want to delete this project?',
-      header: 'Delete Confirmation',
-      icon: 'pi pi-info-circle',
-      rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
-      acceptButtonProps: { label: 'Delete', severity: 'danger' },
-      accept: () => {
-        this.projectService.deleteProject(event.id).subscribe({
-          next: () => {
-            this.refresh$.next();
-            this.messageService.add({ severity: 'info', summary: 'Deleted', detail: 'Project deleted successfully.' });
-          },
-          error: (err) => {
-            const m = err?.error?.message ?? err?.error?.error;
-            this.messageService.add({
-              severity: 'error',
-              summary: 'Delete failed',
-              detail: typeof m === 'string' ? m : 'Could not delete the project.'
-            });
-          }
-        });
-      }
-    });
   }
 
   pauseProject(event: { id: number; paused: boolean; nativeEvent: Event }): void {

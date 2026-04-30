@@ -1,8 +1,24 @@
 <article
   class="project-card"
   [class.project-card--navigable]="detailBase"
+  [class.project-card--paused]="isPaused"
+  [class.project-card--archived]="project.archived"
+  [class.project-card--delivered]="project.delivered"
   (click)="onCardNavigate($event)">
   <div class="project-banner" [style.background]="bannerColor">
+    <div *ngIf="project.archived && !project.delivered" class="project-archived-hero" (click)="$event.stopPropagation()">
+      <div class="project-archived-circle">
+        <i class="pi pi-box project-archived-hero-icon" aria-hidden="true"></i>
+      </div>
+      <div class="project-archived-pill">ARCHIVED</div>
+    </div>
+
+    <div *ngIf="project.delivered" class="project-delivered-hero" (click)="$event.stopPropagation()">
+      <div class="project-delivered-circle">
+        <i class="pi pi-check project-delivered-hero-icon" aria-hidden="true"></i>
+      </div>
+      <div class="project-delivered-pill">SUCCESS</div>
+    </div>
     <p-menu *ngIf="showMenu" #menu [popup]="true" [appendTo]="'body'" [model]="menuItems" (onShow)="onMenuShow()"></p-menu>
     <button
       *ngIf="showMenu"
@@ -17,6 +33,8 @@
   <div class="project-card-body">
     <div class="project-copy">
       <h2 class="project-title">{{ project.name }}</h2>
+      <p *ngIf="project.archived && !project.delivered" class="project-archived-label">Project archived</p>
+      <p *ngIf="project.delivered" class="project-delivered-label">Project delivered</p>
       <p class="project-description">
         {{ project.description || 'No description yet for this project.' }}
       </p>
@@ -25,4 +43,17 @@
       </p>
     </div>
 
-<input *ngIf="showMenu" #fileInput type="file" style="display:none" (change)="onFileSelected($event)" />
+    <div *ngIf="canResumePausedProject" class="project-paused-actions">
+      <button
+        pButton
+        type="button"
+        icon="pi pi-play"
+        label="Disable pause"
+        class="p-button-sm p-button-warning"
+        (click)="resumePausedProject($event)">
+      </button>
+    </div>
+  </div>
+
+  <input *ngIf="showMenu" #fileInput type="file" style="display:none" (change)="onFileSelected($event)" />
+</article>

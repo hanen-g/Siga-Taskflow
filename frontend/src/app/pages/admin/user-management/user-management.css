@@ -1,14 +1,14 @@
-.user-management-page{min-height:100%;padding:1.5rem;background:radial-gradient(circle at top right,rgba(188,220,255,.35),transparent 26%),linear-gradient(180deg,#f5f8fc 0%,#edf2f8 100%)}
+.user-management-page{min-height:100%;padding:1.5rem;background:radial-gradient(circle at 8% 18%,rgba(244,114,182,.12),transparent 30%),radial-gradient(circle at 92% 12%,rgba(34,211,238,.16),transparent 33%),linear-gradient(180deg,#f8fafc 0%,#eef2f7 100%)}
 .page-header{margin-bottom:1rem}
-.page-header h1{margin:0;font-size:2rem;font-weight:700;color:#122033}
-.page-header p{margin:.4rem 0 0;color:#64748b;font-size:1rem}
-.management-shell{overflow:hidden;border:1px solid rgba(255,255,255,.85);border-radius:28px;background:rgba(255,255,255,.72);box-shadow:0 28px 70px rgba(148,163,184,.22),inset 0 1px 0 rgba(255,255,255,.85);backdrop-filter:blur(18px)}
+.page-header h1{margin:0;font-size:2rem;font-weight:700;color:#1f2937}
+.page-header p{margin:.45rem 0 0;color:#64748b;font-size:.98rem}
+.management-shell{overflow:hidden;border:1px solid rgba(255,255,255,.85);border-radius:24px;background:rgba(255,255,255,.84);box-shadow:0 20px 45px rgba(15,23,42,.08),inset 0 1px 0 rgba(255,255,255,.85);backdrop-filter:blur(12px)}
 .toolbar-panel{padding:1.25rem 1.25rem 0}
 .toolbar-grid{display:grid;grid-template-columns:minmax(280px,1.4fr) minmax(220px,1fr) minmax(220px,1fr);gap:1rem;align-items:end}
 .search-control,.filter-control{display:flex;align-items:center;gap:.85rem}
 .search-control{position:relative}
-.search-control i{position:absolute;left:1rem;color:#6b7a90;font-size:1rem}
-.search-control input{width:100%;height:3.2rem;padding:0 1rem 0 2.8rem;border:1px solid #b4bfd0;border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(242,246,252,.92));color:#1e293b;font-size:1rem;box-shadow:inset 0 1px 2px rgba(255,255,255,.7)}
+.search-control i{position:absolute;left:1rem;color:#64748b;font-size:1rem}
+.search-control input{width:100%;height:3.05rem;padding:0 1rem 0 2.8rem;border:1px solid #cbd5e1;border-radius:12px;background:#fff;color:#334155;font-size:1rem;box-shadow:none}
 .filter-label{flex:0 0 auto;white-space:nowrap;color:#1f2937;font-size:1rem;font-weight:600}
 .table-panel{padding:1rem 0 0}
 .identity-cell{display:flex;align-items:center;gap:.85rem}
@@ -24,17 +24,17 @@
 .error-banner{padding:0 1.25rem 1.25rem;color:#dc2626}
 .form-grid{display:grid;grid-template-columns:1fr;gap:.5rem}
 :host ::ng-deep .filter-select{width:100%}
-:host ::ng-deep .filter-select .p-select-label{padding:.95rem 1rem;color:#1e293b;font-weight:500}
-:host ::ng-deep .filter-select.p-select{min-width:15rem;border:1px solid #b4bfd0;border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(242,246,252,.92));box-shadow:0 8px 24px rgba(148,163,184,.14),inset 0 1px 2px rgba(255,255,255,.75)}
+:host ::ng-deep .filter-select .p-select-label{padding:.95rem 1rem;color:#334155;font-weight:500}
+:host ::ng-deep .filter-select.p-select{min-width:15rem;border:1px solid #cbd5e1;border-radius:12px;background:#fff;box-shadow:none}
 :host ::ng-deep .filter-select .p-select-dropdown{width:3rem;color:#64748b}
 :host ::ng-deep .user-table .p-datatable-table-container{overflow:auto}
 :host ::ng-deep .user-table table{border-collapse:separate;border-spacing:0}
-:host ::ng-deep .user-table .p-datatable-thead>tr>th{padding:1.35rem 1.65rem;border-top:1px solid #cad4e2;border-bottom:1px solid #cad4e2;background:linear-gradient(180deg,rgba(255,255,255,.92),rgba(235,241,248,.92));color:#111827;font-size:.95rem;font-weight:700}
-:host ::ng-deep .user-table .p-datatable-thead>tr>th:first-child{border-left:1px solid #cad4e2;border-top-left-radius:18px}
-:host ::ng-deep .user-table .p-datatable-thead>tr>th:last-child{border-right:1px solid #cad4e2;border-top-right-radius:18px}
-:host ::ng-deep .user-table .p-datatable-tbody>tr>td{padding:.8rem 1.65rem;border-bottom:1px solid #cad4e2;background:rgba(255,255,255,.7);color:#162235;vertical-align:middle}
-:host ::ng-deep .user-table .p-datatable-tbody>tr>td:first-child{border-left:1px solid #cad4e2}
-:host ::ng-deep .user-table .p-datatable-tbody>tr>td:last-child{border-right:1px solid #cad4e2}
+:host ::ng-deep .user-table .p-datatable-thead>tr>th{padding:1.2rem 1.4rem;border-top:1px solid #e2e8f0;border-bottom:1px solid #e2e8f0;background:linear-gradient(90deg,#fdf2f8 0%,#ecfeff 52%,#fef9c3 100%);color:#0f172a;font-size:.93rem;font-weight:700}
+:host ::ng-deep .user-table .p-datatable-thead>tr>th:first-child{border-left:1px solid #e2e8f0;border-top-left-radius:18px}
+:host ::ng-deep .user-table .p-datatable-thead>tr>th:last-child{border-right:1px solid #e2e8f0;border-top-right-radius:18px}
+:host ::ng-deep .user-table .p-datatable-tbody>tr>td{padding:.8rem 1.4rem;border-bottom:1px solid #e2e8f0;background:rgba(255,255,255,.88);color:#334155;vertical-align:middle}
+:host ::ng-deep .user-table .p-datatable-tbody>tr>td:first-child{border-left:1px solid #e2e8f0}
+:host ::ng-deep .user-table .p-datatable-tbody>tr>td:last-child{border-right:1px solid #e2e8f0}
 :host ::ng-deep .user-table .p-datatable-tbody>tr:last-child>td:first-child{border-bottom-left-radius:18px}
 :host ::ng-deep .user-table .p-datatable-tbody>tr:last-child>td:last-child{border-bottom-right-radius:18px}
 :host ::ng-deep .user-avatar{width:3rem;height:3rem;border:2px solid rgba(255,255,255,.92);background:linear-gradient(180deg,#eef3f9,#cfd8e6);color:#334155;font-weight:700;box-shadow:0 8px 20px rgba(148,163,184,.24)}
