@@ -2,6 +2,7 @@ package com.taskflow.backend.service;
 
 import com.taskflow.backend.entity.Notification;
 import com.taskflow.backend.entity.Task;
+import com.taskflow.backend.entity.TaskReport;
 import com.taskflow.backend.entity.User;
 import com.taskflow.backend.repository.NotificationRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,6 +25,32 @@ public class NotificationService {
         entity.setProjectName(task.getProject().getName());
         entity.setTaskTitle(task.getTitle());
         entity.setManagerName(formatManagerName(task.getProject().getManager()));
+        entity.setRead(false);
+
+        return com.taskflow.backend.dto.websocket.Notification.fromEntity(notificationRepository.save(entity));
+    }
+
+    @Transactional
+    public com.taskflow.backend.dto.websocket.Notification createTaskReportNotification(User recipient, TaskReport report) {
+        Notification entity = new Notification();
+        entity.setRecipient(recipient);
+        entity.setMessage("New task report from " + formatManagerName(report.getReporter()) + ": " + report.getReason());
+        entity.setProjectName(report.getTask().getProject().getName());
+        entity.setTaskTitle(report.getTask().getTitle());
+        entity.setManagerName(formatManagerName(report.getTask().getProject().getManager()));
+        entity.setRead(false);
+
+        return com.taskflow.backend.dto.websocket.Notification.fromEntity(notificationRepository.save(entity));
+    }
+
+    @Transactional
+    public com.taskflow.backend.dto.websocket.Notification createTaskReportResolvedNotification(User recipient, TaskReport report) {
+        Notification entity = new Notification();
+        entity.setRecipient(recipient);
+        entity.setMessage("Your task report was reviewed by the project manager.");
+        entity.setProjectName(report.getTask().getProject().getName());
+        entity.setTaskTitle(report.getTask().getTitle());
+        entity.setManagerName(formatManagerName(report.getTask().getProject().getManager()));
         entity.setRead(false);
 
         return com.taskflow.backend.dto.websocket.Notification.fromEntity(notificationRepository.save(entity));

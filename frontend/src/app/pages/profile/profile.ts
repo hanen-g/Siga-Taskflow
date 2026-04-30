@@ -15,8 +15,6 @@ import { ApiService, UpdateProfileRequest, UserProfile } from '../../services/ap
 import { FileAccessService } from '../../services/file-access.service';
 import { SkillService } from '../../services/skill.service';
 import { Skill } from '../../models/skill.model';
-import { MultiSelectModule } from 'primeng/multiselect';
-
 @Component({
   selector: 'app-profile',
   standalone: true,
@@ -30,7 +28,6 @@ import { MultiSelectModule } from 'primeng/multiselect';
     DialogModule,
     ToastModule,
     AvatarModule,
-    MultiSelectModule,
   ],
   providers: [MessageService],
   templateUrl: './profile.html',
@@ -75,10 +72,9 @@ export class ProfilePage implements OnInit, OnDestroy {
   password = '';
   confirmPassword = '';
 
-  allSkills: Skill[] = [];
-  selectedSkillIds: number[] = [];
+  /** Skills assigned to this user (PM / collaborator / admin only; clients never see this block). */
+  mySkills: Skill[] = [];
   skillsUiLoading = false;
-  skillsSaving = false;
 
   // ── Constructor ────────────────────────────────────────────────────────────
 
@@ -118,28 +114,10 @@ export class ProfilePage implements OnInit, OnDestroy {
     this.loadProfile();
   }
 
-  get canEditSkills(): boolean {
+  /** Skills are shown for staff roles only; clients do not see skills on this page. */
+  get showSkillsSection(): boolean {
     const r = this.user?.role;
     return r === 'PROJECT_MANAGER' || r === 'COLLABORATOR' || r === 'ADMIN';
-  }
-
-  saveMySkills(): void {
-    this.skillsSaving = true;
-    this.skillService.putMySkills(this.selectedSkillIds).subscribe({
-      next: () => {
-        this.skillsSaving = false;
-        this.messageService.add({
-          severity: 'success',
-          summary: 'Saved',
-          detail: 'Your skills were updated.',
-          life: 3000,
-        });
-      },
-      error: (err) => {
-        this.skillsSaving = false;
-        this.showError(err.error?.message ?? err.error?.error ?? 'Could not update skills.');
-      },
-    });
   }
 
   ngOnDestroy(): void {
@@ -280,29 +258,19 @@ export class ProfilePage implements OnInit, OnDestroy {
   }
 
   private loadSkillsUi(): void {
-    if (!this.canEditSkills) {
-      this.allSkills = [];
-      this.selectedSkillIds = [];
+    if (!this.showSkillsSection) {
+      this.mySkills = [];
       return;
     }
     this.skillsUiLoading = true;
-    this.skillService.getAllSkills().subscribe({
-      next: (all) => {
-        this.allSkills = all;
-        this.skillService.getMySkills().subscribe({
-          next: (mine) => {
-            this.selectedSkillIds = mine.map((s) => s.id);
-            this.skillsUiLoading = false;
-          },
-          error: () => {
-            this.skillsUiLoading = false;
-            this.showError('Could not load your skills.');
-          },
-        });
+    this.skillService.getMySkills().subscribe({
+      next: (mine) => {
+        this.mySkills = mine ?? [];
+        this.skillsUiLoading = false;
       },
       error: () => {
         this.skillsUiLoading = false;
-        this.showError('Could not load the skills catalog.');
+        this.showError('Could not load your skills.');
       },
     });
   }

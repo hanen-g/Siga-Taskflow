@@ -20,6 +20,7 @@ public class TaskResponse {
     private LocalDateTime deadline;
     private List<String> collaboratorEmails;
     private String projectName;
+    private String holdReason;
 
 
     public static TaskResponse fromTask(Task task) {
@@ -35,7 +36,8 @@ public class TaskResponse {
                                 .map(u -> u != null ? u.getEmail() : null)
                                 .toList()
                         : List.of(),
-                task.getProject() != null ? task.getProject().getName() : null
+                task.getProject() != null ? task.getProject().getName() : null,
+                task.getHoldReason()
 
         );
     }

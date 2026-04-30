@@ -77,6 +77,11 @@ export const routes: Routes = [
         data: { roles: ['PROJECT_MANAGER'] }
       },
       {
+        path: 'dashboard/pm/task-reports',
+        loadComponent: () => import('./pages/project_manager/task-reports/task-reports').then(m => m.TaskReportsPage),
+        data: { roles: ['PROJECT_MANAGER'] }
+      },
+      {
         path: 'dashboard/pm/ia-chat',
         component: IAChatComponent,
         data: { roles: ['PROJECT_MANAGER'] }

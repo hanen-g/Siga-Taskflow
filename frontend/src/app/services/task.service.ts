@@ -1,8 +1,13 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, Subject, tap } from 'rxjs';
-import { Task } from '../models/task.model';
+import { Task, TaskStatus } from '../models/task.model';
 import { WebsocketService } from './websocket.service';
+
+export interface TaskStatusUpdatePayload {
+  status: TaskStatus;
+  holdReason?: string | null;
+}
 
 @Injectable({ providedIn: 'root' })
 export class TaskService {
@@ -30,8 +35,8 @@ export class TaskService {
     return this.http.put<Task>(`${this.apiUrl}/${taskId}`, task).pipe(tap(() => this.refreshSubject.next()));
   }
 
-  updateTaskStatus(taskId: number, status: string) {
-    return this.http.put(`${this.apiUrl}/${taskId}/status?status=${status}`, {}).pipe(tap(() => this.refreshSubject.next()));
+  updateTaskStatus(taskId: number, payload: TaskStatusUpdatePayload) {
+    return this.http.patch<Task>(`${this.apiUrl}/${taskId}/status`, payload).pipe(tap(() => this.refreshSubject.next()));
   }
 
   getMyTasks(): Observable<Task[]> {

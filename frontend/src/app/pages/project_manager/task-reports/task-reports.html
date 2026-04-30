@@ -1,0 +1,52 @@
+<p-toast></p-toast>
+
+<div class="task-reports-page">
+  <div class="reports-header">
+    <div>
+      <h1>Task Reports</h1>
+      <p>Review collaborator complaints and mark them fixed when the issue is handled.</p>
+    </div>
+    <button pButton type="button" icon="pi pi-refresh" label="Refresh" (click)="loadReports()"></button>
+  </div>
+
+  <div *ngIf="isLoading && !errorMessage" class="state-panel">
+    <app-loader label="Loading task reports..." />
+  </div>
+
+  <div *ngIf="errorMessage" class="state-panel">
+    <i class="pi pi-exclamation-triangle"></i>
+    <span>{{ errorMessage }}</span>
+    <button pButton type="button" label="Retry" (click)="loadReports()"></button>
+  </div>
+
+  <div *ngIf="!isLoading && !errorMessage && reports.length === 0" class="state-panel">
+    <i class="pi pi-check-circle"></i>
+    <span>No open task reports.</span>
+  </div>
+
+  <div class="reports-list" *ngIf="!isLoading && !errorMessage && reports.length">
+    <article class="report-card" *ngFor="let report of reports; trackBy: trackByReport">
+      <div class="report-main">
+        <div class="report-topline">
+          <span class="reason">{{ report.reason }}</span>
+          <span class="created">{{ formatDate(report.createdAt) }}</span>
+        </div>
+        <h2>{{ report.taskTitle }}</h2>
+        <div class="meta">
+          <span><i class="pi pi-folder"></i>{{ report.projectName }}</span>
+          <span><i class="pi pi-user"></i>{{ report.reporterName || report.reporterEmail }}</span>
+        </div>
+        <p>{{ report.details }}</p>
+      </div>
+
+      <button
+        pButton
+        type="button"
+        icon="pi pi-check"
+        label="Mark fixed"
+        [disabled]="isResolving(report)"
+        (click)="resolveReport(report)"
+      ></button>
+    </article>
+  </div>
+</div>

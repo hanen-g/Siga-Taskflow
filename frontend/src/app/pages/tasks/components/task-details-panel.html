@@ -11,14 +11,45 @@
         </span>
       </div>
     </div>
-    <button type="button" class="close-btn" (click)="close.emit()">
-      <i class="pi pi-times"></i>
-    </button>
+    <div class="header-actions">
+      <input
+        #taskFileInput
+        type="file"
+        hidden
+        (change)="onTaskFileChosen(taskFileInput)"
+      />
+      <button
+        type="button"
+        class="attach-btn"
+        pTooltip="Attach file"
+        tooltipPosition="left"
+        (click)="taskFileInput.click()"
+        [disabled]="!task.id || isUploading"
+        aria-label="Attach file"
+      >
+        <i class="pi pi-paperclip"></i>
+      </button>
+      <button
+        *ngIf="canManageStatus"
+        type="button"
+        class="report-btn"
+        pTooltip="Report problem"
+        tooltipPosition="left"
+        (click)="openReportDialog()"
+        [disabled]="!task.id || isReporting"
+        aria-label="Report problem"
+      >
+        <i class="pi pi-flag"></i>
+      </button>
+      <button type="button" class="close-btn" (click)="close.emit()">
+        <i class="pi pi-times"></i>
+      </button>
+    </div>
   </div>
 
   <div class="panel-content">
     <div class="task-info-section">
-      <div class="info-item">
+      <div class="info-item" *ngIf="showAssignedTo">
         <label>Assigned To:</label>
         <span>{{ getAssigneeName() }}</span>
       </div>
@@ -74,7 +105,74 @@
             class="send-btn"
           ></button>
         </div>
+
+        <div class="status-actions">
+          <ng-container *ngIf="showTodoActions">
+            <p-button
+              label="▶ Start task"
+              styleClass="p-button-primary p-button-sm"
+              (onClick)="onStart()"
+            ></p-button>
+            <p-button
+              label="⏸ Put on hold"
+              styleClass="p-button-warning p-button-sm"
+              (onClick)="onPause()"
+            ></p-button>
+          </ng-container>
+
+          <p-button
+            *ngIf="showResumeAction"
+            label="▶ Resume task"
+            styleClass="p-button-info p-button-sm"
+            (onClick)="onResume()"
+          ></p-button>
+
+          <div class="status-info-label" *ngIf="reviewWaitingLabel">Waiting for review</div>
+          <div class="status-info-label" *ngIf="doneLabel">Task completed ✅</div>
+        </div>
       </div>
     </div>
   </div>
 </div>
+
+<p-dialog
+  [(visible)]="reportDialogVisible"
+  [modal]="true"
+  [draggable]="false"
+  [resizable]="false"
+  [style]="{ width: '32rem' }"
+  header="Report a task problem"
+>
+  <div class="report-form">
+    <div>
+      <label for="reportReason">Problem</label>
+      <select id="reportReason" [(ngModel)]="reportReason" class="p-inputtext">
+        <option *ngFor="let reason of reportReasons" [value]="reason">{{ reason }}</option>
+      </select>
+    </div>
+    <div>
+      <label for="reportDetails">Details</label>
+      <textarea
+        id="reportDetails"
+        pTextarea
+        rows="5"
+        [(ngModel)]="reportDetails"
+        placeholder="Describe what the project manager should fix..."
+      ></textarea>
+    </div>
+  </div>
+
+  <ng-template pTemplate="footer">
+    <p-button
+      label="Cancel"
+      styleClass="p-button-text"
+      (onClick)="reportDialogVisible = false"
+    ></p-button>
+    <p-button
+      label="Send report"
+      icon="pi pi-send"
+      [disabled]="isReporting"
+      (onClick)="submitReport()"
+    ></p-button>
+  </ng-template>
+</p-dialog>

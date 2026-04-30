@@ -3,6 +3,8 @@ import { User } from './user.model';
 export enum TaskStatus {
   TODO = 'TODO',
   IN_PROGRESS = 'IN_PROGRESS',
+  ON_HOLD = 'ON_HOLD',
+  IN_REVIEW = 'IN_REVIEW',
   DONE = 'DONE'
 }
 
@@ -25,5 +27,5 @@ export interface Task {
   collaboratorEmails?: string[];
   collaborators?: User[];
   projectName?: string;
-
+  holdReason?: string | null;
 }
