@@ -57,10 +57,6 @@ export class ProjectService {
     });
   }
 
-  deleteProject(id: number): Observable<void> {
-    return this.http.delete<void>(`${this.apiUrl}/${id}`);
-  }
-
   archiveProject(id: number, archived: boolean): Observable<any> {
     return this.http.put<any>(`${this.apiUrl}/${id}/archive?archived=${archived}`, {});
   }

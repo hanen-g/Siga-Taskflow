@@ -16,6 +16,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { Task, TaskStatus, Priority } from '../../models/task.model';
 import { TaskMessage } from '../../models/task-message.model';
 import { TaskService } from '../../services/task.service';
+import { ApiService } from '../../services/api';
 import { UserService } from '../../services/user.service';
 import { WebsocketService } from '../../services/websocket.service';
 import { AppLoaderComponent } from '../../layout/app-loader';
@@ -98,6 +99,8 @@ export class TasksPage implements OnInit, OnDestroy {
   collapsedSections: Record<TaskStatus, boolean> = {
     [TaskStatus.TODO]: false,
     [TaskStatus.IN_PROGRESS]: false,
+    [TaskStatus.ON_HOLD]: false,
+    [TaskStatus.IN_REVIEW]: false,
     [TaskStatus.DONE]: false,
   };
 
@@ -114,6 +117,7 @@ export class TasksPage implements OnInit, OnDestroy {
 
   constructor(
     private taskService: TaskService,
+    private api: ApiService,
     private userService: UserService,
     private ws: WebsocketService,
     private cdr: ChangeDetectorRef
@@ -158,29 +162,7 @@ export class TasksPage implements OnInit, OnDestroy {
   }
 
   detectRole() {
-    const userData = localStorage.getItem('user');
-
-    if (userData) {
-      try {
-        const user = JSON.parse(userData);
-        if (user?.role) {
-          this.role = user.role;
-          return;
-        }
-      } catch {
-        // fallback to token parse.
-      }
-    }
-
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        this.role = payload.role;
-      } catch {
-        this.role = null;
-      }
-    }
+    this.role = this.api.getResolvedRole();
   }
 
   loadTasks() {
@@ -377,7 +359,7 @@ export class TasksPage implements OnInit, OnDestroy {
       return;
     }
 
-    this.taskService.updateTaskStatus(task.id!, task.status).subscribe({
+    this.taskService.updateTaskStatus(task.id!, { status: task.status }).subscribe({
       next: () => this.loadTasks(),
       error: (err) => console.error('Failed to update status', err),
     });

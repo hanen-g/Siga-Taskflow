@@ -1,4 +1,4 @@
-.create-users-page {
+.create-client-page {
   min-height: 100%;
   padding: 1.5rem;
   background:
@@ -37,67 +37,7 @@
   padding: 1.25rem;
 }
 
-.field-label-row {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  max-width: 46rem;
-}
-
-.field-label {
-  font-weight: 600;
-  color: #334155;
-  font-size: 0.9rem;
-}
-
-.role-tabs {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  overflow: hidden;
-  border-radius: 999px;
-  border: 1px solid #e2e8f0;
-  background: #f8fafc;
-}
-
-.role-tab {
-  border: 0;
-  margin: 0;
-  padding: 0.6rem 0.85rem;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #334155;
-  background: transparent;
-  cursor: pointer;
-  transition: all 0.18s ease;
-}
-
-.role-tab + .role-tab {
-  border-left: 1px solid rgba(148, 163, 184, 0.3);
-}
-
-.role-tab-collaborator {
-  background: #dbeafe;
-}
-
-.role-tab-project_manager {
-  background: #ccfbf1;
-}
-
-.role-tab-admin {
-  background: #fef3c7;
-}
-
-.role-tab.is-active {
-  box-shadow: inset 0 0 0 2px rgba(15, 23, 42, 0.18);
-  color: #0f172a;
-}
-
-.role-tab:hover {
-  filter: brightness(0.98);
-}
-
 :host ::ng-deep .form-card.p-card {
-  margin-top: 1rem;
   border-radius: 18px;
   border: 1px solid #e2e8f0;
   box-shadow: 0 12px 28px rgba(148, 163, 184, 0.15);
@@ -163,26 +103,11 @@
 }
 
 :host ::ng-deep .p-inputtext,
-:host ::ng-deep .p-multiselect,
-:host ::ng-deep .p-select {
-  border-radius: 12px;
-}
-
 :host ::ng-deep .p-button {
   border-radius: 12px;
 }
 
 @media (max-width: 700px) {
-  .role-tabs {
-    grid-template-columns: 1fr;
-    border-radius: 16px;
-  }
-
-  .role-tab + .role-tab {
-    border-left: 0;
-    border-top: 1px solid rgba(148, 163, 184, 0.3);
-  }
-
   .form-grid {
     grid-template-columns: 1fr;
   }

@@ -7,19 +7,22 @@
 
   <div class="shell">
     <div class="field-label-row">
-      <label for="createRole" class="field-label">Account role</label>
-      <p-select
-        inputId="createRole"
-        [options]="createRoleOptions"
-        [(ngModel)]="createRole"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="Select a role to show the form"
-        [showClear]="true"
-        appendTo="body"
-        styleClass="role-select"
-        (onChange)="onCreateRoleChange()"
-      ></p-select>
+      <label class="field-label">Account role</label>
+      <div class="role-tabs" role="tablist" aria-label="Account role">
+        <button
+          *ngFor="let role of createRoleOptions"
+          type="button"
+          class="role-tab"
+          [ngClass]="[
+            'role-tab-' + role.value.toLowerCase(),
+            createRole === role.value ? 'is-active' : ''
+          ]"
+          [attr.aria-selected]="createRole === role.value"
+          (click)="setCreateRole(role.value)"
+        >
+          {{ role.label }}
+        </button>
+      </div>
     </div>
 
     <p-card *ngIf="createRole" styleClass="form-card">
@@ -60,7 +63,7 @@
             autocomplete="off"
           />
         </div>
-        <div class="field field-wide" *ngIf="roleSupportsSkills">
+        <div class="field field-wide" *ngIf="supportsSkills">
           <label for="cskills">Skills</label>
           <p-multiselect
             inputId="cskills"

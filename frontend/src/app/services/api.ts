@@ -39,9 +39,30 @@ uploadFile(file: File): Observable<FileUploadResponse> {
 getRole(): string | null {
   const token = localStorage.getItem('token');
   if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.role ?? null;
+  } catch {
+    return null;
+  }
+}
 
-  const payload = JSON.parse(atob(token.split('.')[1]));
-  return payload.role;
+/**
+ * Role for UI and route guards: prefer JWT `role` claim (aligned with Bearer auth),
+ * then fall back to cached `user` if the token is missing or unreadable.
+ */
+getResolvedRole(): string | null {
+  const jwtRole = this.getRole();
+  if (jwtRole) {
+    return jwtRole;
+  }
+  const userData = localStorage.getItem('user');
+  if (!userData) return null;
+  try {
+    return JSON.parse(userData)?.role ?? null;
+  } catch {
+    return null;
+  }
 }
 
 }

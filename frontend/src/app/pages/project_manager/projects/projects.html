@@ -36,31 +36,21 @@
   </div>
 
   <ng-container *ngIf="projects$ | async as projects">
-  <div class="workspace-tools" *ngIf="projects.length">
-    <div class="workspace-search">
-      <div class="search-input-wrapper">
-        <i class="pi pi-search search-icon"></i>
-        <input
-          type="text"
-          [(ngModel)]="searchText"
-          placeholder="Search"
-          class="search-input" />
-      </div>
-    </div>
-  </div>
-
-  <p-message
-    *ngIf="projects.length && filteredOtherStatusProjects(projects).length"
-    severity="warn"
-    [closable]="false"
-    styleClass="projects-top-alert w-full">
-    Des projets ne sont pas au statut « en cours » (en pause, livrés ou archivés). Voir le panneau à droite.
-  </p-message>
-
-  <div
-    class="projects-layout-row"
-    *ngIf="projects.length && filteredProjects(projects).length">
+  <div class="projects-layout-row" *ngIf="projects.length && filteredProjects(projects).length">
     <div class="projects-main-column">
+      <div class="workspace-tools">
+        <div class="workspace-search">
+          <div class="search-input-wrapper">
+            <i class="pi pi-search search-icon"></i>
+            <input
+              type="text"
+              [(ngModel)]="searchText"
+              placeholder="Search projects by name"
+              class="search-input" />
+          </div>
+        </div>
+      </div>
+
       <h2 class="projects-section-title">{{ isClient ? 'Projets actifs' : 'Projets en cours' }}</h2>
 
       <div class="projects-grid" *ngIf="filteredInProgressProjects(projects).length">
@@ -71,7 +61,22 @@
             [adminProjectControls]="isAdmin"
             [managerMenu]="isProjectManager"
             (edit)="editProject($event)"
-            (delete)="deleteProject($event)"
+            (archive)="archiveProject($event)"
+            (setPaused)="pauseProject($event)"
+            (setDelivered)="deliverProject($event)">
+          </app-project-panel>
+        </div>
+      </div>
+
+      <h2 class="projects-section-title" *ngIf="filteredPausedProjects(projects).length">Projets en pause</h2>
+      <div class="projects-grid" *ngIf="filteredPausedProjects(projects).length">
+        <div class="project-grid-item" *ngFor="let project of filteredPausedProjects(projects)">
+          <app-project-panel
+            [project]="project"
+            [detailBase]="projectDetailBase"
+            [adminProjectControls]="isAdmin"
+            [managerMenu]="isProjectManager"
+            (edit)="editProject($event)"
             (archive)="archiveProject($event)"
             (setPaused)="pauseProject($event)"
             (setDelivered)="deliverProject($event)">
@@ -89,31 +94,46 @@
       </div>
     </div>
 
-    <aside
-      *ngIf="filteredOtherStatusProjects(projects).length"
-      class="projects-aside-column"
-      aria-label="Projets en pause, livrés ou archivés">
-      <div class="projects-aside-alert border-round-xl">
+    <aside class="projects-aside-column" aria-label="Project monitoring">
+      <div class="projects-monitor-card">
+        <div class="projects-monitor-header">
+          <h3>Project monitoring</h3>
+          <span>Today</span>
+        </div>
+        <div class="projects-monitor-body">
+          <div
+            class="projects-monitor-ring"
+            [style.--progress]="completionRate(projects) + '%'">
+            <span>{{ completionRate(projects) }}%</span>
+          </div>
+          <div class="projects-monitor-stats">
+            <p><strong>{{ filteredProjects(projects).length }}</strong> total</p>
+            <p><strong>{{ filteredInProgressProjects(projects).length }}</strong> in progress</p>
+            <p><strong>{{ filteredNotStartedProjects(projects).length }}</strong> not started</p>
+            <p><strong>{{ filteredPausedProjects(projects).length }}</strong> paused</p>
+            <p><strong>{{ deliveredProjects(projects).length }}</strong> delivered</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="projects-aside-alert border-round-xl" *ngIf="filteredNotStartedProjects(projects).length">
         <div class="projects-aside-alert-header">
           <i class="pi pi-bell" aria-hidden="true"></i>
-          <span>Autres statuts</span>
+          <span>Not started</span>
         </div>
-        <p class="projects-aside-alert-sub m-0 mb-3">Pause, livré ou archivé — nécessitent une attention particulière.</p>
+        <p class="projects-aside-alert-sub m-0 mb-3">Projects created but not started yet.</p>
         <ul class="projects-aside-list">
-          <li *ngFor="let p of filteredOtherStatusProjects(projects)" class="projects-aside-item">
+          <li *ngFor="let p of filteredNotStartedProjects(projects)" class="projects-aside-item">
             <a [routerLink]="projectDetailBase + '/' + p.id" class="projects-aside-link">{{ p.name }}</a>
-            <span class="projects-aside-badge" [ngClass]="{
-              'is-archived': p.archived,
-              'is-paused': p.paused && !p.archived,
-              'is-delivered': p.delivered && !p.archived
-            }">{{ otherProjectStateLabel(p) }}</span>
+            <span class="projects-aside-badge is-not-started">{{ otherProjectStateLabel(p) }}</span>
           </li>
         </ul>
       </div>
     </aside>
+
   </div>
 
-  <div *ngIf="!projects.length" class="empty-state">
+  <div *ngIf="!projects.length && !error" class="empty-state">
     <i class="pi pi-folder-open text-300 text-7xl mb-3"></i>
     <span class="text-600 text-xl font-medium" *ngIf="isAdmin">No projects found. Create a project to get started.</span>
     <span class="text-600 text-xl font-medium" *ngIf="!isAdmin && canProposeIdea"

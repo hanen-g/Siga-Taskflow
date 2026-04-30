@@ -28,7 +28,6 @@ import { MultiSelectModule } from 'primeng/multiselect';
 
 type ProjectAction =
   | 'edit'
-  | 'delete'
   | 'add-task'
   | 'archive'
   | 'pause'
@@ -124,7 +123,6 @@ export class ProjectDetailPage implements OnInit {
         label: project.archived ? 'Unarchive project' : 'Archive project',
         tone: 'warning'
       });
-      actions.push({ action: 'delete', icon: 'pi pi-trash', label: 'Delete project', tone: 'danger' });
     }
     if (
       this.isProjectManagerOfProject(project) &&
@@ -137,12 +135,14 @@ export class ProjectDetailPage implements OnInit {
     return actions;
   }
 
+  projectActions: ProjectActionItem[] = [];
+
   projectActionsVisible(project: Project | null): ProjectActionItem[] {
     if (this.currentUserRole() === 'ADMIN') {
       return this.projectActions;
     }
     return this.projectActions.filter(
-      (a) => a.action !== 'edit' && a.action !== 'delete'
+      (a: ProjectActionItem) => a.action !== 'edit'
     );
   }
 
@@ -543,9 +543,6 @@ export class ProjectDetailPage implements OnInit {
     switch (action) {
       case 'edit':
         this.openEditProjectDialog(project);
-        break;
-      case 'delete':
-        this.confirmDeleteProject(project, event);
         break;
       case 'add-task':
         this.openTaskDialog(project);
@@ -954,43 +951,6 @@ export class ProjectDetailPage implements OnInit {
               severity: 'error',
               summary: 'Error',
               detail: typeof m === 'string' ? m : 'Could not update the project.'
-            });
-          }
-        });
-      }
-    });
-  }
-
-  private confirmDeleteProject(project: Project, event: Event): void {
-    this.confirmationService.confirm({
-      target: event.target as EventTarget,
-      message: 'Do you want to delete this project?',
-      header: 'Delete Confirmation',
-      icon: 'pi pi-info-circle',
-      rejectButtonProps: {
-        label: 'Cancel',
-        severity: 'secondary',
-        outlined: true
-      },
-      acceptButtonProps: {
-        label: 'Delete',
-        severity: 'danger'
-      },
-      accept: () => {
-        this.projectService.deleteProject(project.id).subscribe({
-          next: () => {
-            this.messageService.add({
-              severity: 'info',
-              summary: 'Deleted',
-              detail: 'Project deleted successfully.'
-            });
-            void this.router.navigateByUrl(this.backLink);
-          },
-          error: () => {
-            this.messageService.add({
-              severity: 'error',
-              summary: 'Delete failed',
-              detail: 'Could not delete the project. Try again.'
             });
           }
         });
