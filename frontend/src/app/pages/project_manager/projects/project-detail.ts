@@ -135,6 +135,15 @@ export class ProjectDetailPage implements OnInit {
     return actions;
   }
 
+  projectActionsVisible(project: Project | null): ProjectActionItem[] {
+    const actions = this.projectToolbarActions(project);
+    if (this.currentUserRole() === 'ADMIN') {
+      return actions;
+    }
+    return actions.filter(
+      (a: ProjectActionItem) => a.action !== 'edit' && a.action !== 'delete'
+    );
+  }
   bannerColor(project: Project | null): string {
     if (!project) {
       return '#dbeafe';
