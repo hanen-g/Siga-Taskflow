@@ -1,23 +1,63 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subscription } from 'rxjs';
-import { CdkDrag, CdkDragDrop, CdkDropList, DragDropModule } from '@angular/cdk/drag-drop';
+import { Observable, Subscription, of } from 'rxjs';
+import { catchError, map, startWith } from 'rxjs/operators';
 
-import { BadgeModule } from 'primeng/badge';
+import { AutoCompleteModule } from 'primeng/autocomplete';
+import { AvatarModule } from 'primeng/avatar';
 import { ButtonModule } from 'primeng/button';
+import { CardModule } from 'primeng/card';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
-import { ToastModule } from 'primeng/toast';
-import { MessageService } from 'primeng/api';
+import { TextareaModule } from 'primeng/textarea';
+import { TooltipModule } from 'primeng/tooltip';
 
-import { Priority, Task, TaskStatus } from '../../models/task.model';
+import { Task, TaskStatus, Priority } from '../../models/task.model';
+import { TaskMessage } from '../../models/task-message.model';
 import { TaskService } from '../../services/task.service';
+import { ApiService } from '../../services/api';
+import { UserService } from '../../services/user.service';
 import { WebsocketService } from '../../services/websocket.service';
 import { AppLoaderComponent } from '../../layout/app-loader';
 import { TaskDetailsPanelComponent } from './components/task-details-panel';
 
-type KanbanColumn = { status: TaskStatus; title: string; canDrop: boolean; colorClass: string };
+type TaskFilterKey = 'all' | 'pending' | 'inProgress' | 'completed';
+
+type GroupedTasks = { status: TaskStatus; title: string; tasks: Task[] };
+
+type FilterTab = { key: TaskFilterKey; label: string; icon: string; badge: number | null };
+
+const STATUS_CONFIG: Record<Exclude<TaskFilterKey, 'all'>, { status: TaskStatus; label: string; className: string; titleSuffix: string }> = {
+  pending: {
+    status: TaskStatus.TODO,
+    label: 'Pending',
+    className: 'status-pending',
+    titleSuffix: 'Tasks Pending',
+  },
+  inProgress: {
+    status: TaskStatus.IN_PROGRESS,
+    label: 'In progress',
+    className: 'status-inprogress',
+    titleSuffix: 'Tasks In Progress',
+  },
+  completed: {
+    status: TaskStatus.DONE,
+    label: 'Completed',
+    className: 'status-completed',
+    titleSuffix: 'Tasks Completed',
+  },
+};
+
+const FILTER_TAB_CONFIG: ReadonlyArray<Omit<FilterTab, 'badge'>> = [
+  { key: 'all', label: 'All', icon: 'pi-list' },
+  { key: 'pending', label: 'Pending', icon: 'pi-clock' },
+  { key: 'inProgress', label: 'In Progress', icon: 'pi-spinner' },
+  { key: 'completed', label: 'Completed', icon: 'pi-check' },
+];
+
+/** Section order when showing “All”: in progress first, completed last. */
+const GROUP_SECTION_ORDER: ReadonlyArray<Exclude<TaskFilterKey, 'all'>> = ['inProgress', 'pending', 'completed'];
 
 @Component({
   selector: 'app-tasks-page',
@@ -28,57 +68,59 @@ type KanbanColumn = { status: TaskStatus; title: string; canDrop: boolean; color
   imports: [
     CommonModule,
     FormsModule,
-    DragDropModule,
-    BadgeModule,
+    AutoCompleteModule,
+    AvatarModule,
     ButtonModule,
+    CardModule,
     DialogModule,
     InputTextModule,
-    ToastModule,
+    TextareaModule,
+    TooltipModule,
     AppLoaderComponent,
     TaskDetailsPanelComponent,
   ],
-  providers: [MessageService]
 })
 export class TasksPage implements OnInit, OnDestroy {
+  tasks$: Observable<Task[] | null> = of(null);
   tasks: Task[] = [];
-  columns: KanbanColumn[] = [
-    { status: TaskStatus.TODO, title: 'To Do', canDrop: false, colorClass: 'col-todo' },
-    { status: TaskStatus.IN_PROGRESS, title: 'In Progress', canDrop: true, colorClass: 'col-progress' },
-    { status: TaskStatus.ON_HOLD, title: 'On Hold', canDrop: true, colorClass: 'col-hold' },
-    { status: TaskStatus.IN_REVIEW, title: 'In Review', canDrop: true, colorClass: 'col-review' },
-    { status: TaskStatus.DONE, title: 'Done', canDrop: false, colorClass: 'col-done' }
-  ];
-  columnTasks: Record<TaskStatus, Task[]> = {
-    [TaskStatus.TODO]: [],
-    [TaskStatus.IN_PROGRESS]: [],
-    [TaskStatus.ON_HOLD]: [],
-    [TaskStatus.IN_REVIEW]: [],
-    [TaskStatus.DONE]: []
+  filteredTasks: Task[] = [];
+  statuses: TaskStatus[] = [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.DONE];
+  priorities: Priority[] = [Priority.LOW, Priority.MEDIUM, Priority.HIGH];
+
+  activeFilter: TaskFilterKey = 'all';
+  searchText = '';
+  isLoading = false;
+  errorMessage = '';
+  isSaving = false;
+  drawerErrorMessage = '';
+  role: string | null = null;
+  pageTitle = 'Tasks';
+
+  collapsedSections: Record<TaskStatus, boolean> = {
+    [TaskStatus.TODO]: false,
+    [TaskStatus.IN_PROGRESS]: false,
+    [TaskStatus.ON_HOLD]: false,
+    [TaskStatus.IN_REVIEW]: false,
+    [TaskStatus.DONE]: false,
   };
 
-  /** Collaborator can drag from To Do, In Progress, or On Hold (not In Review / Done). */
-  readonly draggableStatuses: TaskStatus[] = [TaskStatus.TODO, TaskStatus.IN_PROGRESS, TaskStatus.ON_HOLD];
+  filterTabs: FilterTab[] = [];
+  groupedTasks: GroupedTasks[] = [];
 
-  isLoading = true;
-  errorMessage = '';
-  role: string | null = null;
-  pageTitle = 'Collaborator Kanban';
+  isEditDialogOpen = false;
   selectedTask: Task | null = null;
-
-  pauseDialogVisible = false;
-  reviewDialogVisible = false;
-  pauseReason = '';
-  reviewNote = '';
-  pendingTask: Task | null = null;
-  pendingStatus: TaskStatus | null = null;
+  editForm = { title: '', description: '', collaboratorEmails: [] as string[], priority: null as Priority | null, deadline: null as string | null };
+  memberSearch = '';
+  memberSuggestions: string[] = [];
 
   private readonly subscriptions = new Subscription();
 
   constructor(
     private taskService: TaskService,
+    private api: ApiService,
+    private userService: UserService,
     private ws: WebsocketService,
-    private cdr: ChangeDetectorRef,
-    private messageService: MessageService
+    private cdr: ChangeDetectorRef
   ) {}
 
   get isManager(): boolean {
@@ -93,22 +135,24 @@ export class TasksPage implements OnInit, OnDestroy {
     return this.role === 'ADMIN';
   }
 
+  /** Only project managers may create, edit, or delete tasks. Admins have read-only access. */
+  get canManageTasks(): boolean {
+    return this.isManager;
+  }
+
   ngOnInit() {
     this.detectRole();
-    this.pageTitle = this.isCollaborator ? 'Collaborator Kanban' : 'Kanban Tasks';
+    this.pageTitle = this.isManager
+      ? 'Tasks'
+      : this.isCollaborator
+        ? 'My Tasks'
+        : 'All tasks';
+    this.updateFilterTabs();
     this.loadTasks();
 
     this.subscriptions.add(
-      this.ws.getTaskUpdates().subscribe(() => {
+      this.ws.getTaskUpdates().subscribe((_msg: TaskMessage) => {
         this.loadTasks();
-      })
-    );
-
-    this.subscriptions.add(
-      this.ws.getNotificationStream().subscribe((notif) => {
-        if ((notif.message ?? '').toLowerCase().includes('new task assigned')) {
-          this.loadTasks();
-        }
       })
     );
   }
@@ -118,278 +162,282 @@ export class TasksPage implements OnInit, OnDestroy {
   }
 
   detectRole() {
-    const userData = localStorage.getItem('user');
+    this.role = this.api.getResolvedRole();
+  }
 
-    if (userData) {
-      try {
-        const user = JSON.parse(userData);
-        if (user?.role) {
-          this.role = user.role;
-          return;
-        }
-      } catch {
-        // fallback to token parse.
-      }
+  loadTasks() {
+    this.errorMessage = '';
+
+    let request$: Observable<Task[]>;
+
+    if (this.isManager) {
+      request$ = this.taskService.getManagerTasks();
+    } else if (this.isCollaborator) {
+      request$ = this.taskService.getMyTasks();
+    } else if (this.isAdmin) {
+      request$ = this.taskService.getAllTasks();
+    } else {
+      this.errorMessage = 'Unknown user role.';
+      this.tasks$ = of([]);
+      return;
     }
 
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        this.role = payload.role;
-      } catch {
-        this.role = null;
-      }
+    this.tasks$ = request$.pipe(
+      map((tasks: Task[]) => {
+        this.tasks = tasks;
+        this.refreshGrouping();
+        return tasks;
+      }),
+      catchError((err) => {
+        this.errorMessage = 'Failed to load tasks. Please try again.';
+        console.error('Failed to load tasks', err);
+        this.tasks = [];
+        this.refreshGrouping();
+        return of([]);
+      }),
+      startWith(null)
+    );
+  }
+
+  get activeStatus(): TaskStatus | null {
+    return this.activeFilter === 'all' ? null : STATUS_CONFIG[this.activeFilter].status;
+  }
+
+  setFilter(key: TaskFilterKey) {
+    this.activeFilter = key;
+    this.refreshGrouping();
+    this.cdr.detectChanges();
+  }
+
+  refreshGrouping() {
+    const search = this.searchText?.trim().toLowerCase();
+
+    const tasks = this.tasks.filter((task) => this.matchesFilter(task) && this.matchesSearch(task, search));
+    this.filteredTasks = tasks;
+    this.groupedTasks = this.buildGroupedTasks(tasks);
+    this.updateFilterTabs();
+  }
+
+  matchesFilter(task: Task): boolean {
+    return this.activeStatus === null || task.status === this.activeStatus;
+  }
+
+  matchesSearch(task: Task, search: string | null): boolean {
+    if (!search) {
+      return true;
+    }
+
+    const text = `${task.title} ${task.description} ${task.projectName ?? ''}`.toLowerCase();
+    return text.includes(search);
+  }
+
+  countByStatus(status: TaskStatus) {
+    return this.tasks.filter((t) => t.status === status).length;
+  }
+
+  getBadgeCount(filterKey: TaskFilterKey) {
+    if (filterKey === 'all') {
+      return this.tasks.length;
+    }
+
+    return this.countByStatus(STATUS_CONFIG[filterKey].status);
+  }
+
+  statusLabel(status: TaskStatus) {
+    return STATUS_CONFIG[Object.keys(STATUS_CONFIG).find((k) => STATUS_CONFIG[k as Exclude<TaskFilterKey, 'all'>].status === status) as Exclude<TaskFilterKey, 'all'>]?.label ?? status;
+  }
+
+  priorityLabel(priority: Priority): string {
+    switch (priority) {
+      case Priority.LOW: return 'Low';
+      case Priority.MEDIUM: return 'Medium';
+      case Priority.HIGH: return 'High';
+      default: return priority;
     }
   }
 
-  loadTasks(): void {
-    this.isLoading = true;
-    this.errorMessage = '';
-    this.cdr.markForCheck();
+  getStatusClass(status: TaskStatus): string {
+    return STATUS_CONFIG[Object.keys(STATUS_CONFIG).find((k) => STATUS_CONFIG[k as Exclude<TaskFilterKey, 'all'>].status === status) as Exclude<TaskFilterKey, 'all'>]?.className ?? '';
+  }
 
-    const request$ = this.isCollaborator
-      ? this.taskService.getMyTasks()
-      : this.isManager
-      ? this.taskService.getManagerTasks()
-      : this.taskService.getAllTasks();
+  toggleSection(status: TaskStatus) {
+    this.collapsedSections[status] = !this.collapsedSections[status];
+    this.cdr.detectChanges();
+  }
 
-    this.subscriptions.add(
-      request$.subscribe({
-        next: (tasks) => {
-          this.tasks = tasks;
-          this.rebuildColumnTasks();
-          this.isLoading = false;
-          this.cdr.markForCheck();
+  selectTask(task: Task) {
+    this.selectedTask = task;
+    this.cdr.detectChanges();
+  }
+
+  closeTaskDetails() {
+    this.selectedTask = null;
+    this.cdr.detectChanges();
+  }
+
+  editTask(task: Task) {
+    if (!this.canManageTasks) {
+      return;
+    }
+
+    this.selectedTask = task;
+    this.drawerErrorMessage = '';
+    this.editForm = {
+      title: task.title,
+      description: task.description,
+      collaboratorEmails: [...(task.collaboratorEmails ?? [])],
+      priority: task.priority ?? null,
+      deadline: task.deadline ?? null,
+    };
+    this.isEditDialogOpen = true;
+    this.cdr.detectChanges();
+  }
+
+  deleteTask(task: Task) {
+    if (!this.canManageTasks) {
+      return;
+    }
+
+    if (confirm('Are you sure you want to delete this task?')) {
+      this.taskService.deleteTask(task.id!).subscribe({
+        next: () => this.loadTasks(),
+        error: (err) => console.error('Failed to delete task', err),
+      });
+    }
+  }
+
+  closeEditDialog() {
+    this.isEditDialogOpen = false;
+    this.isSaving = false;
+    this.drawerErrorMessage = '';
+    this.selectedTask = null;
+    this.editForm = { title: '', description: '', collaboratorEmails: [], priority: null, deadline: null };
+    this.memberSearch = '';
+    this.memberSuggestions = [];
+    this.cdr.detectChanges();
+  }
+
+  updateTask() {
+    if (!this.selectedTask) return;
+
+    if (!this.editForm.title.trim()) {
+      this.drawerErrorMessage = 'Task title is required.';
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.isSaving = true;
+    this.drawerErrorMessage = '';
+    this.cdr.detectChanges();
+
+    this.taskService
+      .updateTask(this.selectedTask.id!, {
+        title: this.editForm.title.trim(),
+        description: this.editForm.description.trim(),
+        projectId: this.selectedTask.projectId,
+        collaboratorEmails: this.editForm.collaboratorEmails,
+        priority: this.editForm.priority ?? undefined,
+        deadline: this.editForm.deadline ?? undefined,
+      })
+      .subscribe({
+        next: () => {
+          this.isSaving = false;
+          this.closeEditDialog();
+          this.loadTasks();
         },
         error: (err) => {
-          console.error('Failed to load tasks', err);
-          this.errorMessage = 'Could not load tasks. Please try again.';
-          this.tasks = [];
-          this.rebuildColumnTasks();
-          this.isLoading = false;
-          this.cdr.markForCheck();
-        }
+          this.isSaving = false;
+          this.drawerErrorMessage = err?.error?.error || 'Failed to update task. Please try again.';
+          console.error('Failed to update task', err);
+          this.cdr.detectChanges();
+        },
+      });
+  }
+
+  updateStatus(task: Task) {
+    if (!this.isCollaborator) {
+      return;
+    }
+
+    this.taskService.updateTaskStatus(task.id!, { status: task.status }).subscribe({
+      next: () => this.loadTasks(),
+      error: (err) => console.error('Failed to update status', err),
+    });
+  }
+
+  searchMembers(event: { query?: string }) {
+    if (!this.canManageTasks) {
+      return;
+    }
+
+    const query = String(event?.query ?? '').trim().toLowerCase();
+
+    if (!query) {
+      this.memberSuggestions = [];
+      this.cdr.detectChanges();
+      return;
+    }
+
+    this.subscriptions.add(
+      this.userService.searchCollaboratorEmails(query).subscribe({
+        next: (emails) => {
+          this.memberSuggestions = emails.filter((email) => !this.editForm.collaboratorEmails.includes(email));
+          this.cdr.detectChanges();
+        },
+        error: (err) => {
+          console.error('Failed to search collaborators', err);
+          this.memberSuggestions = [];
+          this.cdr.detectChanges();
+        },
       })
     );
   }
 
-  tasksByStatus(status: TaskStatus): Task[] {
-    return this.columnTasks[status];
-  }
-
-  countByStatus(status: TaskStatus): number {
-    return this.tasksByStatus(status).length;
-  }
-
-  canDragTask(task: Task): boolean {
-    return this.isCollaborator && this.draggableStatuses.includes(task.status);
-  }
-
-  canDropInColumn(_column: KanbanColumn): boolean {
-    return this.isCollaborator;
-  }
-
-  canEnterColumn = (drag: CdkDrag<Task>, drop: CdkDropList<Task[]>): boolean => {
-    if (!this.isCollaborator) {
-      return false;
-    }
-    const targetStatus = this.statusFromListId(drop.id);
-    const source = drag.data;
-    // From To Do: only In Progress or On Hold (not directly to In Review / Done / back to To Do)
-    if (source?.status === TaskStatus.TODO) {
-      return targetStatus === TaskStatus.IN_PROGRESS || targetStatus === TaskStatus.ON_HOLD;
-    }
-    return targetStatus === TaskStatus.IN_PROGRESS
-      || targetStatus === TaskStatus.ON_HOLD
-      || targetStatus === TaskStatus.IN_REVIEW;
-  };
-
-  onTaskDrop(event: CdkDragDrop<Task[]>, targetStatus: TaskStatus): void {
-    const task = event.item.data as Task;
-    if (!task || task.status === targetStatus || !this.isCollaborator) {
-      return;
+  addMemberEmail(email: string) {
+    if (!this.editForm.collaboratorEmails.includes(email)) {
+      this.editForm.collaboratorEmails.push(email);
     }
 
-    if (targetStatus === TaskStatus.ON_HOLD) {
-      this.pendingTask = task;
-      this.pendingStatus = targetStatus;
-      this.pauseReason = '';
-      this.pauseDialogVisible = true;
-      return;
-    }
-
-    if (targetStatus === TaskStatus.IN_REVIEW) {
-      this.pendingTask = task;
-      this.pendingStatus = targetStatus;
-      this.reviewNote = '';
-      this.reviewDialogVisible = true;
-      return;
-    }
-
-    if (task.status === TaskStatus.ON_HOLD && targetStatus === TaskStatus.IN_PROGRESS) {
-      this.changeStatus(task, TaskStatus.IN_PROGRESS, null);
-      return;
-    }
-
-    this.changeStatus(task, targetStatus);
+    this.memberSearch = '';
+    this.memberSuggestions = [];
   }
 
-  confirmPause(): void {
-    if (!this.pendingTask || this.pendingStatus !== TaskStatus.ON_HOLD) {
-      return;
-    }
-    if (!this.pauseReason.trim()) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: 'Reason required',
-        detail: 'Please enter a reason for putting the task on hold.'
-      });
-      return;
-    }
-    this.pauseDialogVisible = false;
-    this.changeStatus(this.pendingTask, TaskStatus.ON_HOLD, this.pauseReason.trim());
+  removeMemberEmail(email: string) {
+    this.editForm.collaboratorEmails = this.editForm.collaboratorEmails.filter((entry) => entry !== email);
   }
 
-  confirmReview(): void {
-    if (!this.pendingTask || this.pendingStatus !== TaskStatus.IN_REVIEW) {
-      return;
-    }
-    this.reviewDialogVisible = false;
-    this.changeStatus(this.pendingTask, TaskStatus.IN_REVIEW);
+  getInitialsFromEmail(email: string): string {
+    const name = email.split('@')[0];
+    return name.substring(0, 2).toUpperCase();
   }
 
-  cancelPauseDialog(): void {
-    this.pauseDialogVisible = false;
-    this.resetPendingDialogState();
+  trackByFilter(_index: number, tab: FilterTab): TaskFilterKey {
+    return tab.key;
   }
 
-  cancelReviewDialog(): void {
-    this.reviewDialogVisible = false;
-    this.resetPendingDialogState();
+  trackByGroup(_index: number, group: GroupedTasks): TaskStatus {
+    return group.status;
   }
 
-  selectTask(task: Task): void {
-    this.selectedTask = task;
-    this.cdr.markForCheck();
-  }
-
-  closeTaskDetails(): void {
-    this.selectedTask = null;
-    this.cdr.markForCheck();
-  }
-
-  requestPauseFromPanel(task: Task): void {
-    this.pendingTask = task;
-    this.pendingStatus = TaskStatus.ON_HOLD;
-    this.pauseReason = '';
-    this.pauseDialogVisible = true;
-  }
-
-  requestResumeFromPanel(task: Task): void {
-    this.changeStatus(task, TaskStatus.IN_PROGRESS, null);
-  }
-
-  /** To Do → In Progress (same as dragging to In Progress column). */
-  requestStartFromPanel(task: Task): void {
-    this.changeStatus(task, TaskStatus.IN_PROGRESS);
-  }
-
-  formatDeadline(deadline?: string): string {
-    if (!deadline) return '-';
-    return new Date(deadline).toLocaleDateString('fr-FR');
-  }
-
-  isOverdue(task: Task): boolean {
-    if (!task.deadline || task.status === TaskStatus.DONE) {
-      return false;
-    }
-    return new Date(task.deadline).getTime() < Date.now();
-  }
-
-  getPriorityClass(priority?: Priority): string {
-    switch (priority) {
-      case Priority.LOW: return 'priority-low';
-      case Priority.MEDIUM: return 'priority-medium';
-      case Priority.HIGH: return 'priority-high';
-      case Priority.URGENT: return 'priority-urgent';
-      default: return 'priority-low';
-    }
-  }
-
-  getPriorityLabel(priority?: Priority): string {
-    return priority ?? 'LOW';
-  }
-
-  statusListId(status: TaskStatus): string {
-    return `status-${status.toLowerCase()}`;
-  }
-
-  connectedDropLists(): string[] {
-    return this.columns.map((column) => this.statusListId(column.status));
-  }
-
-  trackByColumn(_index: number, column: KanbanColumn): TaskStatus {
-    return column.status;
-  }
-
-  trackByTask(_index: number, task: Task): number | undefined {
+  trackByTask(_index: number, task: Task): string | number | undefined {
     return task.id;
   }
 
-  private changeStatus(task: Task, status: TaskStatus, holdReason?: string | null): void {
-    if (!task.id) {
-      return;
-    }
-    this.taskService.updateTaskStatus(task.id, { status, holdReason }).subscribe({
-      next: () => {
-        this.resetPendingDialogState();
-        this.loadTasks();
-      },
-      error: (err) => {
-        console.error('Failed to update status', err);
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: err?.error?.message ?? err?.error?.error ?? 'Could not update task status. Please try again.'
-        });
-        this.resetPendingDialogState();
-      }
+  private buildGroupedTasks(tasks: Task[]): GroupedTasks[] {
+    return GROUP_SECTION_ORDER.map((key) => {
+      const cfg = STATUS_CONFIG[key];
+      return {
+        status: cfg.status,
+        title: `${this.countByStatus(cfg.status)} ${cfg.titleSuffix}`,
+        tasks: tasks.filter((task) => task.status === cfg.status),
+      };
     });
   }
 
-  private resetPendingDialogState(): void {
-    this.pendingTask = null;
-    this.pendingStatus = null;
-    this.pauseReason = '';
-    this.reviewNote = '';
-  }
-
-  private rebuildColumnTasks(): void {
-    const next: Record<TaskStatus, Task[]> = {
-      [TaskStatus.TODO]: [],
-      [TaskStatus.IN_PROGRESS]: [],
-      [TaskStatus.ON_HOLD]: [],
-      [TaskStatus.IN_REVIEW]: [],
-      [TaskStatus.DONE]: []
-    };
-    for (const task of this.tasks) {
-      if (next[task.status]) {
-        next[task.status].push(task);
-      }
-    }
-    this.columnTasks = next;
-  }
-
-  private statusFromListId(listId: string): TaskStatus {
-    const raw = listId.replace('status-', '').toUpperCase();
-    switch (raw) {
-      case 'TODO': return TaskStatus.TODO;
-      case 'IN_PROGRESS': return TaskStatus.IN_PROGRESS;
-      case 'ON_HOLD': return TaskStatus.ON_HOLD;
-      case 'IN_REVIEW': return TaskStatus.IN_REVIEW;
-      case 'DONE': return TaskStatus.DONE;
-      default: return TaskStatus.TODO;
-    }
+  private updateFilterTabs() {
+    this.filterTabs = FILTER_TAB_CONFIG.map((tab) => ({
+      ...tab,
+      badge: this.getBadgeCount(tab.key),
+    }));
   }
 }

@@ -56,8 +56,7 @@ export class AppMenu {
                 {
                     label: 'Projects',
                     items: [
-                        { label: 'Project List', icon: 'pi pi-folder', routerLink: ['/dashboard/pm/projects'] },
-                        { label: 'Archive', icon: 'pi pi-building-columns', routerLink: ['/dashboard/pm/archives'] }
+                        { label: 'Project List', icon: 'pi pi-folder', routerLink: ['/dashboard/pm/projects'] }
                     ]
                 },
                 {
@@ -121,13 +120,16 @@ export class AppMenu {
                 {
                     label: 'Home',
                     items: [
-                        { label: 'Dashboard', icon: 'pi pi-fw pi-home', routerLink: ['/dashboard/admin'] }
+                        { label: 'Dashboard', icon: 'pi pi-fw pi-home', routerLink: ['/dashboard/admin'] },
+                        { label: 'Create client', icon: 'pi pi-user-plus', routerLink: ['/dashboard/admin/create-client'] }
                     ]
                 },
                 {
                     label: 'Projects & Tasks',
                     items: [
                         { label: 'All Projects', icon: 'pi pi-folder', routerLink: ['/dashboard/admin/projects'] },
+                        { label: 'Archived projects', icon: 'pi pi-building-columns', routerLink: ['/dashboard/admin/archives'] },
+                        { label: 'Delivered projects', icon: 'pi pi-check-circle', routerLink: ['/dashboard/admin/delivered'] },
                         { label: 'Proposed project ideas', icon: 'pi pi-lightbulb', routerLink: ['/dashboard/admin/project-proposals'] },
                         { label: 'All Tasks', icon: 'pi pi-check-square', routerLink: ['/dashboard/admin/tasks'] }
                     ]

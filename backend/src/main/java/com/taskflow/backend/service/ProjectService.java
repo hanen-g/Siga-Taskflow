@@ -1,5 +1,6 @@
 package com.taskflow.backend.service;
 
+import com.taskflow.backend.dto.project.ProjectLifecycleRequest;
 import com.taskflow.backend.dto.project.ProjectResponse;
 import com.taskflow.backend.dto.skill.ProjectSkillMatchResponse;
 import com.taskflow.backend.dto.skill.SkillResponse;
@@ -59,9 +60,13 @@ public class ProjectService {
         return ProjectResponse.fromProject(saved);
     }
 
+    /**
+     * All non-archived projects (for the main admin list). Archived items are listed via
+     * {@link #getAllArchivedForAdmin()} or {@link #myArchivedProjects}.
+     */
     @Transactional(readOnly = true)
     public List<ProjectResponse> getAllProjects() {
-        return projectRepository.findAll()
+        return projectRepository.findByArchived(false)
                 .stream()
                 .map(ProjectResponse::fromProject)
                 .toList();
@@ -134,12 +139,16 @@ public class ProjectService {
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", id));
 
-        if (actor.getRole() != UserRole.ADMIN) {
-            throw new UnauthorizedException("Only an administrator can change project details");
+        boolean isAdmin = actor.getRole() == UserRole.ADMIN;
+        boolean isManager = project.getManager() != null
+                && project.getManager().getId().equals(actor.getId());
+        if (!isAdmin && !isManager) {
+            throw new UnauthorizedException("You are not allowed to update this project");
         }
 
         project.setName(details.getName());
         project.setDescription(details.getDescription());
+        project.setStartDate(details.getStartDate());
         project.setDeadline(details.getDeadline());
         project.setRequiredSkills(resolveRequiredSkills(details.getRequiredSkills()));
         Project updated = projectRepository.save(project);
@@ -148,13 +157,12 @@ public class ProjectService {
         return updated;
     }
 
-    public void deleteProject(Long projectId, User manager) {
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new RuntimeException("Project not found"));
-
-        if (!project.getManager().getId().equals(manager.getId())) {
-            throw new RuntimeException("Unauthorized");
+    public void deleteProject(Long projectId, User actor) {
+        if (actor.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Only administrators can delete projects");
         }
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project", projectId));
 
         ProjectMessage msg = new ProjectMessage("DELETED", ProjectResponse.fromProject(project));
         messagingTemplate.convertAndSend("/topic/projects", msg);
@@ -198,13 +206,21 @@ public class ProjectService {
                 .toList();
     }
 
-    public ProjectResponse setArchived(Long projectId, User manager, boolean archived) {
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new RuntimeException("Project not found"));
+    @Transactional(readOnly = true)
+    public List<ProjectResponse> getAllArchivedForAdmin() {
+        return projectRepository.findByArchived(true)
+                .stream()
+                .map(ProjectResponse::fromProject)
+                .toList();
+    }
 
-        if (!project.getManager().getId().equals(manager.getId())) {
-            throw new RuntimeException("Unauthorized");
+    @Transactional
+    public ProjectResponse setArchived(Long projectId, User actor, boolean archived) {
+        if (actor.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Only administrators can archive or unarchive projects");
         }
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project", projectId));
 
         project.setArchived(archived);
         Project saved = projectRepository.save(project);
@@ -213,6 +229,37 @@ public class ProjectService {
         messagingTemplate.convertAndSend("/topic/projects", msg);
 
         return ProjectResponse.fromProject(saved);
+    }
+
+    /**
+     * Updates lifecycle fields. Only {@link UserRole#ADMIN} may call this.
+     */
+    @Transactional
+    public ProjectResponse setProjectLifecycle(Long projectId, ProjectLifecycleRequest request, User actor) {
+        if (actor.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Only administrators can change project lifecycle state");
+        }
+        if (request == null) {
+            throw new BadRequestException("Request body is required");
+        }
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project", projectId));
+        if (request.getArchived() != null) {
+            project.setArchived(request.getArchived());
+        }
+        if (request.getPaused() != null) {
+            project.setPaused(request.getPaused());
+        }
+        if (request.getDelivered() != null) {
+            project.setDelivered(request.getDelivered());
+        }
+        Project saved = projectRepository.save(project);
+        ProjectMessage msg = new ProjectMessage("UPDATED", ProjectResponse.fromProject(saved));
+        messagingTemplate.convertAndSend("/topic/projects", msg);
+        return ProjectResponse.fromProject(
+                projectRepository.findDetailedById(projectId)
+                        .orElseThrow(() -> new ResourceNotFoundException("Project", projectId))
+        );
     }
 
     public ProjectResponse addAttachment(Long projectId, MultipartFile file, User user) {
@@ -304,9 +351,6 @@ public class ProjectService {
                     full,
                     matched
             ));
-        }
-        if (reqCount > 0) {
-            rows.removeIf(match -> match.getMatchedCount() == 0);
         }
         rows.sort(Comparator
                 .comparing(UserSkillMatchResponse::isFullMatch)

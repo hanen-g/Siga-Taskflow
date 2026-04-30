@@ -274,7 +274,8 @@ public class UserController {
             this.email = user.getEmail();
             this.firstName = user.getFirstName();
             this.lastName = user.getLastName();
-            this.role = user.getRole().name();
+            // Be defensive: some historical records may have null role, which would otherwise crash the API.
+            this.role = user.getRole() == null ? "UNKNOWN" : user.getRole().name();
             this.profilePicture = user.getProfilePicture();
         }
 
@@ -302,7 +303,8 @@ public class UserController {
             this.email = user.getEmail();
             this.firstName = user.getFirstName();
             this.lastName = user.getLastName();
-            this.role = user.getRole().name();
+            // Be defensive: some historical records may have null role, which would otherwise crash the API.
+            this.role = user.getRole() == null ? "UNKNOWN" : user.getRole().name();
             this.profilePicture = user.getProfilePicture();
             this.isActive = user.isActive();
             this.createdAt = user.getCreatedAt() == null

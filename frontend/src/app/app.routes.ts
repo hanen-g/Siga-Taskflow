@@ -51,6 +51,16 @@ export const routes: Routes = [
         data: { roles: ['PROJECT_MANAGER'] }
       },
       {
+        path: 'dashboard/admin/archives',
+        loadComponent: () => import('./pages/project_manager/archived-projects/archived-projects').then(m => m.ArchivedProjectsPage),
+        data: { roles: ['ADMIN'], mode: 'archived' }
+      },
+      {
+        path: 'dashboard/admin/delivered',
+        loadComponent: () => import('./pages/project_manager/archived-projects/archived-projects').then(m => m.ArchivedProjectsPage),
+        data: { roles: ['ADMIN'], mode: 'delivered' }
+      },
+      {
         path: 'dashboard/collab',
         component: Dashboard,
         data: { roles: ['COLLABORATOR'] }
@@ -99,6 +109,11 @@ export const routes: Routes = [
       {
         path: 'dashboard/admin',
         component: Dashboard,
+        data: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'dashboard/admin/create-client',
+        loadComponent: () => import('./pages/admin/create-client/create-client').then(m => m.CreateClientPage),
         data: { roles: ['ADMIN'] }
       },
       {

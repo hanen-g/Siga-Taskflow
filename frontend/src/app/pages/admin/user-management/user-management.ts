@@ -52,12 +52,11 @@ export class UserManagementPage implements OnInit, OnDestroy {
     { label: 'All Roles', value: 'ALL' },
     { label: 'Project Manager', value: 'PROJECT_MANAGER' },
     { label: 'Collaborator', value: 'COLLABORATOR' },
-    { label: 'Client', value: 'CLIENT' }
+    { label: 'Admin', value: 'ADMIN' }
   ];
   readonly editRoleOptions: { label: string; value: Exclude<EmployeeRole, 'ALL'> | 'ADMIN' }[] = [
     { label: 'Project Manager', value: 'PROJECT_MANAGER' },
     { label: 'Collaborator', value: 'COLLABORATOR' },
-    { label: 'Client', value: 'CLIENT' },
     { label: 'Admin', value: 'ADMIN' }
   ];
 

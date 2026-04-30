@@ -5,8 +5,10 @@ import {
   ElementRef,
   EventEmitter,
   Input,
+  OnChanges,
   OnInit,
   Output,
+  SimpleChanges,
   ViewChild
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -47,6 +49,144 @@ import { ProjectService } from '../../../services/project.service';
 
     .project-card--navigable {
       cursor: pointer;
+    }
+
+    .project-card--paused {
+      background: #f3f4f6;
+      border-color: #d1d5db;
+      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+    }
+
+    .project-card--archived {
+      border-color: rgba(148, 163, 184, 0.35);
+      box-shadow: 0 12px 28px rgba(71, 85, 105, 0.12);
+      background: #fbfcfd;
+    }
+
+    .project-card--archived .project-title {
+      color: #334155;
+    }
+
+    .project-card--delivered {
+      border-color: rgba(56, 189, 248, 0.28);
+      box-shadow: 0 16px 34px rgba(14, 116, 144, 0.1);
+      background: #fbfeff;
+    }
+
+    .project-card--delivered .project-title {
+      color: #155e75;
+    }
+
+    .project-delivered-hero {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      pointer-events: none;
+    }
+
+    .project-archived-hero {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      pointer-events: none;
+    }
+
+    .project-archived-circle {
+      width: 4.25rem;
+      height: 4.25rem;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 3px solid rgba(148, 163, 184, 0.35);
+      background: radial-gradient(circle at 30% 25%, #e2e8f0 0%, #cbd5e1 45%, #94a3b8 100%);
+      box-shadow: 0 10px 22px rgba(51, 65, 85, 0.2);
+    }
+
+    .project-archived-hero-icon {
+      color: white;
+      font-size: 1.55rem;
+      font-weight: 900;
+    }
+
+    .project-archived-pill {
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      color: #475569;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(71, 85, 105, 0.2);
+      border-radius: 999px;
+      padding: 0.24rem 0.62rem;
+    }
+
+    .project-delivered-circle {
+      width: 4.25rem;
+      height: 4.25rem;
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 3px solid rgba(34, 211, 238, 0.35);
+      background: radial-gradient(circle at 30% 25%, #a5f3fc 0%, #67e8f9 40%, #22d3ee 100%);
+      box-shadow: 0 10px 22px rgba(14, 116, 144, 0.2);
+    }
+
+    .project-delivered-hero-icon {
+      color: white;
+      font-size: 1.8rem;
+      font-weight: 900;
+    }
+
+    .project-delivered-pill {
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+      color: #0f766e;
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(15, 118, 110, 0.2);
+      border-radius: 999px;
+      padding: 0.24rem 0.62rem;
+    }
+
+    .project-delivered-label {
+      margin: 0;
+      font-size: 0.76rem;
+      color: #0f766e;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    .project-archived-label {
+      margin: 0;
+      font-size: 0.76rem;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-weight: 700;
+    }
+
+    .project-card--paused .project-banner {
+      filter: grayscale(1);
+      opacity: 0.8;
+    }
+
+    .project-card--paused .project-title {
+      color: #475569;
+    }
+
+    .project-card--paused .project-description,
+    .project-card--paused .project-created-at {
+      color: #94a3b8;
     }
 
     .project-banner {
@@ -110,25 +250,47 @@ import { ProjectService } from '../../../services/project.service';
       line-height: 1.4;
     }
 
+    .project-paused-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      margin-top: 0.5rem;
+    }
+
   `]
 })
-export class ProjectPanel implements OnInit {
+export class ProjectPanel implements OnInit, OnChanges {
   @Input() project!: Project;
   @Input() detailBase = '';
-  /** Show card menu (archive, upload); PM sees this without edit/delete unless also admin. */
-  @Input() canManage = true;
-  /** Edit / delete project — administrators only when projects are centrally managed. */
-  @Input() canEditOrDeleteProject = true;
+
+  /** When true, show full lifecycle menu (archived, pause, mark delivered) — administrators only. */
+  @Input() adminProjectControls = false;
+
+  /** When true, show “edit” and file upload in the context of a project manager. */
+  @Input() managerMenu = false;
 
   @Output() edit = new EventEmitter<Project>();
-  @Output() delete = new EventEmitter<{ id: number; nativeEvent: Event }>();
   @Output() archive = new EventEmitter<{ id: number; archived: boolean; nativeEvent: Event }>();
+  @Output() setPaused = new EventEmitter<{ id: number; paused: boolean; nativeEvent: Event }>();
+  @Output() setDelivered = new EventEmitter<{ id: number; delivered: boolean; nativeEvent: Event }>();
 
   @ViewChild('fileInput') fileInput?: ElementRef<HTMLInputElement>;
   @ViewChild('menu') menu?: Menu;
 
   menuItems: MenuItem[] = [];
   bannerColor = '#dbeafe';
+
+  get showMenu(): boolean {
+    return (this.adminProjectControls || this.managerMenu) && this.menuItems.length > 0;
+  }
+
+  get isPaused(): boolean {
+    return !!this.project?.paused;
+  }
+
+  get canResumePausedProject(): boolean {
+    return this.adminProjectControls && this.isPaused;
+  }
 
   constructor(
     private projectService: ProjectService,
@@ -137,62 +299,127 @@ export class ProjectPanel implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    const archived = !!this.project.archived;
     this.bannerColor = this.resolveBannerColor();
-    if (this.canManage) {
-      this.menuItems = [
-        {
-          label: archived ? 'Unarchive' : 'Archive',
-          icon: archived ? 'pi pi-folder-open' : 'pi pi-building-columns',
-          command: (event) =>
-            this.archive.emit({
-              id: this.project.id,
-              archived: !archived,
-              nativeEvent: event.originalEvent as Event
-            })
-        },
-        ...(this.canEditOrDeleteProject
-          ? ([
-              {
-                label: 'Edit',
-                icon: 'pi pi-pencil',
-                command: () => this.edit.emit(this.project)
-              },
-              {
-                label: 'Delete',
-                icon: 'pi pi-trash',
-                command: (event: { originalEvent?: Event }) =>
-                  this.delete.emit({
-                    id: this.project.id,
-                    nativeEvent: event.originalEvent as Event
-                  })
-              }
-            ] as MenuItem[])
-          : []),
-        {
-          label: 'Upload File',
-          icon: 'pi pi-upload',
-          command: () => this.openFilePicker()
-        }
-      ];
+    this.rebuildMenu();
+  }
+
+  ngOnChanges(_changes: SimpleChanges): void {
+    this.rebuildMenu();
+  }
+
+  private rebuildMenu(): void {
+    this.bannerColor = this.resolveBannerColor();
+    if (!this.project) {
+      this.menuItems = [];
+      return;
+    }
+    const archived = !!this.project.archived;
+    const paused = !!this.project.paused;
+    const delivered = !!this.project.delivered;
+
+    if (this.adminProjectControls) {
+      // When paused, keep actions locked except explicit resume.
+      if (paused) {
+        this.menuItems = [
+          {
+            label: 'Resume project',
+            icon: 'pi pi-play',
+            command: (event) =>
+              this.setPaused.emit({
+                id: this.project.id,
+                paused: false,
+                nativeEvent: event.originalEvent as Event
+              })
+          }
+        ];
+      } else {
+        this.menuItems = [
+          {
+            label: archived ? 'Unarchive' : 'Archive',
+            icon: archived ? 'pi pi-folder-open' : 'pi pi-building-columns',
+            command: (event) =>
+              this.archive.emit({
+                id: this.project.id,
+                archived: !archived,
+                nativeEvent: event.originalEvent as Event
+              })
+          },
+          {
+            label: 'Pause project',
+            icon: 'pi pi-pause',
+            command: (event) =>
+              this.setPaused.emit({
+                id: this.project.id,
+                paused: true,
+                nativeEvent: event.originalEvent as Event
+              })
+          },
+          {
+            label: delivered ? 'Reopen (not delivered)' : 'Mark as delivered',
+            icon: delivered ? 'pi pi-replay' : 'pi pi-check-circle',
+            command: (event) =>
+              this.setDelivered.emit({
+                id: this.project.id,
+                delivered: !delivered,
+                nativeEvent: event.originalEvent as Event
+              })
+          },
+          {
+            label: 'Edit',
+            icon: 'pi pi-pencil',
+            command: () => this.edit.emit(this.project)
+          },
+          {
+            label: 'Upload File',
+            icon: 'pi pi-upload',
+            command: () => this.openFilePicker()
+          }
+        ];
+      }
+    } else if (this.managerMenu) {
+      this.menuItems = paused
+        ? []
+        : [
+            {
+              label: 'Edit',
+              icon: 'pi pi-pencil',
+              command: () => this.edit.emit(this.project)
+            },
+            {
+              label: 'Upload File',
+              icon: 'pi pi-upload',
+              command: () => this.openFilePicker()
+            }
+          ];
     } else {
       this.menuItems = [];
     }
+    this.cdr.markForCheck();
   }
 
   onCardNavigate(event: MouseEvent): void {
-    if (!this.detailBase) {
+    if (!this.detailBase || this.project?.id == null) {
       return;
     }
     const target = event.target as HTMLElement;
     if (target.closest('button')) {
       return;
     }
-    this.router.navigate([this.detailBase, this.project.id]);
+    const base = this.detailBase.replace(/\/$/, '');
+    void this.router.navigateByUrl(`${base}/${this.project.id}`);
   }
 
   toggleMenu(event: Event): void {
     this.menu?.toggle(event);
+  }
+
+  resumePausedProject(event: Event): void {
+    event.stopPropagation();
+    this.setPaused.emit({
+      id: this.project.id,
+      paused: false,
+      nativeEvent: event
+    });
   }
 
   onMenuShow(): void {
@@ -211,7 +438,7 @@ export class ProjectPanel implements OnInit {
   }
 
   openFilePicker(): void {
-    if (!this.canManage) {
+    if (!this.showMenu) {
       return;
     }
     this.fileInput?.nativeElement.click();
@@ -231,6 +458,15 @@ export class ProjectPanel implements OnInit {
   }
 
   private resolveBannerColor(): string {
+    if (this.project?.delivered) {
+      // Minimal clean style for delivered projects.
+      return 'linear-gradient(135deg, #ecfeff 0%, #cffafe 52%, #e0f2fe 100%)';
+    }
+    if (this.project?.archived) {
+      // Neutral minimal style for archived projects.
+      return 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f1f5f9 100%)';
+    }
+
     const palette = ['#fecdd3', '#fde68a', '#bfdbfe', '#c7d2fe', '#bbf7d0', '#fbcfe8', '#fed7aa', '#a7f3d0'];
     const seed = `${this.project.id ?? ''}${this.project.name ?? ''}`;
     const index = Array.from(seed).reduce((total, char) => total + char.charCodeAt(0), 0) % palette.length;
