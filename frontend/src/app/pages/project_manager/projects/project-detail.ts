@@ -96,7 +96,9 @@ export class ProjectDetailPage implements OnInit {
     if (this.currentUserRole() === 'ADMIN') {
       return this.projectActions;
     }
-    return this.projectActions.filter((a) => a.action !== 'edit');
+    return this.projectActions.filter(
+      (a) => a.action !== 'edit' && a.action !== 'delete'
+    );
   }
 
   bannerColor(project: Project | null): string {
