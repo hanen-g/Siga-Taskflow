@@ -135,17 +135,6 @@ export class ProjectDetailPage implements OnInit {
     return actions;
   }
 
-  projectActions: ProjectActionItem[] = [];
-
-  projectActionsVisible(project: Project | null): ProjectActionItem[] {
-    if (this.currentUserRole() === 'ADMIN') {
-      return this.projectActions;
-    }
-    return this.projectActions.filter(
-      (a: ProjectActionItem) => a.action !== 'edit'
-    );
-  }
-
   bannerColor(project: Project | null): string {
     if (!project) {
       return '#dbeafe';
@@ -333,19 +322,11 @@ export class ProjectDetailPage implements OnInit {
   }
 
   switchTab(tab: 'tasks' | 'files' | 'team', project: Project | null): void {
-    if (tab === 'team' && this.isCollaborator) {
-      tab = 'tasks';
-    }
     this.activeTab = tab;
     this.searchText = '';
-    if (tab === 'team' && project?.id && !this.isCollaborator) {
+    if (tab === 'team' && project?.id) {
       this.refreshTeamPanel(project);
     }
-  }
-
-  /** Collaborators cannot access Team & skills (tab and related UI). */
-  get isCollaborator(): boolean {
-    return this.currentUserRole() === 'COLLABORATOR';
   }
 
   canEditProjectSkills(project: Project | null): boolean {
@@ -577,9 +558,6 @@ export class ProjectDetailPage implements OnInit {
 
 
   saveProject(project: Project): void {
-    if (this.currentUserRole() !== 'ADMIN') {
-      return;
-    }
     if (!project.id || this.isSavingProject || !this.validateProjectName(project)) {
       return;
     }
@@ -608,7 +586,6 @@ export class ProjectDetailPage implements OnInit {
       .subscribe({
       next: () => {
         this.displayDialog = false;
-        this.isSavingProject = false;
         this.loadProject(project.id);
         this.messageService.add({
           severity: 'success',
