@@ -5,8 +5,8 @@ import lombok.Setter;
 
 @Getter
 @Setter
-public class CreateSkillRequest {
+public class UpdateSkillRequest {
+
     private String name;
-    /** Optional grouping label shown in catalog (Programming, Language, …). */
     private String category;
 }

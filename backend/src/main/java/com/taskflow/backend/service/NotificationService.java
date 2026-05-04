@@ -56,6 +56,65 @@ public class NotificationService {
         return com.taskflow.backend.dto.websocket.Notification.fromEntity(notificationRepository.save(entity));
     }
 
+    @Transactional
+    public com.taskflow.backend.dto.websocket.Notification createProjectProposalSubmittedNotification(
+            User adminRecipient,
+            String proposalName,
+            User submitter) {
+        Notification entity = new Notification();
+        entity.setRecipient(adminRecipient);
+        entity.setMessage(
+                "Nouvelle proposition de projet : « "
+                        + proposalName
+                        + " » par "
+                        + formatManagerName(submitter)
+                        + ". À valider dans Idées de projet.");
+        entity.setProjectName(proposalName);
+        entity.setTaskTitle("Proposition de projet");
+        entity.setManagerName(formatManagerName(submitter));
+        entity.setRead(false);
+
+        return com.taskflow.backend.dto.websocket.Notification.fromEntity(notificationRepository.save(entity));
+    }
+
+    @Transactional
+    public com.taskflow.backend.dto.websocket.Notification createProjectProposalReceiptNotification(
+            User submitter,
+            String proposalName) {
+        Notification entity = new Notification();
+        entity.setRecipient(submitter);
+        entity.setMessage(
+                "Votre proposition « " + proposalName + " » a été envoyée. Un administrateur la traitera sous peu.");
+        entity.setProjectName(proposalName);
+        entity.setTaskTitle("Proposition en attente");
+        entity.setManagerName(null);
+        entity.setRead(false);
+
+        return com.taskflow.backend.dto.websocket.Notification.fromEntity(notificationRepository.save(entity));
+    }
+
+    @Transactional
+    public com.taskflow.backend.dto.websocket.Notification createProjectProposalApprovedNotification(
+            User proposer,
+            String proposalName,
+            String createdProjectName,
+            User adminApprover) {
+        Notification entity = new Notification();
+        entity.setRecipient(proposer);
+        entity.setMessage(
+                "Votre proposition « "
+                        + proposalName
+                        + " » a été approuvée. Le projet « "
+                        + createdProjectName
+                        + " » est maintenant disponible.");
+        entity.setProjectName(createdProjectName);
+        entity.setTaskTitle("Proposition approuvée");
+        entity.setManagerName(formatManagerName(adminApprover));
+        entity.setRead(false);
+
+        return com.taskflow.backend.dto.websocket.Notification.fromEntity(notificationRepository.save(entity));
+    }
+
     @Transactional(readOnly = true)
     public List<com.taskflow.backend.dto.websocket.Notification> getNotificationsForUser(User user) {
         return notificationRepository.findByRecipientIdOrderByCreatedAtDesc(user.getId())
