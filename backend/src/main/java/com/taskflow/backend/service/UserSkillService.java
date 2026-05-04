@@ -41,6 +41,7 @@ public class UserSkillService {
         }
         return user.getSkills()
                 .stream()
+                .filter(sk -> !sk.isArchived())
                 .map(SkillResponse::fromEntity)
                 .sorted((a, b) -> a.getName().compareToIgnoreCase(b.getName()))
                 .toList();
@@ -62,6 +63,7 @@ public class UserSkillService {
             if (found.size() != unique.size()) {
                 throw new BadRequestException("One or more skill ids are invalid");
             }
+            SkillService.ensureNotArchived(found);
             user.setSkills(new HashSet<>(found));
         }
         userRepository.save(user);

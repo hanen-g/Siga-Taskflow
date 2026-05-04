@@ -18,10 +18,12 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(req).pipe(
     catchError((err: HttpErrorResponse) => {
-      const isAuthFailure = err.status === 401 || err.status === 403;
+      // Only 401 = missing/invalid/expired credentials. 403 = forbidden action for an authenticated user
+      // (e.g. role-based); clearing the session here logged collaborators out incorrectly.
+      const isUnauthorized = err.status === 401;
       const isLoginCall = req.url.includes('/api/auth/login');
 
-      if (isAuthFailure && !isLoginCall) {
+      if (isUnauthorized && !isLoginCall) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         setTimeout(() => {

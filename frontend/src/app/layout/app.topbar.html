@@ -19,6 +19,69 @@
       <button type="button" class="layout-topbar-action" (click)="toggleDarkMode()">
         <i [ngClass]="{ 'pi ': true, 'pi-moon': layoutService.isDarkTheme(), 'pi-sun': !layoutService.isDarkTheme() }"></i>
       </button>
+
+      <div class="notification-container">
+        <button
+          type="button"
+          class="layout-topbar-action notification-button"
+          [class.has-notifications]="unreadCount > 0"
+          [class.shake]="showShake"
+          (click)="toggleNotifications()"
+          title="Notifications"
+          aria-label="Notifications">
+          <p-overlaybadge
+            *ngIf="unreadCount > 0; else plainBellIcon"
+            [value]="unreadCount"
+            severity="danger">
+            <i class="pi pi-bell"></i>
+          </p-overlaybadge>
+          <ng-template #plainBellIcon>
+            <i class="pi pi-bell"></i>
+          </ng-template>
+        </button>
+
+        <div *ngIf="showNotificationPanel" class="notification-panel">
+          <div class="notification-panel-header">
+            <h3>Notifications</h3>
+            <button type="button" class="close-btn" (click)="toggleNotifications()">
+              <i class="pi pi-times"></i>
+            </button>
+          </div>
+          <div class="notification-panel-content">
+            @if (notifications.length > 0) {
+              <div *ngFor="let notif of notifications" class="notification-item">
+                <div class="notification-icon">
+                  <i class="pi pi-info-circle"></i>
+                </div>
+                <div class="notification-body">
+                  <p class="notification-message">{{ notif.message }}</p>
+                  @if (notif.projectName) {
+                    <small class="notification-meta">Projet / idée : {{ notif.projectName }}</small>
+                  }
+                  @if (notif.taskTitle) {
+                    <small class="notification-meta">{{ notif.taskTitle }}</small>
+                  }
+                  @if (notif.managerName) {
+                    <small class="notification-meta">Par : {{ notif.managerName }}</small>
+                  }
+                </div>
+              </div>
+            } @else {
+              <div class="no-notifications">
+                <i class="pi pi-inbox"></i>
+                <p>Aucune notification</p>
+              </div>
+            }
+          </div>
+          @if (notifications.length > 0) {
+            <div class="notification-panel-footer">
+              <button type="button" class="clear-btn" (click)="clearNotifications()">
+                Tout effacer
+              </button>
+            </div>
+          }
+        </div>
+      </div>
     </div>
 
     <app-projects-calendar-dialog [(visible)]="projectsCalendarOpen" />
@@ -36,64 +99,6 @@
       #topbarMenu
       class="layout-topbar-menu">
       <div class="layout-topbar-menu-content">
-        <div class="notification-container">
-          <button
-            type="button"
-            class="layout-topbar-action notification-button"
-            [class.has-notifications]="unreadCount > 0"
-            [class.shake]="showShake"
-            (click)="toggleNotifications()">
-            <p-overlaybadge
-              *ngIf="unreadCount > 0; else plainBellIcon"
-              [value]="unreadCount"
-              severity="danger">
-              <i class="pi pi-bell"></i>
-            </p-overlaybadge>
-            <ng-template #plainBellIcon>
-              <i class="pi pi-bell"></i>
-            </ng-template>
-            <span>Notifications</span>
-          </button>
-
-          <div *ngIf="showNotificationPanel" class="notification-panel">
-            <div class="notification-panel-header">
-              <h3>Notifications</h3>
-              <button type="button" class="close-btn" (click)="toggleNotifications()">
-                <i class="pi pi-times"></i>
-              </button>
-            </div>
-            <div class="notification-panel-content">
-              @if (notifications.length > 0) {
-                <div *ngFor="let notif of notifications" class="notification-item">
-                  <div class="notification-icon">
-                    <i class="pi pi-info-circle"></i>
-                  </div>
-                  <div class="notification-body">
-                    <p class="notification-message">{{ notif.message }}</p>
-                    @if (notif.projectName) {
-                      <small class="notification-meta">Project: {{ notif.projectName }}</small>
-                    }
-                    @if (notif.managerName) {
-                      <small class="notification-meta">Assigned by: {{ notif.managerName }}</small>
-                    }
-                  </div>
-                </div>
-              } @else {
-                <div class="no-notifications">
-                  <i class="pi pi-inbox"></i>
-                  <p>No notifications</p>
-                </div>
-              }
-            </div>
-            @if (notifications.length > 0) {
-              <div class="notification-panel-footer">
-                <button type="button" class="clear-btn" (click)="clearNotifications()">
-                  Clear all
-                </button>
-              </div>
-            }
-          </div>
-        </div>
         <button
           type="button"
           class="layout-topbar-action"

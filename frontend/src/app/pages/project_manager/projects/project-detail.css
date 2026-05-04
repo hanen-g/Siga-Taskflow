@@ -1,4 +1,6 @@
 .project-detail-page{max-width:68rem;margin:0 auto;padding-bottom:2rem}
+/* Onglet Tasks : Kanban sur toute la largeur utile */
+.project-detail-page.project-detail-page--tasks-wide{max-width:none;width:100%}
 .project-detail-header{margin-bottom:1rem}
 .project-detail-back{padding-left:.25rem!important}
 .project-detail-loading{display:flex;justify-content:center;padding:4rem 1rem}
@@ -13,7 +15,7 @@
 .project-detail-progress-bar{position:relative;flex:1;height:1.8rem;overflow:hidden;border:1px solid #d4deec;border-radius:.45rem;box-shadow:inset 0 1px 4px rgba(148,163,184,.18)}
 .project-detail-progress-fill{display:block;height:100%;border-radius:.4rem 0 0 .4rem;background:linear-gradient(90deg,#438de4,#3a7bd5)}
 .project-detail-progress-label{min-width:10.5rem;padding:.35rem .8rem;border:1px solid #d4deec;border-radius:.45rem;background:#fff;color:#526277;font-size:1rem;font-weight:600;text-align:center}
-.project-detail-tabs{display:flex;gap:1rem;margin-top:1.35rem}
+.project-detail-tabs{display:flex;gap:1rem;margin:0 0 1.25rem;flex-wrap:wrap;align-items:center}
 .project-detail-tab{padding:.7rem 1.8rem;border:0;border-bottom:3px solid transparent;background:transparent;color:#65758c;font-size:1rem;font-weight:600;cursor:pointer}
 .project-detail-tab.is-active{border-bottom-color:#4f8ee7;color:#3b82f6}
 .project-detail-tools{display:flex;margin-bottom:1.25rem}
@@ -22,8 +24,15 @@
 .search-icon{color:#999;font-size:1rem;margin-right:.75rem;flex-shrink:0}
 .search-input{flex:1;border:none;background:transparent;outline:none;font-size:1rem;color:var(--text-color,#334155);padding:0;font-family:inherit}
 .search-input::placeholder{color:#b3b3b3}
-.project-detail-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(280px,.85fr);gap:1.6rem;padding-top:1.25rem}
+.project-detail-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(17rem,22rem);gap:1.6rem;align-items:start;padding-top:1.25rem}
 .project-detail-main,.project-detail-sidebar{min-width:0}
+.project-detail-sidebar{position:sticky;top:5.75rem;align-self:start}
+.project-detail-summary-card--rail{display:flex;flex-direction:column;padding:1.15rem 1.1rem 1.3rem;height:fit-content}
+.project-detail-sidebar .project-actions-toolbar{max-width:100%;margin:0 auto 1rem;justify-content:center;flex-wrap:wrap}
+.project-detail-sidebar .project-info-grid{display:flex;flex-direction:column;border-top:1px solid rgba(203,213,225,.75)}
+.project-detail-sidebar .project-info-row{display:flex;flex-direction:column;align-items:flex-start;gap:.2rem;padding:.7rem 0}
+.project-detail-sidebar .project-info-value{text-align:left}
+.project-detail-sidebar .project-file-box{margin-top:1rem}
 .project-detail-task-list{display:flex;flex-direction:column;gap:1rem}
 .task-card,.project-info-card,.project-detail-file-card,.project-detail-empty-panel{border:1px solid rgba(203,213,225,.7);border-radius:1rem;background:rgba(255,255,255,.82);box-shadow:0 10px 30px rgba(148,163,184,.14)}
 .task-card{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;padding:1.15rem 1.25rem}
@@ -44,6 +53,7 @@
 .project-actions-toolbar{display:flex;align-items:center;justify-content:space-between;gap:.4rem;max-width:20rem;margin:0 auto 1.4rem;padding:.8rem 1rem;border:1px solid rgba(226,232,240,.95);border-radius:999px;background:rgba(255,255,255,.82);box-shadow:0 16px 35px rgba(15,23,42,.12);backdrop-filter:blur(12px)}
 .project-action-button{display:inline-flex;align-items:center;justify-content:center;width:2.9rem;height:2.9rem;border:0;border-radius:999px;background:transparent;color:#5b6676;cursor:pointer;transition:transform .2s ease,color .2s ease,background-color .2s ease,box-shadow .2s ease}
 .project-action-button i{font-size:1.25rem}
+.project-action-button .project-action-img-icon{display:block;width:1.7rem;height:1.7rem;object-fit:contain}
 .project-action-button:hover:not(:disabled){transform:translateY(-1px);background:rgba(241,245,249,.95);box-shadow:0 8px 18px rgba(148,163,184,.24)}
 .project-action-button:focus-visible{outline:2px solid rgba(71,85,105,.28);outline-offset:2px}
 .project-action-button:disabled{opacity:.45;cursor:not-allowed}
@@ -92,3 +102,16 @@ textarea {
 .team-match-table tr.row-full-match td:first-child{border-left:3px solid #22c55e}
 .skill-chip{padding:.15rem .5rem;border-radius:999px;background:rgba(219,234,254,.9);color:#1e3a5f;font-size:.8rem}
 .surface-card{border:1px solid rgba(203,213,225,.7);border-radius:.75rem;background:rgba(255,255,255,.85)}
+.project-detail-kanban{display:block;width:100%;min-width:0;margin-top:.25rem}
+
+@media (max-width: 960px) {
+  .project-detail-layout {
+    grid-template-columns: 1fr;
+  }
+  .project-detail-sidebar {
+    position: static;
+    max-width: 28rem;
+    margin: 0 auto;
+    width: 100%;
+  }
+}

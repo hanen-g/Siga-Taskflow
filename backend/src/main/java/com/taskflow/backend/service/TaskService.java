@@ -8,6 +8,7 @@ import com.taskflow.backend.entity.Task;
 import com.taskflow.backend.entity.Priority;
 import com.taskflow.backend.entity.TaskStatus;
 import com.taskflow.backend.entity.User;
+import com.taskflow.backend.entity.UserRole;
 import com.taskflow.backend.repository.ProjectRepository;
 import com.taskflow.backend.repository.TaskRepository;
 import com.taskflow.backend.repository.UserRepository;
@@ -132,10 +133,11 @@ public class TaskService {
 
     public List<TaskResponse> getTasksByProject(Long projectId, User user) {
         projectService.assertUserCanViewProject(projectId, user);
-        return taskRepository.findByProjectId(projectId)
-                .stream()
-                .map(TaskResponse::fromTask)
-                .toList();
+        var tasks = taskRepository.findByProjectId(projectId);
+        if (user.getRole() == UserRole.CLIENT) {
+            return tasks.stream().map(TaskResponse::fromTaskForClient).toList();
+        }
+        return tasks.stream().map(TaskResponse::fromTask).toList();
     }
 
     public void deleteTask(Long taskId, User user) {

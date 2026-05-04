@@ -8,14 +8,28 @@
   <div class="project-banner" [style.background]="bannerColor">
     <div *ngIf="project.archived && !project.delivered" class="project-archived-hero" (click)="$event.stopPropagation()">
       <div class="project-archived-circle">
-        <i class="pi pi-box project-archived-hero-icon" aria-hidden="true"></i>
+        <img
+          class="project-archived-hero-img"
+          src="assets/images/archived-hero.png"
+          alt=""
+          width="64"
+          height="64"
+          loading="lazy"
+          decoding="async" />
       </div>
       <div class="project-archived-pill">ARCHIVED</div>
     </div>
 
     <div *ngIf="project.delivered" class="project-delivered-hero" (click)="$event.stopPropagation()">
       <div class="project-delivered-circle">
-        <i class="pi pi-check project-delivered-hero-icon" aria-hidden="true"></i>
+        <img
+          class="project-delivered-hero-img"
+          src="assets/images/delivery-hero.png"
+          alt=""
+          width="64"
+          height="64"
+          loading="lazy"
+          decoding="async" />
       </div>
       <div class="project-delivered-pill">SUCCESS</div>
     </div>

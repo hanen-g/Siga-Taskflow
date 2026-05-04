@@ -162,6 +162,21 @@
   grid-column: 1 / -1;
 }
 
+.skills-catalog-note {
+  margin: 0 0 0.55rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #64748b;
+  max-width: 44rem;
+}
+
+.skills-catalog-loading {
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  padding: 0.35rem 0 0.5rem;
+}
+
 :host ::ng-deep .p-inputtext,
 :host ::ng-deep .p-multiselect,
 :host ::ng-deep .p-select {
@@ -170,6 +185,45 @@
 
 :host ::ng-deep .p-button {
   border-radius: 12px;
+}
+
+.skills-catalog-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.skills-catalog-input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  width: auto;
+}
+
+.skills-catalog-btn {
+  flex: 0 0 auto;
+  align-self: center;
+  white-space: nowrap;
+}
+
+:host ::ng-deep .form-card .p-card-footer {
+  padding: 1.1rem 1.2rem 1.2rem;
+  margin-top: 0.25rem;
+  border-top: 1px solid #e8ecf1;
+  background: #fafbfc;
+}
+
+.form-card-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.submit-create-btn {
+  min-width: 10.5rem;
 }
 
 @media (max-width: 700px) {
@@ -189,5 +243,24 @@
 
   .field-wide {
     grid-column: auto;
+  }
+
+  .skills-catalog-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .skills-catalog-btn {
+    align-self: stretch;
+    width: 100%;
+  }
+
+  .form-card-footer-actions {
+    justify-content: stretch;
+  }
+
+  .submit-create-btn {
+    width: 100%;
+    min-width: 0;
   }
 }

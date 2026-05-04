@@ -1,23 +1,32 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { ActivatedRoute, ParamMap } from '@angular/router';
 import { Observable, Subject, of } from 'rxjs';
-import { catchError, shareReplay, startWith, switchMap } from 'rxjs/operators';
+import { catchError, shareReplay, startWith, switchMap, takeUntil } from 'rxjs/operators';
 import { AvatarModule } from 'primeng/avatar';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { InputTextModule } from 'primeng/inputtext';
+import { TextareaModule } from 'primeng/textarea';
 import { TableModule } from 'primeng/table';
 import { TagModule } from 'primeng/tag';
-import { AdminUser, EmployeeRole, EmployeeStatusFilter, UserService } from '../../../services/user.service';
+import {
+  AdminUser,
+  CreateUserRole,
+  EmployeeRole,
+  EmployeeStatusFilter,
+  UserService
+} from '../../../services/user.service';
 import { FileAccessService } from '../../../services/file-access.service';
 import { Skill } from '../../../models/skill.model';
 import { SkillService } from '../../../services/skill.service';
 
 type RoleOption = { label: string; value: EmployeeRole };
 type StatusOption = { label: string; value: EmployeeStatusFilter };
+type EmployeeGender = '' | 'FEMALE' | 'MALE' | 'OTHER';
 
 @Component({
   selector: 'app-user-management',
@@ -32,7 +41,8 @@ type StatusOption = { label: string; value: EmployeeStatusFilter };
     AvatarModule,
     ButtonModule,
     DialogModule,
-    MultiSelectModule
+    MultiSelectModule,
+    TextareaModule
   ],
   templateUrl: './user-management.html',
   styleUrls: ['./user-management.css']
@@ -41,11 +51,13 @@ export class UserManagementPage implements OnInit, OnDestroy {
   users$: Observable<AdminUser[] | null> = of(null);
   error: string | null = null;
   private readonly refresh$ = new Subject<void>();
+  private readonly destroy$ = new Subject<void>();
   private readonly profilePictureUrls = new Map<string, string>();
   private readonly profilePicturesLoading = new Set<string>();
 
   searchTerm = '';
   selectedRole: EmployeeRole = 'ALL';
+  roleLocked = false;
   selectedStatus: EmployeeStatusFilter = 'active';
 
   readonly roleOptions: RoleOption[] = [
@@ -57,7 +69,8 @@ export class UserManagementPage implements OnInit, OnDestroy {
   readonly editRoleOptions: { label: string; value: Exclude<EmployeeRole, 'ALL'> | 'ADMIN' }[] = [
     { label: 'Project Manager', value: 'PROJECT_MANAGER' },
     { label: 'Collaborator', value: 'COLLABORATOR' },
-    { label: 'Admin', value: 'ADMIN' }
+    { label: 'Admin', value: 'ADMIN' },
+    { label: 'Client', value: 'CLIENT' }
   ];
 
   readonly statusOptions: StatusOption[] = [
@@ -79,8 +92,20 @@ export class UserManagementPage implements OnInit, OnDestroy {
     lastName: '',
     email: '',
     role: 'COLLABORATOR' as Exclude<EmployeeRole, 'ALL'> | 'ADMIN',
-    skillIds: [] as number[]
+    skillIds: [] as number[],
+    phoneNumber: '',
+    address: '',
+    dateOfBirth: '',
+    gender: '' as EmployeeGender,
+    recruitmentDate: ''
   };
+
+  readonly genderOptions: { label: string; value: EmployeeGender }[] = [
+    { label: '—', value: '' },
+    { label: 'Female', value: 'FEMALE' },
+    { label: 'Male', value: 'MALE' },
+    { label: 'Other', value: 'OTHER' }
+  ];
   allSkills: Skill[] = [];
   skillsLoading = false;
 
@@ -98,16 +123,37 @@ export class UserManagementPage implements OnInit, OnDestroy {
       }),
       shareReplay({ bufferSize: 1, refCount: true })
     );
+
+    this.route.queryParamMap
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((params) => {
+        this.applyRoleFromQuery(params);
+        this.loadUsers();
+      });
   }
 
   constructor(
     private userService: UserService,
     private fileAccessService: FileAccessService,
     private cdr: ChangeDetectorRef,
-    private skillService: SkillService
+    private skillService: SkillService,
+    private route: ActivatedRoute
   ) {}
 
+  private applyRoleFromQuery(params: ParamMap): void {
+    const role = params.get('role');
+    if (role === 'ADMIN' || role === 'COLLABORATOR' || role === 'PROJECT_MANAGER') {
+      this.selectedRole = role;
+      this.roleLocked = true;
+      return;
+    }
+    this.selectedRole = 'ALL';
+    this.roleLocked = false;
+  }
+
   ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
     for (const objectUrl of this.profilePictureUrls.values()) {
       URL.revokeObjectURL(objectUrl);
     }
@@ -203,12 +249,20 @@ export class UserManagementPage implements OnInit, OnDestroy {
 
   openEditDialog(user: AdminUser): void {
     this.selectedUser = user;
+    const g = (user.gender ?? '').toUpperCase();
+    const gender: EmployeeGender =
+      g === 'FEMALE' || g === 'MALE' || g === 'OTHER' ? (g as EmployeeGender) : '';
     this.editForm = {
       firstName: user.firstName ?? '',
       lastName: user.lastName ?? '',
       email: user.email ?? '',
       role: user.role,
-      skillIds: (user.skills ?? []).map((s) => s.id)
+      skillIds: (user.skills ?? []).map((s) => s.id),
+      phoneNumber: user.phoneNumber ?? '',
+      address: user.address ?? '',
+      dateOfBirth: this.apiDateToInput(user.dateOfBirth),
+      gender,
+      recruitmentDate: this.apiDateToInput(user.recruitmentDate)
     };
     if (this.roleSupportsSkills(this.editForm.role)) {
       this.loadSkillsIfNeeded();
@@ -216,12 +270,40 @@ export class UserManagementPage implements OnInit, OnDestroy {
     this.editDialogVisible = true;
   }
 
+  showsEmployeeProfile(role: string): boolean {
+    return role === 'ADMIN' || role === 'PROJECT_MANAGER' || role === 'COLLABORATOR';
+  }
+
+  private apiDateToInput(api: string | null | undefined): string {
+    if (!api) return '';
+    const s = api.includes('T') ? String(api.split('T')[0]) : String(api).slice(0, 10);
+    return s.length >= 10 ? s : '';
+  }
+
   saveUserEdits(): void {
     if (!this.selectedUser) {
       return;
     }
 
-    this.userService.updateAdminUser(this.selectedUser.id, this.editForm).subscribe({
+    const r = this.editForm.role;
+    const basePayload = {
+      firstName: this.editForm.firstName,
+      lastName: this.editForm.lastName,
+      email: this.editForm.email,
+      role: r as CreateUserRole,
+      skillIds: this.roleSupportsSkills(r) ? this.editForm.skillIds : []
+    };
+    const profilePayload = this.showsEmployeeProfile(r)
+      ? {
+          phoneNumber: (this.editForm.phoneNumber ?? '').trim(),
+          address: (this.editForm.address ?? '').trim(),
+          dateOfBirth: this.editForm.dateOfBirth?.trim() || undefined,
+          gender: (this.editForm.gender ?? '').trim(),
+          recruitmentDate: this.editForm.recruitmentDate?.trim() || undefined
+        }
+      : {};
+
+    this.userService.updateAdminUser(this.selectedUser.id, { ...basePayload, ...profilePayload }).subscribe({
       next: () => {
         this.editDialogVisible = false;
         this.selectedUser = null;

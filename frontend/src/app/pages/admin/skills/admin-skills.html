@@ -1,64 +1,171 @@
-<div class="workspace-page p-4 min-h-screen">
+<div class="skills-catalog-page">
   <p-toast />
-  <div class="workspace-header">
-    <div>
-      <h1 class="workspace-title">Skills catalog</h1>
-      <p class="workspace-subtitle">Create skills that project managers, collaborators, and projects can use for team matching.</p>
-    </div>
-  </div>
+  <p-confirmdialog />
 
-  <div class="add-row surface-card p-3 mb-4">
-    <label class="block font-bold mb-2">Add skill</label>
-    <div class="flex flex-wrap gap-2 align-items-end">
-      <input
-        pInputText
-        class="flex-1"
-        style="min-width: 200px"
-        [(ngModel)]="newSkillName"
-        placeholder="e.g. Java, UI design, Testing"
-        (keydown.enter)="$event.preventDefault(); addSkill()"
-      />
-      <button pButton type="button" label="Add" [loading]="saving" [disabled]="saving" (click)="addSkill()"></button>
-    </div>
-  </div>
+  <header class="catalog-header">
+    <h1 class="catalog-title">Skills catalog</h1>
+    <p class="catalog-subtitle">
+      Create skills that project managers, collaborators, and projects can use for team matching.
+    </p>
+  </header>
 
-  <div *ngIf="!skills" class="empty-state">
+  <section class="create-skill-card" aria-labelledby="create-skill-heading">
+    <h2 id="create-skill-heading" class="create-skill-heading">Create Skill</h2>
+    <div class="create-skill-row">
+      <div class="create-field">
+        <label for="skill-name" class="field-label">Name</label>
+        <input
+          pInputText
+          id="skill-name"
+          class="field-input"
+          [(ngModel)]="newSkillName"
+          placeholder="Name"
+          [disabled]="saving"
+          (keydown.enter)="$event.preventDefault(); addSkill()"
+        />
+      </div>
+      <div class="create-field create-field-category">
+        <label for="skill-category" class="field-label">Category <span class="optional">(optional)</span></label>
+        <p-select
+          inputId="skill-category"
+          [options]="categoryPresetOptions"
+          [(ngModel)]="newCategory"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Optional"
+          [showClear]="true"
+          appendTo="body"
+          styleClass="category-select"
+          [disabled]="saving"
+        />
+      </div>
+      <div class="create-field create-field-submit">
+        <span class="field-label spacer" aria-hidden="true">&nbsp;</span>
+        <button
+          pButton
+          type="button"
+          label="Add Skill"
+          icon="pi pi-plus"
+          class="btn-add-skill"
+          [loading]="saving"
+          [disabled]="saving"
+          (click)="addSkill()"
+        ></button>
+      </div>
+    </div>
+  </section>
+
+  <div *ngIf="!skills" class="loading-area">
     <app-loader label="Loading skills..." />
   </div>
 
-  <p-table
-    *ngIf="skills"
-    [value]="skills"
-    [rows]="20"
-    [paginator]="skills.length > 20"
-    [rowHover]="true"
-    styleClass="p-datatable-sm"
-  >
-    <ng-template pTemplate="header">
-      <tr>
-        <th style="width: 60%">Name</th>
-        <th>Actions</th>
-      </tr>
-    </ng-template>
-    <ng-template pTemplate="body" let-s>
-      <tr>
-        <td>{{ s.name }}</td>
-        <td>
-          <button
-            pButton
-            type="button"
-            icon="pi pi-trash"
-            class="p-button-text p-button-danger p-button-sm"
-            label="Delete"
-            (click)="remove(s)"
-          ></button>
-        </td>
-      </tr>
-    </ng-template>
-    <ng-template pTemplate="emptymessage">
-      <tr>
-        <td colspan="2" class="text-600 p-3">No skills yet. Add the first one above.</td>
-      </tr>
-    </ng-template>
-  </p-table>
+  <section *ngIf="skills" class="table-shell" aria-label="Skills list">
+    <p-table
+      [value]="skills"
+      [rows]="50"
+      [paginator]="skills.length > 50"
+      styleClass="skills-zebra-table"
+      [tableStyle]="{ 'min-width': '100%' }"
+    >
+      <ng-template pTemplate="header">
+        <tr>
+          <th>Name</th>
+          <th>Category</th>
+          <th>Created Date</th>
+          <th class="th-numeric">Count</th>
+          <th class="th-actions">Actions</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-s>
+        <tr>
+          <td class="td-name">{{ s.name }}</td>
+          <td>{{ categoryLabel(s) }}</td>
+          <td>
+            {{
+              s.createdAt
+                ? (s.createdAt | date : 'dd/MM/yyyy' : 'UTC')
+                : '—'
+            }}
+          </td>
+          <td class="td-numeric">{{ usageCount(s) }}</td>
+          <td class="td-actions">
+            <div class="actions-cell">
+              <button
+                pButton
+                type="button"
+                icon="pi pi-pencil"
+                label="Edit"
+                size="small"
+                class="row-action-btn p-button-secondary"
+                [outlined]="true"
+                (click)="openEdit(s)"
+              ></button>
+              <button
+                pButton
+                type="button"
+                icon="pi pi-inbox"
+                label="Archive"
+                size="small"
+                class="row-action-btn p-button-secondary"
+                [outlined]="true"
+                (click)="confirmArchive(s, $event)"
+              ></button>
+            </div>
+          </td>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="emptymessage">
+        <tr>
+          <td colspan="5" class="empty-row">No skills yet. Create the first one above.</td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </section>
 </div>
+
+<p-dialog
+  header="Edit skill"
+  [(visible)]="editOpen"
+  [modal]="true"
+  [style]="{ width: 'min(28rem, 94vw)' }"
+  [draggable]="false"
+  [resizable]="false"
+  (onHide)="editSaving = false"
+>
+  <div class="edit-form">
+    <label for="edit-name" class="field-label block mb-2">Name</label>
+    <input pInputText id="edit-name" class="w-full mb-4" [(ngModel)]="editForm.name" [disabled]="editSaving" />
+
+    <label for="edit-category" class="field-label block mb-2">Category <span class="optional">(optional)</span></label>
+    <p-select
+      inputId="edit-category"
+      [options]="editCategoryDropdownOptions()"
+      [(ngModel)]="editForm.category"
+      optionLabel="label"
+      optionValue="value"
+      placeholder="Optional"
+      [showClear]="true"
+      appendTo="body"
+      styleClass="w-full"
+      [disabled]="editSaving"
+    />
+  </div>
+  <ng-template pTemplate="footer">
+    <button
+      pButton
+      label="Cancel"
+      type="button"
+      class="p-button-text"
+      [disabled]="editSaving"
+      (click)="editOpen = false"
+    ></button>
+    <button
+      pButton
+      label="Save"
+      type="button"
+      [loading]="editSaving"
+      [disabled]="editSaving"
+      (click)="saveEdit()"
+    ></button>
+  </ng-template>
+</p-dialog>

@@ -25,6 +25,7 @@ import { FileAccessService } from '../../../services/file-access.service';
 import { SkillService } from '../../../services/skill.service';
 import { Skill, ProjectSkillMatchResult, UserSkillMatch } from '../../../models/skill.model';
 import { MultiSelectModule } from 'primeng/multiselect';
+import { TaskKanbanBoardComponent } from '../../tasks/components/task-kanban-board/task-kanban-board.component';
 
 type ProjectAction =
   | 'edit'
@@ -37,7 +38,10 @@ type ProjectAction =
 
 interface ProjectActionItem {
   action: ProjectAction;
-  icon: string;
+  /** PrimeIcons class, when no custom `iconImg`. */
+  icon?: string;
+  /** Sidebar / hero PNG (same assets as menu). */
+  iconImg?: string;
   label: string;
   tone: 'danger' | 'neutral' | 'success' | 'warning';
 }
@@ -61,7 +65,8 @@ interface ProjectActionItem {
     InputTextModule,
     TextareaModule,
     FolderFileUploadComponent,
-    MultiSelectModule
+    MultiSelectModule,
+    TaskKanbanBoardComponent
   ],
   providers: [MessageService, ConfirmationService]
 })
@@ -115,11 +120,18 @@ export class ProjectDetailPage implements OnInit {
       if (project.delivered) {
         actions.push({ action: 'reopen-delivery', icon: 'pi pi-replay', label: 'Reopen (not delivered)', tone: 'neutral' });
       } else {
-        actions.push({ action: 'deliver', icon: 'pi pi-check-circle', label: 'Mark as delivered', tone: 'success' });
+        actions.push({
+          action: 'deliver',
+          iconImg: 'assets/images/delivery-hero.png',
+          label: 'Mark as delivered',
+          tone: 'success'
+        });
       }
       actions.push({
         action: 'archive',
-        icon: 'pi pi-building-columns',
+        ...(project.archived
+          ? { icon: 'pi pi-folder-open' as const }
+          : { iconImg: 'assets/images/archived-hero.png' as const }),
         label: project.archived ? 'Unarchive project' : 'Archive project',
         tone: 'warning'
       });
@@ -135,15 +147,7 @@ export class ProjectDetailPage implements OnInit {
     return actions;
   }
 
-  projectActionsVisible(project: Project | null): ProjectActionItem[] {
-    const actions = this.projectToolbarActions(project);
-    if (this.currentUserRole() === 'ADMIN') {
-      return actions;
-    }
-    return actions.filter(
-      (a: ProjectActionItem) => a.action !== 'edit' && a.action !== 'delete'
-    );
-  }
+ 
   bannerColor(project: Project | null): string {
     if (!project) {
       return '#dbeafe';
@@ -666,7 +670,7 @@ export class ProjectDetailPage implements OnInit {
           return '/dashboard/collab/projects';
         }
         if (role === 'CLIENT') {
-          return '/dashboard/client/projects';
+          return '/dashboard/client';
         }
       } catch {
         /* ignore */
@@ -837,6 +841,11 @@ export class ProjectDetailPage implements OnInit {
     } catch {
       return null;
     }
+  }
+
+  /** Client portal: read-only progress and shared files; no internal team/skills UI. */
+  isClientPortal(): boolean {
+    return this.currentUserRole() === 'CLIENT';
   }
 
   private currentUserRole(): string | null {

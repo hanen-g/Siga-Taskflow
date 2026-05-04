@@ -64,9 +64,17 @@ public class AuthService {
         user.setLastName(request.getLastName() == null ? null : request.getLastName().trim());
         user.setEmail(email);
         user.setPassword(passwordEncoder.encode(temporaryPassword));
-        user.setRole(request.getRoleAsEnum());
-        user.setActive(true);
-        user.setSkills(resolveSkillsForRole(user.getRole(), request.getSkillIds()));
+        UserRole role = request.getRoleAsEnum();
+        user.setRole(role);
+        user.setPhoneNumber(trimToNull(request.getPhoneNumber()));
+        user.setAddress(trimToNull(request.getAddress()));
+        user.setDateOfBirth(request.getDateOfBirth());
+        user.setActive(request.getActive() == null || request.getActive());
+        user.setGender(normalizeGenderCode(trimToNull(request.getGender())));
+        user.setCompany(trimToNull(request.getCompany()));
+        user.setFiscalMatricule(trimToNull(request.getFiscalMatricule()));
+        user.setRecruitmentDate(request.getRecruitmentDate());
+        user.setSkills(resolveSkillsForRole(role, request.getSkillIds()));
 
         return new ProvisioningResult(userRepository.save(user), temporaryPassword);
     }
@@ -83,6 +91,7 @@ public class AuthService {
         if (found.size() != uniqueIds.size()) {
             throw new BadRequestException("One or more selected skills are invalid.");
         }
+        SkillService.ensureNotArchived(found);
         return new HashSet<>(found);
     }
 
@@ -93,6 +102,10 @@ public class AuthService {
 
         if (!user.isActive()) {
             throw new IllegalStateException("Account is deactivated. Please contact an administrator.");
+        }
+
+        if (user.getRole() == null) {
+            throw new IllegalStateException("This account has no role assigned. Ask an administrator to set a role.");
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
@@ -112,4 +125,25 @@ public class AuthService {
         }
         return email.trim().toLowerCase(Locale.ROOT);
     }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String t = value.trim();
+        return t.isEmpty() ? null : t;
+    }
+
+    /** Accepts FEMALE, MALE, OTHER (diagram Gender). */
+    private static String normalizeGenderCode(String normalizedOrNull) {
+        if (normalizedOrNull == null) {
+            return null;
+        }
+        String u = normalizedOrNull.toUpperCase(Locale.ROOT);
+        if (u.equals("FEMALE") || u.equals("MALE") || u.equals("OTHER")) {
+            return u;
+        }
+        throw new IllegalArgumentException("gender must be FEMALE, MALE, or OTHER");
+    }
+
 }

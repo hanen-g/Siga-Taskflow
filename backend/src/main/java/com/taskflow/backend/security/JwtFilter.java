@@ -37,32 +37,45 @@ public class JwtFilter extends OncePerRequestFilter {
 
         String token = authHeader.substring(7);
 
+        final String email;
         try {
-            String email = jwtService.extractEmail(token);
-
-            User user = userRepository.findByEmail(email).orElseThrow();
-            if (!user.isActive()) {
-                response.setStatus(HttpServletResponse.SC_FORBIDDEN);
-                response.setContentType("application/json");
-                response.getWriter().write("{\"message\":\"Account is deactivated.\"}");
-                return;
-            }
-
-            CustomUserDetails userDetails = new CustomUserDetails(user);
-
-            UsernamePasswordAuthenticationToken auth =
-                    new UsernamePasswordAuthenticationToken(
-                             userDetails,
-                            null,
-                            userDetails.getAuthorities()
-                    );
-
-            auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(auth);
-
-        } catch (Exception ignored) {
+            email = jwtService.extractEmail(token);
+        } catch (Exception e) {
+            writeUnauthorized(response);
+            return;
         }
 
+        User user = userRepository.findByEmail(email).orElse(null);
+        if (user == null) {
+            writeUnauthorized(response);
+            return;
+        }
+
+        if (!user.isActive()) {
+            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+            response.setContentType("application/json");
+            response.getWriter().write("{\"message\":\"Account is deactivated.\"}");
+            return;
+        }
+
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+
+        UsernamePasswordAuthenticationToken auth =
+                new UsernamePasswordAuthenticationToken(
+                        userDetails,
+                        null,
+                        userDetails.getAuthorities()
+                );
+
+        auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+        SecurityContextHolder.getContext().setAuthentication(auth);
+
         filterChain.doFilter(request, response);
+    }
+
+    private static void writeUnauthorized(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.setContentType("application/json");
+        response.getWriter().write("{\"message\":\"Invalid or expired session. Please sign in again.\"}");
     }
 }

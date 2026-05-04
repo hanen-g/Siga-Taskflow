@@ -5,6 +5,9 @@ import { WebsocketService } from '../services/websocket.service';
 import { MenuItem } from 'primeng/api';
 import { AppMenuitem } from './app.menuitem';
 
+/** Sidebar entries may use `iconImg` (PNG/SVG) instead of PrimeIcons `icon`. */
+export type AppMenuItem = MenuItem & { iconImg?: string };
+
 @Component({
     selector: 'app-menu',
     standalone: true,
@@ -20,7 +23,7 @@ import { AppMenuitem } from './app.menuitem';
 </ul>
 `})
 export class AppMenu {
-    model: MenuItem[] = [];
+    model: AppMenuItem[] = [];
 
     constructor(private router: Router, private ws: WebsocketService) {}
 
@@ -111,6 +114,12 @@ export class AppMenu {
                     items: [
                         { label: 'My projects', icon: 'pi pi-folder', routerLink: ['/dashboard/client'] }
                     ]
+                },
+                {
+                    label: 'Account',
+                    items: [
+                        { label: 'My profile', icon: 'pi pi-user', routerLink: ['/dashboard/profile'] }
+                    ]
                 }
             ];
         }
@@ -120,31 +129,87 @@ export class AppMenu {
                 {
                     label: 'Home',
                     items: [
-                        { label: 'Dashboard', icon: 'pi pi-fw pi-home', routerLink: ['/dashboard/admin'] },
-                        { label: 'Create client', icon: 'pi pi-user-plus', routerLink: ['/dashboard/admin/create-client'] }
+                        { label: 'Dashboard', icon: 'pi pi-fw pi-home', routerLink: ['/dashboard/admin'] }
                     ]
                 },
                 {
                     label: 'Projects & Tasks',
+                    path: '/projects-and-tasks',
                     items: [
-                        { label: 'All Projects', icon: 'pi pi-folder', routerLink: ['/dashboard/admin/projects'] },
-                        { label: 'Archived projects', icon: 'pi pi-building-columns', routerLink: ['/dashboard/admin/archives'] },
-                        { label: 'Delivered projects', icon: 'pi pi-check-circle', routerLink: ['/dashboard/admin/delivered'] },
-                        { label: 'Proposed project ideas', icon: 'pi pi-lightbulb', routerLink: ['/dashboard/admin/project-proposals'] },
-                        { label: 'All Tasks', icon: 'pi pi-check-square', routerLink: ['/dashboard/admin/tasks'] }
+                        {
+                            label: 'All Projects',
+                            icon: 'pi pi-folder',
+                            path: '/all-projects',
+                            command: () => {
+                                void this.router.navigate(['/dashboard/admin/projects'], {
+                                    queryParams: {},
+                                });
+                            },
+                            items: [
+                                {
+                                    label: 'In Progress projects',
+                                    icon: 'pi pi-list',
+                                    routerLink: ['/dashboard/admin/projects'],
+                                    queryParams: { filter: 'in-progress' },
+                                },
+                                {
+                                    label: 'Not started projects',
+                                    icon: 'pi pi-calendar',
+                                    routerLink: ['/dashboard/admin/projects'],
+                                    queryParams: { filter: 'not-started' },
+                                },
+                                {
+                                    label: 'Paused projects',
+                                    icon: 'pi pi-pause',
+                                    routerLink: ['/dashboard/admin/projects'],
+                                    queryParams: { filter: 'paused' },
+                                },
+                                {
+                                    label: 'Archived projects',
+                                    iconImg: 'assets/images/archived-hero.png',
+                                    routerLink: ['/dashboard/admin/archives']
+                                },
+                                {
+                                    label: 'Delivered projects',
+                                    iconImg: 'assets/images/delivery-hero.png',
+                                    routerLink: ['/dashboard/admin/delivered']
+                                },
+                                {
+                                    label: 'Proposed project ideas',
+                                    iconImg: 'assets/images/proposed-subjects-icon.png',
+                                    routerLink: ['/dashboard/admin/project-proposals']
+                                },
+                            ]
+                        }
                     ]
                 },
                 {
                     label: 'Users',
+                    path: '/users',
                     items: [
                         { label: 'Create users', icon: 'pi pi-user-plus', routerLink: ['/dashboard/admin/create-users'] },
-                        { label: 'Users', icon: 'pi pi-users', routerLink: ['/dashboard/admin/users'] }
+                        {
+                            label: 'Users',
+                            icon: 'pi pi-users',
+                            path: '/users-by-role',
+                            items: [
+                                { label: 'Admins', icon: 'pi pi-shield', routerLink: ['/dashboard/admin/users'], queryParams: { role: 'ADMIN' } },
+                                { label: 'Collaborators', icon: 'pi pi-users', routerLink: ['/dashboard/admin/users'], queryParams: { role: 'COLLABORATOR' } },
+                                { label: 'Project managers', icon: 'pi pi-briefcase', routerLink: ['/dashboard/admin/users'], queryParams: { role: 'PROJECT_MANAGER' } }
+                            ]
+                        }
                     ]
                 },
                 {
                     label: 'Skills',
                     items: [
                         { label: 'Skills catalog', icon: 'pi pi-list', routerLink: ['/dashboard/admin/skills'] }
+                    ]
+                },
+                {
+                    label: 'Clients',
+                    items: [
+                        { label: 'Create client', icon: 'pi pi-user-plus', routerLink: ['/dashboard/admin/create-client'] }
                     ]
                 },
                 {

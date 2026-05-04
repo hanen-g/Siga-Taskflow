@@ -1,10 +1,216 @@
-.add-row {
-  border-radius: 0.75rem;
-  border: 1px solid var(--surface-border, rgba(15, 23, 42, 0.08));
+.skills-catalog-page {
+  min-height: 100%;
+  padding: 1.5rem;
+  background: #f1f5f9;
 }
 
-.empty-state {
+.catalog-header {
+  margin-bottom: 1.25rem;
+}
+
+.catalog-title {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.catalog-subtitle {
+  margin: 0.5rem 0 0;
+  max-width: 44rem;
+  color: #64748b;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.create-skill-card {
+  background: #ffffff;
+  border-radius: 1rem;
+  padding: 1.35rem 1.6rem;
+  margin-bottom: 1.75rem;
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.07);
+}
+
+.create-skill-heading {
+  margin: 0 0 1rem;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.create-skill-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 1rem 1.25rem;
+}
+
+.create-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.create-field-category {
+  flex: 1;
+  min-width: 220px;
+  max-width: 280px;
+}
+
+.create-field-submit {
+  flex-shrink: 0;
+}
+
+.field-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.field-label.spacer {
+  visibility: hidden;
+}
+
+.optional {
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.field-input {
+  width: 100%;
+}
+
+:host ::ng-deep .category-select.p-select,
+:host ::ng-deep .category-select .p-select {
+  width: 100%;
+  border-radius: 0.65rem;
+}
+
+.btn-add-skill {
+  border-radius: 0.65rem !important;
+  padding-inline: 1.35rem !important;
+  font-weight: 600 !important;
+}
+
+.loading-area {
   display: flex;
   justify-content: center;
   padding: 3rem 1rem;
+}
+
+.table-shell {
+  background: transparent;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+:host ::ng-deep .skills-zebra-table.p-datatable {
+  border-radius: 0.85rem;
+  overflow: hidden;
+  border: none;
+}
+
+:host ::ng-deep .skills-zebra-table .p-datatable-table-container {
+  border-radius: 0.85rem;
+  overflow-x: auto;
+  overflow-y: visible;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+}
+
+/* Avoid crushing columns on narrow viewports */
+:host ::ng-deep .skills-zebra-table .p-datatable-table {
+  min-width: 520px;
+  table-layout: auto;
+}
+
+:host ::ng-deep .skills-zebra-table .p-datatable-thead > tr > th {
+  background: #fafafa;
+  color: #334155;
+  font-weight: 700;
+  font-size: 0.88rem;
+  padding: 0.85rem 1.1rem;
+  border-bottom: 1px solid #e5e7eb;
+  border-top: none;
+}
+
+:host ::ng-deep .skills-zebra-table .p-datatable-tbody > tr > td {
+  padding: 0.75rem 1.1rem;
+  border: none;
+  border-bottom: 1px solid #eef2f6;
+  vertical-align: middle;
+  font-size: 0.93rem;
+  color: #1e293b;
+}
+
+:host ::ng-deep .skills-zebra-table .p-datatable-tbody > tr:nth-child(even) > td {
+  background: #f8fafc;
+}
+
+:host ::ng-deep .skills-zebra-table .p-datatable-tbody > tr:nth-child(odd) > td {
+  background: #ffffff;
+}
+
+:host ::ng-deep .skills-zebra-table .p-datatable-tbody > tr:hover > td {
+  background: #f1f5f9 !important;
+}
+
+.td-name {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.th-numeric,
+.td-numeric {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.th-actions {
+  text-align: right;
+  vertical-align: middle;
+  white-space: nowrap;
+  width: auto;
+}
+
+/* Never use display:flex on <td> — it breaks table column layout in most browsers */
+.td-actions {
+  vertical-align: middle;
+  text-align: right;
+  white-space: nowrap;
+  width: 1%;
+  min-width: 11rem;
+}
+
+.actions-cell {
+  display: inline-flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  max-width: 100%;
+}
+
+.row-action-btn {
+  border-radius: 0.55rem !important;
+  flex-shrink: 0;
+}
+
+.empty-row {
+  text-align: center;
+  padding: 2rem 1rem !important;
+  color: #64748b;
+}
+
+.edit-form {
+  padding-top: 0.25rem;
+}
+
+@media (max-width: 640px) {
+  .create-field-submit .btn-add-skill {
+    width: 100%;
+  }
 }

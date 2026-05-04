@@ -29,6 +29,13 @@ public interface UserRepository extends JpaRepository<User, Long> {
     List<User> findByRoleAndActiveIncludingNull(@Param("role") UserRole role);
 
     @Query("""
+            SELECT DISTINCT u FROM User u
+            LEFT JOIN FETCH u.skills
+            WHERE u.role = :role AND (u.isActive = true OR u.isActive IS NULL)
+            """)
+    List<User> findByRoleAndActiveIncludingNullWithSkillsFetched(@Param("role") UserRole role);
+
+    @Query("""
             SELECT u FROM User u
             WHERE u.isActive = true OR u.isActive IS NULL
             """)

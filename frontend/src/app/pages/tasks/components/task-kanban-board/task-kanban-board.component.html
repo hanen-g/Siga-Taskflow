@@ -1,6 +1,6 @@
 <p-toast></p-toast>
 
-<div class="kanban-page">
+<div class="kanban-page" [class.kanban-embedded]="projectId != null">
   <div class="header-row">
     <div class="priority-legend" aria-label="Task priorities">
       <span class="legend-label">Priority:</span>
@@ -65,7 +65,7 @@
           >
             <span class="card-priority-dot" [ngClass]="getPriorityClass(task.priority)"></span>
             <div class="task-title">{{ task.title }}</div>
-            <div class="task-description">{{ task.description || task.projectName || 'No description provided.' }}</div>
+            <div class="task-description">{{ taskCardDescription(task) }}</div>
             <div class="task-deadline" [class.overdue]="isOverdue(task)">
               <span class="label">Due Date:</span>
               <span class="value">{{ formatDeadline(task.deadline) }}</span>
@@ -83,7 +83,7 @@
 <app-task-details-panel
   *ngIf="selectedTask"
   [task]="selectedTask"
-  [showAssignedTo]="!isCollaborator"
+  [showAssignedTo]="!isCollaborator && !isClient"
   [canManageStatus]="isCollaborator"
   (requestStart)="requestStartFromPanel($event)"
   (requestPause)="requestPauseFromPanel($event)"
@@ -100,8 +100,8 @@
   header="Put task on hold"
   (onHide)="cancelPauseDialog()"
 >
-  <label class="dialog-label" for="pauseReason">Reason for hold:</label>
-  <input id="pauseReason" pInputText [(ngModel)]="pauseReason" class="w-full" />
+  <label class="dialog-label" for="kb-pauseReason">Reason for hold:</label>
+  <input id="kb-pauseReason" pInputText [(ngModel)]="pauseReason" class="w-full" />
 
   <ng-template pTemplate="footer">
     <p-button label="Cancel" styleClass="p-button-text" (onClick)="cancelPauseDialog()"></p-button>
@@ -118,8 +118,8 @@
   header="Submit for review"
   (onHide)="cancelReviewDialog()"
 >
-  <label class="dialog-label" for="reviewNote">Note for project manager (optional):</label>
-  <input id="reviewNote" pInputText [(ngModel)]="reviewNote" class="w-full" />
+  <label class="dialog-label" for="kb-reviewNote">Note for project manager (optional):</label>
+  <input id="kb-reviewNote" pInputText [(ngModel)]="reviewNote" class="w-full" />
 
   <ng-template pTemplate="footer">
     <p-button label="Cancel" styleClass="p-button-text" (onClick)="cancelReviewDialog()"></p-button>

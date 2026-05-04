@@ -22,7 +22,7 @@
           />
         </label>
 
-        <div class="filter-control">
+        <div class="filter-control" *ngIf="!roleLocked">
           <p-select
             [options]="roleOptions"
             [(ngModel)]="selectedRole"
@@ -133,9 +133,9 @@
     [modal]="true"
     [draggable]="false"
     [resizable]="false"
-    [style]="{ width: '32rem' }"
+    [style]="{ width: 'min(42rem, 96vw)' }"
   >
-    <div class="form-grid">
+    <div class="form-grid dialog-form">
       <label>First Name</label>
       <input pInputText [(ngModel)]="editForm.firstName" />
 
@@ -154,6 +154,36 @@
         appendTo="body"
         (onChange)="onEditRoleChange()"
       ></p-select>
+
+      <ng-container *ngIf="showsEmployeeProfile(editForm.role)">
+        <label>Phone</label>
+        <input pInputText type="tel" [(ngModel)]="editForm.phoneNumber" />
+
+        <label>Date of birth</label>
+        <input pInputText type="date" [(ngModel)]="editForm.dateOfBirth" />
+
+        <label>Gender</label>
+        <p-select
+          [options]="genderOptions"
+          [(ngModel)]="editForm.gender"
+          optionLabel="label"
+          optionValue="value"
+          appendTo="body"
+          styleClass="w-full"
+        ></p-select>
+
+        <label>Recruitment date</label>
+        <input pInputText type="date" [(ngModel)]="editForm.recruitmentDate" />
+
+        <label class="dialog-span-2">Address</label>
+        <textarea
+          pInputTextarea
+          class="dialog-span-2 w-full address-textarea"
+          rows="3"
+          [(ngModel)]="editForm.address"
+          placeholder="Street, city, postal code…"
+        ></textarea>
+      </ng-container>
 
       <ng-container *ngIf="roleSupportsSkills(editForm.role)">
         <label>Skills</label>

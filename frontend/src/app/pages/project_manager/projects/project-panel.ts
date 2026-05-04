@@ -100,21 +100,24 @@ import { ProjectService } from '../../../services/project.service';
     }
 
     .project-archived-circle {
-      width: 4.25rem;
-      height: 4.25rem;
+      width: 4.65rem;
+      height: 4.65rem;
       border-radius: 999px;
       display: flex;
       align-items: center;
       justify-content: center;
       border: 3px solid rgba(148, 163, 184, 0.35);
-      background: radial-gradient(circle at 30% 25%, #e2e8f0 0%, #cbd5e1 45%, #94a3b8 100%);
+      background: radial-gradient(circle at 30% 25%, #f8fafc 0%, #e2e8f0 50%, #cbd5e1 100%);
       box-shadow: 0 10px 22px rgba(51, 65, 85, 0.2);
+      overflow: hidden;
     }
 
-    .project-archived-hero-icon {
-      color: white;
-      font-size: 1.55rem;
-      font-weight: 900;
+    .project-archived-hero-img {
+      width: 3.55rem;
+      height: 3.55rem;
+      object-fit: contain;
+      display: block;
+      pointer-events: none;
     }
 
     .project-archived-pill {
@@ -129,21 +132,24 @@ import { ProjectService } from '../../../services/project.service';
     }
 
     .project-delivered-circle {
-      width: 4.25rem;
-      height: 4.25rem;
+      width: 4.65rem;
+      height: 4.65rem;
       border-radius: 999px;
       display: flex;
       align-items: center;
       justify-content: center;
       border: 3px solid rgba(34, 211, 238, 0.35);
-      background: radial-gradient(circle at 30% 25%, #a5f3fc 0%, #67e8f9 40%, #22d3ee 100%);
+      background: radial-gradient(circle at 30% 25%, #ecfeff 0%, #cffafe 45%, #a5f3fc 100%);
       box-shadow: 0 10px 22px rgba(14, 116, 144, 0.2);
+      overflow: hidden;
     }
 
-    .project-delivered-hero-icon {
-      color: white;
-      font-size: 1.8rem;
-      font-weight: 900;
+    .project-delivered-hero-img {
+      width: 3.55rem;
+      height: 3.55rem;
+      object-fit: contain;
+      display: block;
+      pointer-events: none;
     }
 
     .project-delivered-pill {
@@ -280,6 +286,10 @@ export class ProjectPanel implements OnInit, OnChanges {
   menuItems: MenuItem[] = [];
   bannerColor = '#dbeafe';
 
+  /** Menu icon classes — PNG backgrounds in global `styles.scss` (menu uses `appendTo="body"`). */
+  private static readonly MENU_ICON_ARCHIVE = 'project-card-menu-hero-archive';
+  private static readonly MENU_ICON_DELIVER = 'project-card-menu-hero-deliver';
+
   get showMenu(): boolean {
     return (this.adminProjectControls || this.managerMenu) && this.menuItems.length > 0;
   }
@@ -336,7 +346,7 @@ export class ProjectPanel implements OnInit, OnChanges {
         this.menuItems = [
           {
             label: archived ? 'Unarchive' : 'Archive',
-            icon: archived ? 'pi pi-folder-open' : 'pi pi-building-columns',
+            icon: archived ? 'pi pi-folder-open' : ProjectPanel.MENU_ICON_ARCHIVE,
             command: (event) =>
               this.archive.emit({
                 id: this.project.id,
@@ -356,7 +366,7 @@ export class ProjectPanel implements OnInit, OnChanges {
           },
           {
             label: delivered ? 'Reopen (not delivered)' : 'Mark as delivered',
-            icon: delivered ? 'pi pi-replay' : 'pi pi-check-circle',
+            icon: delivered ? 'pi pi-replay' : ProjectPanel.MENU_ICON_DELIVER,
             command: (event) =>
               this.setDelivered.emit({
                 id: this.project.id,

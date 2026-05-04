@@ -1,6 +1,11 @@
 export interface Skill {
   id: number;
   name: string;
+  category?: string | null;
+  /** ISO 8601 instant from API (admin table). */
+  createdAt?: string | null;
+  usageCount?: number | null;
+  archived?: boolean | null;
 }
 
 export interface UserSkillMatch {
