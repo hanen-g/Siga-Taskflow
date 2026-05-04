@@ -1,5 +1,5 @@
 import { Component, computed, inject, input, signal } from '@angular/core';
-import { NavigationEnd, Router, RouterModule } from '@angular/router';
+import { IsActiveMatchOptions, NavigationEnd, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { RippleModule } from 'primeng/ripple';
 import { LayoutService } from '@/app/layout/service/layout.service';
@@ -82,6 +82,25 @@ export class AppMenuitem {
         return false;
     });
 
+    /**
+     * Same path + different queryParams (e.g. /projects ?filter=in-progress vs ?filter=paused) must not all be "active".
+     * Default ActiveMatchOptions ignores query strings and highlights every sibling.
+     */
+    effectiveRouterLinkActiveOptions = computed<IsActiveMatchOptions>(() => {
+        const i = this.item();
+        if (i?.routerLinkActiveOptions) {
+            return i.routerLinkActiveOptions;
+        }
+        const qp = i?.queryParams;
+        const hasQueryParams = qp !== null && qp !== undefined && typeof qp === 'object' && Object.keys(qp).length > 0;
+        return {
+            paths: 'exact',
+            queryParams: hasQueryParams ? 'exact' : 'ignored',
+            matrixParams: 'ignored',
+            fragment: 'ignored'
+        };
+    });
+
     initialized = signal<boolean>(false);
 
     constructor() {
@@ -108,9 +127,14 @@ export class AppMenuitem {
         const item = this.item();
         if (!item?.routerLink) return;
 
-        const isRouteActive = this.router.isActive(item.routerLink[0], {
+        const qp = item.queryParams;
+        const hasQueryParams = qp !== null && qp !== undefined && typeof qp === 'object' && Object.keys(qp).length > 0;
+        const urlTree = hasQueryParams
+            ? this.router.createUrlTree(item.routerLink, { queryParams: qp })
+            : this.router.createUrlTree(item.routerLink);
+        const isRouteActive = this.router.isActive(urlTree, {
             paths: 'exact',
-            queryParams: 'ignored',
+            queryParams: hasQueryParams ? 'exact' : 'ignored',
             matrixParams: 'ignored',
             fragment: 'ignored'
         });

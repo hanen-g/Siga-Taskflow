@@ -63,40 +63,114 @@
             autocomplete="off"
           />
         </div>
+        <div class="field">
+          <label for="cphone">Phone</label>
+          <input
+            pInputText
+            id="cphone"
+            type="tel"
+            [(ngModel)]="form.phoneNumber"
+            [disabled]="createLoading"
+            class="w-full"
+            autocomplete="off"
+          />
+        </div>
+        <div class="field">
+          <label for="cdob">Date of birth</label>
+          <input
+            pInputText
+            id="cdob"
+            type="date"
+            [(ngModel)]="form.dateOfBirth"
+            [disabled]="createLoading"
+            class="w-full"
+          />
+        </div>
+        <div class="field">
+          <label for="cgender">Gender</label>
+          <p-select
+            inputId="cgender"
+            [options]="genderOptions"
+            [(ngModel)]="form.gender"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Select"
+            [showClear]="false"
+            appendTo="body"
+            styleClass="w-full"
+            [disabled]="createLoading"
+          />
+        </div>
+        <div class="field">
+          <label for="crecruit">Recruitment date</label>
+          <input
+            pInputText
+            id="crecruit"
+            type="date"
+            [(ngModel)]="form.recruitmentDate"
+            [disabled]="createLoading"
+            class="w-full"
+          />
+        </div>
+        <div class="field field-wide">
+          <label for="caddr">Address</label>
+          <textarea
+            pInputTextarea
+            id="caddr"
+            rows="3"
+            [(ngModel)]="form.address"
+            [disabled]="createLoading"
+            class="w-full"
+            placeholder="Street, city, postal code…"
+          ></textarea>
+        </div>
         <div class="field field-wide" *ngIf="supportsSkills">
           <label for="cskills">Skills</label>
-          <p-multiselect
-            inputId="cskills"
-            [options]="allSkills"
-            optionLabel="name"
-            optionValue="id"
-            placeholder="Select skills"
-            [(ngModel)]="selectedSkillIds"
-            [filter]="true"
-            [showToggleAll]="true"
-            display="chip"
-            [maxSelectedLabels]="6"
-            styleClass="w-full"
-            [appendTo]="'body'"
-            [disabled]="createLoading || skillsLoading"
-          ></p-multiselect>
-          <small class="text-500" *ngIf="skillsLoading">Loading skills...</small>
-          <div class="flex gap-2 mt-2">
+          <p class="skills-catalog-note">
+            Adding a skill saves it to the catalog right away. You can add several before submitting — the account is created
+            <strong>only</strong>
+            when you click Create account.
+          </p>
+
+          @if (!skillsCatalogReady) {
+            <div class="skills-catalog-loading" aria-busy="true">
+              <small class="text-500">{{ skillsLoading ? 'Loading skills catalog…' : 'Preparing skills…' }}</small>
+            </div>
+          } @else {
+            <p-multiselect
+              inputId="cskills"
+              [options]="allSkills"
+              optionLabel="name"
+              optionValue="id"
+              placeholder="Select skills"
+              [(ngModel)]="selectedSkillIds"
+              [filter]="true"
+              [showToggleAll]="true"
+              display="chip"
+              [maxSelectedLabels]="6"
+              styleClass="w-full"
+              [appendTo]="'body'"
+              [disabled]="createLoading || skillsLoading"
+            ></p-multiselect>
+          }
+          <div class="skills-catalog-row">
             <input
               pInputText
               type="text"
               [(ngModel)]="newSkillName"
-              [disabled]="createLoading || addingSkill"
-              placeholder="Add a new skill to catalog"
-              class="w-full"
+              [disabled]="createLoading || addingSkill || !skillsCatalogReady"
+              placeholder="New skill name"
+              class="skills-catalog-input"
               (keydown.enter)="$event.preventDefault(); addSkillToCatalog()"
             />
             <button
               pButton
               type="button"
-              label="Add skill"
+              icon="pi pi-plus"
+              label="Add to catalog"
+              class="skills-catalog-btn"
               [loading]="addingSkill"
-              [disabled]="createLoading || addingSkill"
+              [disabled]="createLoading || addingSkill || !skillsCatalogReady"
               (click)="addSkillToCatalog()"
             ></button>
           </div>
@@ -104,14 +178,18 @@
       </div>
 
       <ng-template pTemplate="footer">
-        <button
-          pButton
-          type="button"
-          label="Create account and email password"
-          [loading]="createLoading"
-          [disabled]="createLoading"
-          (click)="submit()"
-        ></button>
+        <div class="form-card-footer-actions">
+          <button
+            pButton
+            type="button"
+            icon="pi pi-send"
+            label="Create account"
+            class="submit-create-btn"
+            [loading]="createLoading"
+            [disabled]="createLoading"
+            (click)="submit()"
+          ></button>
+        </div>
       </ng-template>
     </p-card>
   </div>

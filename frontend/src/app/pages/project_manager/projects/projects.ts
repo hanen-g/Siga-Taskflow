@@ -1,9 +1,10 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Observable, Subject, of } from 'rxjs';
 import { catchError, switchMap, startWith, tap } from 'rxjs/operators';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
 import { MessageModule } from 'primeng/message';
 import { DialogModule } from 'primeng/dialog';
@@ -24,6 +25,7 @@ import { ProjectPanel } from './project-panel';
 import { AppLoaderComponent } from '../../../layout/app-loader';
 import { Skill } from '../../../models/skill.model';
 import { SkillService } from '../../../services/skill.service';
+import { NotificationService } from '../../../services/notification.service';
 
 @Component({
   standalone: true,
@@ -51,9 +53,16 @@ import { SkillService } from '../../../services/skill.service';
 })
 export class ProjectsPage implements OnInit {
 
+  /** URL: ?filter=… | (none) full dashboard */
+  projectsViewFilter: 'all' | 'not-started' | 'in-progress' | 'paused' = 'all';
+  readonly navFilterNotStarted = { filter: 'not-started' };
+  readonly navFilterInProgress = { filter: 'in-progress' };
+  readonly navFilterPaused = { filter: 'paused' };
+
   role: string | null = null;
   pageTitle = 'Projects';
 
+  private readonly destroyRef = inject(DestroyRef);
   private refresh$ = new Subject<void>();
 
   projects$: Observable<any[] | null> = of(null);
@@ -82,6 +91,9 @@ export class ProjectsPage implements OnInit {
   allSkills: Skill[] = [];
   skillsLoading = false;
 
+  /** Pending project ideas (admin): shown as urgent alert above in-progress projects. */
+  pendingProposals: any[] = [];
+
   constructor(
     private projectService: ProjectService,
     private userService: UserService,
@@ -89,7 +101,9 @@ export class ProjectsPage implements OnInit {
     private api: ApiService,
     private ws: WebsocketService,
     private confirmationService: ConfirmationService,
-    private messageService: MessageService
+    private messageService: MessageService,
+    private route: ActivatedRoute,
+    private notificationService: NotificationService,
   ) {
     this.ws.getProjectUpdates().subscribe(() => {
       this.refresh$.next();
@@ -98,11 +112,10 @@ export class ProjectsPage implements OnInit {
 
   ngOnInit() {
     this.detectRole();
-    if (this.isClient) {
-      this.pageTitle = 'My projects';
-    } else {
-      this.pageTitle = this.isAdmin ? 'All Projects' : 'Project List';
-    }
+    this.syncProjectsViewFilterFromRoute();
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.syncProjectsViewFilterFromRoute());
 
     this.projects$ = this.refresh$.pipe(
       startWith(null),
@@ -111,6 +124,11 @@ export class ProjectsPage implements OnInit {
         return this.loadProjectsByRole().pipe(
           tap((projects) => {
             this.latestProjects = projects ?? [];
+            if (this.isAdmin) {
+              this.loadPendingProposals();
+            } else {
+              this.pendingProposals = [];
+            }
           }),
           catchError(() => {
             this.error = 'Unable to load projects.';
@@ -120,6 +138,101 @@ export class ProjectsPage implements OnInit {
         )
       })
     ) as Observable<any[] | null>;
+  }
+
+  private syncProjectsViewFilterFromRoute(): void {
+    const f = this.route.snapshot.queryParamMap.get('filter');
+    if (f === 'not-started') {
+      this.projectsViewFilter = 'not-started';
+    } else if (f === 'in-progress') {
+      this.projectsViewFilter = 'in-progress';
+    } else if (f === 'paused') {
+      this.projectsViewFilter = 'paused';
+    } else {
+      this.projectsViewFilter = 'all';
+    }
+    this.applyProjectsPageTitle();
+    if (this.projectsViewFilter === 'not-started') {
+      setTimeout(() => this.scrollNotStartedSectionIntoView(), 150);
+    } else if (this.projectsViewFilter === 'in-progress') {
+      setTimeout(() => this.scrollInProgressSectionIntoView(), 150);
+    } else if (this.projectsViewFilter === 'paused') {
+      setTimeout(() => this.scrollPausedSectionIntoView(), 150);
+    }
+  }
+
+  private applyProjectsPageTitle(): void {
+    if (this.isClient) {
+      this.pageTitle = 'My projects';
+      return;
+    }
+    if (this.projectsViewFilter === 'not-started') {
+      this.pageTitle = this.isAdmin ? 'All Projects — Not started' : 'Project List — Not started';
+      return;
+    }
+    if (this.projectsViewFilter === 'in-progress') {
+      this.pageTitle = this.isAdmin ? 'All Projects — In progress' : 'Project List — In progress';
+      return;
+    }
+    if (this.projectsViewFilter === 'paused') {
+      this.pageTitle = this.isAdmin ? 'All Projects — Paused' : 'Project List — Paused';
+      return;
+    }
+    this.pageTitle = this.isAdmin ? 'All Projects' : 'Project List';
+  }
+
+  get projectsListRoute(): string[] {
+    if (this.isAdmin) {
+      return ['/dashboard/admin/projects'];
+    }
+    if (this.isCollaborator) {
+      return ['/dashboard/collab/projects'];
+    }
+    if (this.isClient) {
+      return ['/dashboard/client'];
+    }
+    return ['/dashboard/pm/projects'];
+  }
+
+  supportsNotStartedNav(): boolean {
+    return this.isAdmin || this.isProjectManager || this.isCollaborator;
+  }
+
+  /** Roles that may use filtered project list URLs (?filter=…). */
+  supportsStatusFilteredNav(): boolean {
+    return this.supportsNotStartedNav();
+  }
+
+  /** Full grid: en cours + pause + sidebar + banners. Single-column filtered views omit this. */
+  showsFullProjectsDashboard(): boolean {
+    return this.projectsViewFilter === 'all';
+  }
+
+  /**
+   * Liste projet PM / collaborateur : uniquement les projets « en cours » (pas pause, pas colonne latérale, pas idées).
+   */
+  showsOngoingProjectsOnlyLayout(): boolean {
+    return this.canProposeIdea && !this.isAdmin && !this.isClient;
+  }
+
+  isFilteredSingleColumnLayout(): boolean {
+    return (
+      this.projectsViewFilter === 'not-started' ||
+      this.projectsViewFilter === 'in-progress' ||
+      this.projectsViewFilter === 'paused'
+    );
+  }
+
+  private scrollNotStartedSectionIntoView(): void {
+    document.getElementById('projects-not-started-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  private scrollInProgressSectionIntoView(): void {
+    document.getElementById('projects-in-progress-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  private scrollPausedSectionIntoView(): void {
+    document.getElementById('projects-paused-anchor')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   private detectRole() {
@@ -154,11 +267,106 @@ export class ProjectsPage implements OnInit {
     return this.displayDialog && this.isAdmin;
   }
 
+  /** Normalized ids for multiselect + API (avoids string/number mismatches). Exposed for template hints. */
+  normalizedRequiredSkillIds(): number[] {
+    const raw = this.newProject.requiredSkillIds ?? [];
+    const nums = raw.map((id) => Number(id)).filter((n) => Number.isFinite(n));
+    return [...new Set(nums)];
+  }
+
+  private pmSkillIdSet(pm: ProjectManagerOption): Set<number> {
+    return new Set(
+      (pm.skillIds ?? [])
+        .map((id) => Number(id))
+        .filter((n) => Number.isFinite(n))
+    );
+  }
+
+  /** Nombre de compétences requises (parmi `required`) possédées par ce PM. */
+  private pmSkillOverlapCount(pm: ProjectManagerOption, required: number[]): number {
+    if (!required.length) {
+      return 0;
+    }
+    const pmSkills = this.pmSkillIdSet(pm);
+    return required.filter((id) => pmSkills.has(id)).length;
+  }
+
+  /**
+   * Chefs de projet à proposer selon les compétences cochées :
+   * sans compétence → tous les PM ; sinon → ceux qui ont **au moins une** compétence en commun
+   * (tri : d’abord ceux qui ont **toutes** les compétences, puis par nombre de correspondances).
+   */
+  projectManagersMatchingRequiredSkills(): ProjectManagerOption[] {
+    const required = this.normalizedRequiredSkillIds();
+    if (!required.length) {
+      return this.projectManagers;
+    }
+    const need = new Set(required);
+    const scored = this.projectManagers.map((pm) => {
+      const matchCount = this.pmSkillOverlapCount(pm, required);
+      const full = matchCount === need.size;
+      return { pm, matchCount, full };
+    });
+    const matched = scored.filter((s) => s.matchCount > 0);
+    matched.sort((a, b) => {
+      if (a.full !== b.full) {
+        return a.full ? -1 : 1;
+      }
+      if (b.matchCount !== a.matchCount) {
+        return b.matchCount - a.matchCount;
+      }
+      const la = `${a.pm.firstName ?? ''} ${a.pm.lastName ?? ''}`.trim();
+      const lb = `${b.pm.firstName ?? ''} ${b.pm.lastName ?? ''}`.trim();
+      return la.localeCompare(lb, undefined, { sensitivity: 'base' });
+    });
+    return matched.map((s) => s.pm);
+  }
+
+  /** Au moins un PM possède toutes les compétences cochées. */
+  projectManagersIncludeFullSkillCover(): boolean {
+    const required = this.normalizedRequiredSkillIds();
+    if (!required.length) {
+      return true;
+    }
+    const need = new Set(required);
+    return this.projectManagers.some((pm) => {
+      const pmSkills = this.pmSkillIdSet(pm);
+      for (const id of need) {
+        if (!pmSkills.has(id)) {
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
   projectManagerOptions(): { label: string; value: number }[] {
-    return this.projectManagers.map((u) => ({
-      label: `${u.firstName} ${u.lastName} (${u.email})`,
-      value: u.id
-    }));
+    const required = this.normalizedRequiredSkillIds();
+    return this.projectManagersMatchingRequiredSkills().map((u) => {
+      const n = required.length;
+      let suffix = '';
+      if (n > 0) {
+        const mc = this.pmSkillOverlapCount(u, required);
+        if (mc < n) {
+          suffix = ` — ${mc}/${n} compétence(s)`;
+        }
+      }
+      return {
+        label: `${u.firstName} ${u.lastName} (${u.email})${suffix}`,
+        value: u.id
+      };
+    });
+  }
+
+  onRequiredSkillsForProjectChange(): void {
+    const match = this.projectManagersMatchingRequiredSkills();
+    const allowed = new Set(match.map((m) => m.id));
+    if (this.newProject.managerId != null && !allowed.has(this.newProject.managerId)) {
+      this.newProject.managerId = null;
+    }
+    if (match.length === 1) {
+      this.newProject.managerId = match[0].id;
+    }
   }
 
   get projectDetailBase(): string {
@@ -176,6 +384,30 @@ export class ProjectsPage implements OnInit {
 
   private loadProjectsByRole(): Observable<any[]> {
     return this.isAdmin ? this.projectService.getAllProjects() : this.projectService.myProjects();
+  }
+
+  private loadPendingProposals(): void {
+    this.projectService.listPendingProposals().subscribe({
+      next: (list) => {
+        this.pendingProposals = Array.isArray(list) ? list : [];
+      },
+      error: () => {
+        this.pendingProposals = [];
+      }
+    });
+  }
+
+  get projectProposalsReviewPath(): string {
+    return '/dashboard/admin/project-proposals';
+  }
+
+  proposalProposerLine(p: {
+    proposerFirstName?: string;
+    proposerLastName?: string;
+    proposerEmail?: string;
+  }): string {
+    const n = [p.proposerFirstName, p.proposerLastName].filter(Boolean).join(' ').trim();
+    return n || p.proposerEmail || '—';
   }
 
   filteredProjects(projects: any[] | null): any[] {
@@ -198,19 +430,40 @@ export class ProjectsPage implements OnInit {
     return !project?.archived && !project?.paused && !project?.delivered && !this.isProjectNotStarted(project);
   }
 
-  /** Planned for the future: created but start date is after today. */
+  /** Planned for the future: start date (calendar day) is strictly after today. Uses YYYY-MM-DD to avoid UTC midnight shifts. */
   isProjectNotStarted(project: any): boolean {
-    if (!project?.startDate) {
+    const startYmd = this.projectStartDateYmd(project?.startDate);
+    if (!startYmd) {
       return false;
     }
-    const start = new Date(project.startDate);
-    if (Number.isNaN(start.getTime())) {
-      return false;
+    return startYmd > this.todayYmdLocal();
+  }
+
+  private todayYmdLocal(): string {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  }
+
+  /** Normalizes API values (ISO date, datetime prefix, or Jackson [y,m,d]) to YYYY-MM-DD. */
+  private projectStartDateYmd(raw: unknown): string | null {
+    if (raw == null || raw === '') {
+      return null;
     }
-    const today = new Date();
-    start.setHours(0, 0, 0, 0);
-    today.setHours(0, 0, 0, 0);
-    return start.getTime() > today.getTime();
+    if (typeof raw === 'string') {
+      const head = raw.length >= 10 ? raw.slice(0, 10) : raw;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(head)) {
+        return head;
+      }
+    }
+    if (Array.isArray(raw) && raw.length >= 3) {
+      const y = Number(raw[0]);
+      const m = Number(raw[1]);
+      const d = Number(raw[2]);
+      if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)) {
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+    }
+    return null;
   }
 
   filteredInProgressProjects(projects: any[] | null): any[] {
@@ -227,11 +480,9 @@ export class ProjectsPage implements OnInit {
       .filter((p) => this.isProjectNotStarted(p) && !p?.archived && !p?.delivered && !p?.paused)
       // Show the soonest-starting projects first.
       .sort((a, b) => {
-        const aTime = new Date(a?.startDate ?? '').getTime();
-        const bTime = new Date(b?.startDate ?? '').getTime();
-        const safeA = Number.isNaN(aTime) ? Number.POSITIVE_INFINITY : aTime;
-        const safeB = Number.isNaN(bTime) ? Number.POSITIVE_INFINITY : bTime;
-        if (safeA !== safeB) return safeA - safeB;
+        const ay = this.projectStartDateYmd(a?.startDate) ?? '9999-12-31';
+        const by = this.projectStartDateYmd(b?.startDate) ?? '9999-12-31';
+        if (ay !== by) return ay.localeCompare(by);
         return String(a?.name ?? '').localeCompare(String(b?.name ?? ''));
       });
   }
@@ -348,8 +599,22 @@ export class ProjectsPage implements OnInit {
     const isEditing = this.isEditMode;
 
     if (!isEditing && this.isAdmin) {
+      const reqs = this.newProject.requiredSkillIds ?? [];
+      if (this.normalizedRequiredSkillIds().length && this.projectManagersMatchingRequiredSkills().length === 0) {
+        this.notify(
+          'error',
+          'Validation',
+          'Aucun chef de projet ne possède au moins une des compétences sélectionnées. Associez des compétences aux profils ou modifiez la sélection.'
+        );
+        return;
+      }
       if (this.newProject.managerId == null) {
         this.notify('error', 'Validation', 'Select a project manager for this new project.');
+        return;
+      }
+      const allowed = new Set(this.projectManagersMatchingRequiredSkills().map((m) => m.id));
+      if (!allowed.has(this.newProject.managerId)) {
+        this.notify('error', 'Validation', 'Le chef de projet choisi ne correspond pas aux compétences filtrées.');
         return;
       }
     }
@@ -434,6 +699,8 @@ export class ProjectsPage implements OnInit {
           this.proposeSubmitting = false;
           this.closeProposeDialog();
           this.notify('success', 'Submitted', 'Your project idea was sent to the administrator for review.');
+          this.refresh$.next();
+          this.notificationService.requestNotificationsRefresh();
         },
         error: (err) => {
           this.proposeSubmitting = false;
