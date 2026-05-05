@@ -8,6 +8,19 @@
   font-size: 1.75rem;
   color: #122033;
 }
+
+.proposals-page-title {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.proposals-page-title-icon {
+  flex-shrink: 0;
+  width: 2.5rem;
+  height: 2.5rem;
+  object-fit: contain;
+}
 .header-block p {
   margin: 0 0 1.25rem;
   color: #64748b;

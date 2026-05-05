@@ -45,6 +45,12 @@ public class ProjectProposalController {
         return projectProposalService.listForAdmin();
     }
 
+    @GetMapping("/mine")
+    @PreAuthorize("hasAnyRole('PROJECT_MANAGER', 'COLLABORATOR')")
+    public List<ProjectProposalResponse> listMine(@AuthenticationPrincipal CustomUserDetails userDetails) {
+        return projectProposalService.listForProposer(userDetails.getUser());
+    }
+
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> approve(

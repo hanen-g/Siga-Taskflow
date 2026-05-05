@@ -20,8 +20,14 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
 
     List<Project> findByArchived(boolean archived);
 
-    @EntityGraph(attributePaths = { "manager", "tasks", "tasks.collaborators", "tasks.skills", "requiredSkills" })
-    Optional<Project> findDetailedById(Long id);
+    /**
+     * Loads project with tasks for detail views.
+     * Do not fetch requiredSkills in the same graph as tasks: both are collections on
+     * Project and Hibernate can fail with a multiple-bag fetch.
+     */
+    @EntityGraph(attributePaths = { "manager", "tasks", "tasks.collaborators" })
+    @Query("SELECT p FROM Project p WHERE p.id = :id")
+    Optional<Project> findDetailedById(@Param("id") Long id);
 
     @EntityGraph(attributePaths = {"manager", "tasks", "tasks.collaborators", "members"})
     @Query("select distinct p from Project p where p.manager = :manager")

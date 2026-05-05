@@ -76,11 +76,29 @@ public class ProjectResponse {
         if (project.getRequiredSkills() != null) {
             response.requiredSkills = project.getRequiredSkills()
                     .stream()
+                    .filter(sk -> !sk.isArchived())
                     .map(SkillResponse::fromEntity)
                     .sorted(Comparator.comparing(SkillResponse::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
                     .collect(Collectors.toList());
         }
 
+        return response;
+    }
+
+    /**
+     * Client portal: progress-oriented payload without internal staffing or required-skills data.
+     */
+    public static ProjectResponse fromProjectForClient(Project project) {
+        ProjectResponse response = fromProject(project);
+        if (project.getTasks() != null) {
+            response.setTasks(project.getTasks().stream()
+                    .map(TaskResponse::fromTaskForClient)
+                    .collect(Collectors.toList()));
+        }
+        response.setRequiredSkills(List.of());
+        if (response.getManagerEmail() != null) {
+            response.setManagerEmail(null);
+        }
         return response;
     }
 }

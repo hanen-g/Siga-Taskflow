@@ -1,3 +1,33 @@
 @use 'primeicons/primeicons.css';
 @use '@/assets/layout/layout.scss';
 @use '@/assets/demo/demo.scss';
+
+/* Project card admin ⋮ menu (appendTo body): PNG icons override Prime menu icon color */
+.p-menu .p-menu-item-icon.project-card-menu-hero-archive,
+.p-menu .p-menu-item-icon.project-card-menu-hero-deliver {
+  flex-shrink: 0;
+  font-size: 0 !important;
+  line-height: 0 !important;
+  color: transparent !important;
+  width: 1.55rem !important;
+  height: 1.55rem !important;
+  min-width: 1.55rem !important;
+  background-repeat: no-repeat !important;
+  background-position: center !important;
+  background-size: contain !important;
+}
+
+.p-menu .p-menu-item-icon.project-card-menu-hero-archive {
+  background-image: url('/assets/images/archived-hero.png') !important;
+}
+
+.p-menu .p-menu-item-icon.project-card-menu-hero-deliver {
+  background-image: url('/assets/images/delivery-hero.png') !important;
+}
+
+.p-menu .p-menu-item.p-focus .p-menu-item-icon.project-card-menu-hero-archive,
+.p-menu .p-menu-item.p-focus .p-menu-item-icon.project-card-menu-hero-deliver,
+.p-menu .p-menu-item:not(.p-disabled) .p-menu-item-content:hover .p-menu-item-icon.project-card-menu-hero-archive,
+.p-menu .p-menu-item:not(.p-disabled) .p-menu-item-content:hover .p-menu-item-icon.project-card-menu-hero-deliver {
+  color: transparent !important;
+}

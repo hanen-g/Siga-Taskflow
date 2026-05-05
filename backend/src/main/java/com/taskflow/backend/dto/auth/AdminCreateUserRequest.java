@@ -4,6 +4,7 @@ import com.taskflow.backend.entity.UserRole;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import java.time.LocalDate;
 import java.util.List;
 
 @Getter
@@ -16,6 +17,19 @@ public class AdminCreateUserRequest {
     private String email;
     private String role;
     private List<Long> skillIds;
+
+    /** E.164 or local-format phone; optional. */
+    private String phoneNumber;
+
+    private String address;
+    private LocalDate dateOfBirth;
+    /** When null, new accounts default to active. */
+    private Boolean active;
+
+    private String gender;
+    private LocalDate recruitmentDate;
+    private String company;
+    private String fiscalMatricule;
 
     public UserRole getRoleAsEnum() {
         if (role == null) {

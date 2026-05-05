@@ -1,5 +1,6 @@
 package com.taskflow.backend.exception;
 
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
@@ -9,6 +10,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -25,6 +27,28 @@ public class GlobalExceptionHandler {
         Map<String, String> body = new HashMap<>();
         body.put("error", "Uploaded file is too large");
         return new ResponseEntity<>(body, HttpStatus.PAYLOAD_TOO_LARGE);
+    }
+
+    /**
+     * E.g. duplicate email, FK violations, or MySQL ENUM / column width rejecting role values like PROJECT_MANAGER.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrity(DataIntegrityViolationException ex) {
+        Throwable cause = ex.getMostSpecificCause();
+        String raw = cause != null ? cause.getMessage() : ex.getMessage();
+        String msg = "Unable to save this user. Check that the email is unique and the role is accepted by the database.";
+        if (raw != null) {
+            String low = raw.toLowerCase(Locale.ROOT);
+            if (low.contains("duplicate") || low.contains("unique")) {
+                msg = "Email already exists";
+            } else if (low.contains("data truncated") || low.contains("truncated")) {
+                msg = "The database refused the stored role (often a too-narrow MySQL ENUM or column). "
+                        + "Run: ALTER TABLE users MODIFY COLUMN role VARCHAR(64); then restart the app.";
+            }
+        }
+        Map<String, String> body = new HashMap<>();
+        body.put("message", msg);
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
     }
 
     @ExceptionHandler(Exception.class)

@@ -1,4 +1,6 @@
-<div class="workspace-page project-detail-page p-4 min-h-screen">
+<div
+  class="workspace-page project-detail-page p-4 min-h-screen"
+  [class.project-detail-page--tasks-wide]="activeTab === 'tasks'">
   <p-toast />
   <p-confirmdialog />
   <div class="project-detail-header">
@@ -6,7 +8,7 @@
       pButton
       type="button"
       icon="pi pi-arrow-left"
-      label="Back to projects"
+      [label]="isClientPortal() ? 'Retour à mes projets' : 'Back to projects'"
       class="p-button-text p-button-secondary project-detail-back"
       [routerLink]="backLink">
     </button>
@@ -23,7 +25,7 @@
     <section class="project-detail-hero">
       <div class="project-detail-kicker">
         <i class="pi pi-file-edit"></i>
-        <span>Project Details</span>
+        <span>{{ isClientPortal() ? 'Suivi de projet' : 'Project Details' }}</span>
       </div>
 
       <div class="project-detail-hero-inner">
@@ -45,110 +47,51 @@
         </div>
         <div class="project-detail-progress-label">{{ completionPercent(project) }}% completed</div>
       </div>
-
-      <div class="project-detail-tabs">
-        <button
-          type="button"
-          class="project-detail-tab"
-          [class.is-active]="activeTab === 'tasks'"
-          (click)="switchTab('tasks', project)">
-          Tasks
-        </button>
-        <button
-          type="button"
-          class="project-detail-tab"
-          [class.is-active]="activeTab === 'files'"
-          (click)="switchTab('files', project)">
-          Files
-        </button>
-        <button
-          *ngIf="canViewTeamSkillsTab()"
-          type="button"
-          class="project-detail-tab"
-          [class.is-active]="activeTab === 'team'"
-          (click)="switchTab('team', project)">
-          Team &amp; skills
-        </button>
-        <div class="workspace-search">
-                <div class="search-input-wrapper">
-                  <i class="pi pi-search search-icon"></i>
-                  <input
-                    type="text"
-                    [(ngModel)]="searchText"
-                    placeholder="Search"
-                    class="search-input" />
-                </div>
-              </div>
-      </div>
     </section>
 
     <div class="project-detail-layout">
       <section class="project-detail-main">
-        <ng-container *ngIf="activeTab === 'tasks'; else teamOrFiles">
-          <ng-container *ngIf="project.tasks?.length; else noTasks">
-            <div class="project-detail-tools">
-              
+        <div class="project-detail-tabs">
+          <button
+            type="button"
+            class="project-detail-tab"
+            [class.is-active]="activeTab === 'tasks'"
+            (click)="switchTab('tasks', project)">
+            Tasks
+          </button>
+          <button
+            type="button"
+            class="project-detail-tab"
+            [class.is-active]="activeTab === 'files'"
+            (click)="switchTab('files', project)">
+            Files
+          </button>
+          <button
+            *ngIf="canViewTeamSkillsTab()"
+            type="button"
+            class="project-detail-tab"
+            [class.is-active]="activeTab === 'team'"
+            (click)="switchTab('team', project)">
+            Team &amp; skills
+          </button>
+          <div class="workspace-search">
+            <div class="search-input-wrapper">
+              <i class="pi pi-search search-icon"></i>
+              <input
+                type="text"
+                [(ngModel)]="searchText"
+                placeholder="Search"
+                class="search-input" />
             </div>
-            <div *ngIf="filteredTasks(project).length" class="project-detail-task-list">
-            <article *ngFor="let task of filteredTasks(project)" class="task-card">
-              <div class="task-card-main">
-                <div class="task-card-title-row">
-                  <i class="pi pi-file task-card-icon"></i>
-                  <h2 class="task-card-title">{{ task.title }}</h2>
-                </div>
-                <p class="task-card-description">
-                  {{ task.description || 'No description yet for this task.' }}
-                </p>
-                <p class="task-card-assignee">Assigned to: {{ taskAssignee(task) }}</p>
-                <p class="task-card-skills" *ngIf="task.skills?.length">
-                  <span *ngFor="let s of task.skills" class="task-skill-chip">{{ s.name }}</span>
-                </p>
-              </div>
-              <div class="task-card-side">
-                <span
-                  class="task-card-status"
-                  [class.is-todo]="task.status === 'TODO'"
-                  [class.is-progress]="task.status === 'IN_PROGRESS'"
-                  [class.is-done]="task.status === 'DONE'">
-                  {{ statusLabel(task.status) }}
-                </span>
-                <button
-                  *ngIf="canEditTask(project)"
-                  pButton
-                  type="button"
-                  icon="pi pi-pencil"
-                  label="Edit"
-                  class="p-button-outlined p-button-sm task-card-edit-btn"
-                  (click)="openEditTaskDialog(task, project)">
-                </button>
-                <ng-container *ngIf="canUploadTaskFile(task, project)">
-                  <input
-                    type="file"
-                    class="task-card-file-input"
-                    [id]="'task-upload-' + task.id"
-                    [disabled]="isUploadingTaskFile(task.id)"
-                    (change)="onTaskFileInputChange($event, task, project)" />
-                  <button
-                    pButton
-                    type="button"
-                    icon="pi pi-upload"
-                    label="Add file"
-                    class="p-button-outlined p-button-sm task-card-upload-btn"
-                    [disabled]="isUploadingTaskFile(task.id)"
-                    (click)="openTaskFilePicker(task.id)">
-                  </button>
-                </ng-container>
-              </div>
-            </article>
-            </div>
-            <div *ngIf="!filteredTasks(project).length" class="project-detail-empty-panel">
-              No tasks match your search.
-            </div>
-          </ng-container>
+          </div>
+        </div>
 
-          <ng-template #noTasks>
-            <div class="project-detail-empty-panel">No tasks yet for this project.</div>
-          </ng-template>
+        <ng-container *ngIf="activeTab === 'tasks'; else teamOrFiles">
+          <app-task-kanban-board
+            *ngIf="project.id != null"
+            class="project-detail-kanban"
+            [projectId]="project.id"
+            [filterText]="searchText" />
         </ng-container>
 
         <ng-template #teamOrFiles>
@@ -294,8 +237,8 @@
         </ng-template>
       </section>
 
-      <aside class="project-detail-sidebar">
-        <section class="project-info-card">
+      <aside class="project-detail-sidebar" aria-label="Project summary">
+        <section class="project-detail-summary-card project-info-card project-detail-summary-card--rail">
           <div *ngIf="projectToolbarActions(project).length" class="project-actions-toolbar" aria-label="Project actions">
             <ng-container *ngFor="let action of projectToolbarActions(project)">
               <ng-container [ngSwitch]="action.action">
@@ -326,7 +269,14 @@
                   [class]="actionIconClass(action)"
                   [attr.aria-label]="actionLabel(project, action)"
                   (click)="handleProjectAction(action.action, project, $event)">
-                  <i [class]="action.icon"></i>
+                  <img
+                    *ngIf="action.iconImg"
+                    [src]="action.iconImg"
+                    class="project-action-img-icon"
+                    alt=""
+                    width="28"
+                    height="28" />
+                  <i *ngIf="!action.iconImg && action.icon" [class]="action.icon"></i>
                 </button>
               </ng-container>
             </ng-container>
@@ -341,7 +291,7 @@
               <span class="project-info-label">Project Manager:</span>
               <span class="project-info-value">{{ projectManagerLabel(project) }}</span>
             </div>
-            <div class="project-info-row">
+            <div class="project-info-row" *ngIf="!isClientPortal()">
               <span class="project-info-label">Team Members:</span>
               <span class="project-info-value">{{ teamMembersLabel(project) }}</span>
             </div>
@@ -360,16 +310,13 @@
           </div>
 
           <div class="project-file-box">
-           
-              <app-folder-file-upload
-                *ngIf="canUploadAttachment(project)"
-                [label]="uploadingAttachment ? 'Uploading...' : 'Choose a file'"
-                [disabled]="uploadingAttachment"
-                (fileSelected)="onAttachmentFile($event, project)">
-              </app-folder-file-upload>
-
-            </div>
-        
+            <app-folder-file-upload
+              *ngIf="canUploadAttachment(project)"
+              [label]="uploadingAttachment ? 'Uploading...' : 'Choose a file'"
+              [disabled]="uploadingAttachment"
+              (fileSelected)="onAttachmentFile($event, project)">
+            </app-folder-file-upload>
+          </div>
         </section>
       </aside>
     </div>

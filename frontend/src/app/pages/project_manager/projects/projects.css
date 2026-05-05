@@ -86,6 +86,278 @@
   align-items: flex-start;
 }
 
+.projects-layout-row--filtered-only .projects-main-column {
+  flex: 1;
+  width: 100%;
+  max-width: none;
+}
+
+.projects-my-proposals-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.projects-my-proposals-shell {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.07);
+}
+
+.projects-my-proposals-head {
+  margin-bottom: 0.25rem;
+}
+
+.projects-my-proposals-item {
+  list-style: none;
+  background: linear-gradient(180deg, #fafbfc 0%, #ffffff 48%);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 1rem;
+  padding: 1.15rem 1.25rem;
+  margin-bottom: 0.85rem;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.04);
+  transition:
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.projects-my-proposals-item:last-child {
+  margin-bottom: 0;
+}
+
+.projects-my-proposals-item:hover {
+  border-color: rgba(59, 130, 246, 0.25);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+.projects-my-proposals-item-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.projects-my-proposals-item-title {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-color, #0f172a);
+  letter-spacing: -0.01em;
+  line-height: 1.35;
+}
+
+.projects-my-proposals-status-tag {
+  flex-shrink: 0;
+}
+
+.projects-my-proposals-desc {
+  font-size: 0.9rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  margin-bottom: 0.85rem !important;
+}
+
+.projects-my-proposals-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.75rem 0.85rem;
+  margin: 0 0 0.85rem;
+  border-radius: 0.65rem;
+  background: rgba(248, 250, 252, 0.95);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+}
+
+.projects-my-proposals-meta-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: #64748b;
+  line-height: 1.45;
+}
+
+.projects-my-proposals-meta-row .pi {
+  font-size: 0.85rem;
+  margin-top: 0.12rem;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+.projects-my-proposals-meta-row--accent {
+  color: #475569;
+  font-weight: 500;
+}
+
+.projects-my-proposals-meta-row--accent .pi {
+  color: #64748b;
+}
+
+.projects-my-proposals-project-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 0.15rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--p-primary-color, var(--primary-color, #2563eb));
+  text-decoration: none;
+}
+
+.projects-my-proposals-project-link:hover {
+  text-decoration: underline;
+}
+
+.projects-my-proposals-project-link .pi {
+  font-size: 0.8rem;
+}
+
+.projects-my-proposals-list {
+  list-style: none;
+}
+
+.projects-empty-assigned {
+  padding-top: 2.5rem;
+  padding-bottom: 3rem;
+}
+
+.projects-empty-assigned-copy {
+  max-width: 36rem;
+  line-height: 1.55;
+}
+
+/* Urgent banner: pending project proposals (admin) above in-progress grid */
+.projects-proposals-urgent {
+  margin-bottom: 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-radius: 1rem;
+  border: 2px solid #dc2626;
+  background: linear-gradient(142deg, #fff1f2 0%, #fff7ed 42%, #ffffff 100%);
+  box-shadow:
+    0 0 0 4px rgba(220, 38, 38, 0.1),
+    0 14px 32px rgba(185, 28, 28, 0.12);
+}
+
+.projects-proposals-urgent-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.projects-proposals-urgent-icon {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  width: 3rem;
+  height: 3rem;
+  object-fit: contain;
+  display: block;
+}
+
+.projects-proposals-urgent-titles {
+  flex: 1;
+  min-width: 11rem;
+}
+
+.projects-proposals-urgent-badge {
+  display: inline-block;
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  background: #dc2626;
+  color: #fff;
+  margin-bottom: 0.35rem;
+}
+
+.projects-proposals-urgent-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #991b1b;
+  letter-spacing: -0.02em;
+}
+
+.projects-proposals-urgent-sub {
+  margin-top: 0.35rem !important;
+  font-size: 0.92rem;
+  color: #7f1d1d;
+  line-height: 1.35;
+}
+
+.projects-proposals-urgent-link {
+  flex-shrink: 0;
+  border-radius: 0.85rem !important;
+  align-self: center;
+}
+
+.projects-proposals-urgent-link.p-button-danger {
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.projects-proposals-urgent-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+}
+
+.projects-proposals-urgent-list li {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 1rem;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.65rem;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(220, 38, 38, 0.22);
+}
+
+.projects-proposals-urgent-name {
+  font-weight: 700;
+  color: #0f172a;
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 560px) {
+  .projects-proposals-urgent-name {
+    grid-column: auto;
+  }
+}
+
+.projects-proposals-urgent-meta {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.projects-proposals-urgent-deadline {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #9a3412;
+  grid-column: 1 / -1;
+}
+
+@media (min-width: 560px) {
+  .projects-proposals-urgent-deadline {
+    grid-column: auto;
+    text-align: right;
+  }
+}
+
+.projects-proposals-urgent-more {
+  margin-top: 0.85rem !important;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #991b1b;
+}
+
 .projects-not-started-top {
   display: flex;
   justify-content: flex-end;
@@ -260,6 +532,32 @@
 .projects-aside-badge.is-not-started {
   background: #fce7f3;
   color: #9d174d;
+}
+
+.projects-view-filter-banner {
+  background: #f8fafc;
+}
+
+.projects-filter-clear-link {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--p-primary-color, #3b82f6);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.projects-filter-clear-link:hover {
+  text-decoration: underline;
+}
+
+.projects-monitor-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.projects-monitor-link:hover {
+  text-decoration: underline;
+  color: #db2777;
 }
 
 :host ::ng-deep .projects-top-alert.p-message,

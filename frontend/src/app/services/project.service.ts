@@ -49,6 +49,11 @@ export class ProjectService {
     return this.http.get<any[]>(this.proposalsUrl);
   }
 
+  /** Proposal history for the current PM or collaborator */
+  listMyProposalHistory(): Observable<any[]> {
+    return this.http.get<any[]>(`${this.proposalsUrl}/mine`);
+  }
+
   approveProposal(proposalId: number, managerId?: number | null): Observable<any> {
     const body = managerId != null && managerId !== undefined ? { managerId } : {};
     return this.http.post<any>(`${this.proposalsUrl}/${proposalId}/approve`, body);

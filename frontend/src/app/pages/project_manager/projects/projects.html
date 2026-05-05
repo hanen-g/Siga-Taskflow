@@ -9,8 +9,21 @@
   <div class="workspace-header">
     <div>
       <h1 class="workspace-title">{{ pageTitle }}</h1>
-      <p class="workspace-subtitle" *ngIf="!isClient">Manage your teams and track progress</p>
-      <p class="workspace-subtitle" *ngIf="isClient">Open a project to follow progress and shared files.</p>
+      <p class="workspace-subtitle" *ngIf="isCollaborator && !isClient">
+        Seuls les projets <strong>en cours</strong> auxquels vous participez (membre ou tâches assignées) sont listés
+        ci-dessous. Utilisez <strong>Propose new project idea</strong> pour envoyer une idée à l’administration.
+      </p>
+      <p class="workspace-subtitle" *ngIf="isProjectManager && !isClient">
+        Seuls vos projets <strong>en cours</strong> sont listés ci-dessous. Utilisez
+        <strong>Propose new project idea</strong> pour envoyer une idée à l’administration.
+      </p>
+      <p class="workspace-subtitle" *ngIf="isAdmin && !isClient">
+        Manage your teams and track progress
+      </p>
+      <p class="workspace-subtitle" *ngIf="isClient">
+        Vous voyez uniquement les projets auxquels votre organisation est invitée en tant que client. Ouvrez un projet pour
+        suivre l’avancement et les fichiers partagés.
+      </p>
     </div>
     <button
       *ngIf="isAdmin"
@@ -21,15 +34,17 @@
       (click)="showDialog()">
     </button>
     <button
-      *ngIf="isProjectManager"
+      *ngIf="canProposeIdea"
       pButton
-      label="Propose project"
+      label="Propose new project idea"
       icon="pi pi-lightbulb"
       class="workspace-create-button"
-      (click)="showProposeDialog()">
+      (click)="showProposeDialog()"
+      title="Suggestion is reviewed by an administrator">
     </button>
   </div>
 
+  <div class="projects-assigned-area">
   <div *ngIf="error" class="empty-state">
     <i class="pi pi-exclamation-triangle text-300 text-6xl mb-3"></i>
     <span class="text-600 text-xl font-medium">{{ error }}</span>
@@ -40,7 +55,16 @@
   </div>
 
   <ng-container *ngIf="projects$ | async as projects">
-  <div class="projects-layout-row" *ngIf="projects.length && filteredProjects(projects).length">
+  <div
+    class="projects-layout-row"
+    [class.projects-layout-row--filtered-only]="isFilteredSingleColumnLayout()"
+    *ngIf="
+      (showsFullProjectsDashboard() &&
+        ((projects.length && filteredProjects(projects).length) || (isAdmin && pendingProposals.length))) ||
+      (projectsViewFilter === 'not-started' && supportsStatusFilteredNav() && projects.length) ||
+      (projectsViewFilter === 'in-progress' && supportsStatusFilteredNav() && projects.length) ||
+      (projectsViewFilter === 'paused' && supportsStatusFilteredNav() && projects.length)
+    ">
     <div class="projects-main-column">
       <div class="workspace-tools">
         <div class="workspace-search">
@@ -55,50 +79,238 @@
         </div>
       </div>
 
-      <h2 class="projects-section-title">{{ isClient ? 'Active projects' : 'In progress' }}</h2>
-
-      <div class="projects-grid" *ngIf="filteredInProgressProjects(projects).length">
-        <div class="project-grid-item" *ngFor="let project of filteredInProgressProjects(projects)">
-          <app-project-panel
-            [project]="project"
-            [detailBase]="projectDetailBase"
-            [adminProjectControls]="isAdmin"
-            [managerMenu]="isProjectManager"
-            (edit)="editProject($event)"
-            (archive)="archiveProject($event)"
-            (setPaused)="pauseProject($event)"
-            (setDelivered)="deliverProject($event)">
-          </app-project-panel>
-        </div>
-      </div>
-
-      <h2 class="projects-section-title" *ngIf="filteredPausedProjects(projects).length">Paused projects</h2>
-      <div class="projects-grid" *ngIf="filteredPausedProjects(projects).length">
-        <div class="project-grid-item" *ngFor="let project of filteredPausedProjects(projects)">
-          <app-project-panel
-            [project]="project"
-            [detailBase]="projectDetailBase"
-            [adminProjectControls]="isAdmin"
-            [managerMenu]="isProjectManager"
-            (edit)="editProject($event)"
-            (archive)="archiveProject($event)"
-            (setPaused)="pauseProject($event)"
-            (setDelivered)="deliverProject($event)">
-          </app-project-panel>
+      <div
+        *ngIf="projectsViewFilter === 'not-started' && supportsStatusFilteredNav()"
+        class="projects-view-filter-banner border-round-lg p-3 mb-3 surface-border border-1">
+        <div class="flex align-items-center justify-content-between flex-wrap gap-2">
+          <span class="text-600 text-sm m-0">
+            <i class="pi pi-filter mr-2" aria-hidden="true"></i>
+            View: <strong>Not started</strong> only (future start date). Use the link below to see all statuses again.
+          </span>
+          <a [routerLink]="projectsListRoute" class="projects-filter-clear-link">Show all project statuses</a>
         </div>
       </div>
 
       <div
-        *ngIf="!filteredInProgressProjects(projects).length"
-        class="projects-main-empty text-center p-5 border-round-xl surface-ground">
-        <i class="pi pi-info-circle text-400 text-4xl mb-3 block"></i>
-        <p class="m-0 text-600">
-          No projects <strong>in progress</strong> in this view — related items appear on the right (other statuses).
-        </p>
+        *ngIf="projectsViewFilter === 'in-progress' && supportsStatusFilteredNav()"
+        class="projects-view-filter-banner border-round-lg p-3 mb-3 surface-border border-1">
+        <div class="flex align-items-center justify-content-between flex-wrap gap-2">
+          <span class="text-600 text-sm m-0">
+            <i class="pi pi-filter mr-2" aria-hidden="true"></i>
+            View: <strong>In progress</strong> only (active work — not archived, paused, delivered, nor not started yet).
+          </span>
+          <a [routerLink]="projectsListRoute" class="projects-filter-clear-link">Show all project statuses</a>
+        </div>
       </div>
+
+      <div
+        *ngIf="projectsViewFilter === 'paused' && supportsStatusFilteredNav()"
+        class="projects-view-filter-banner border-round-lg p-3 mb-3 surface-border border-1">
+        <div class="flex align-items-center justify-content-between flex-wrap gap-2">
+          <span class="text-600 text-sm m-0">
+            <i class="pi pi-filter mr-2" aria-hidden="true"></i>
+            View: <strong>Paused</strong> only (work stopped temporarily — not archived or delivered).
+          </span>
+          <a [routerLink]="projectsListRoute" class="projects-filter-clear-link">Show all project statuses</a>
+        </div>
+      </div>
+
+      <p-message
+        *ngIf="
+          projectsViewFilter === 'not-started' &&
+          projects.length &&
+          supportsStatusFilteredNav() &&
+          filteredNotStartedProjects(projects).length === 0
+        "
+        severity="warn"
+        styleClass="w-full mb-3">
+        No not-started projects yet. Clear the filter with <strong>Show all project statuses</strong> above.</p-message>
+
+      <p-message
+        *ngIf="
+          projectsViewFilter === 'in-progress' &&
+          projects.length &&
+          supportsStatusFilteredNav() &&
+          filteredInProgressProjects(projects).length === 0
+        "
+        severity="warn"
+        styleClass="w-full mb-3">
+        No projects <strong>in progress</strong> for this filter. Others may be paused, not started yet, delivered, etc.
+        Use <strong>Show all project statuses</strong> above.</p-message>
+
+      <p-message
+        *ngIf="
+          projectsViewFilter === 'paused' &&
+          projects.length &&
+          supportsStatusFilteredNav() &&
+          filteredPausedProjects(projects).length === 0
+        "
+        severity="warn"
+        styleClass="w-full mb-3">
+        No <strong>paused</strong> projects for this filter. Use <strong>Show all project statuses</strong> above.</p-message>
+
+      <aside
+        *ngIf="isAdmin && pendingProposals.length && showsFullProjectsDashboard()"
+        class="projects-proposals-urgent"
+        role="alert"
+        aria-live="polite">
+        <div class="projects-proposals-urgent-header">
+          <img
+            src="assets/images/proposed-subjects-icon.png"
+            alt=""
+            class="projects-proposals-urgent-icon"
+            width="48"
+            height="48"
+            loading="lazy"
+            decoding="async" />
+          <div class="projects-proposals-urgent-titles">
+            <span class="projects-proposals-urgent-badge">{{ pendingProposals.length }} en attente</span>
+            <h3 class="projects-proposals-urgent-title">Sujets proposés — traitement urgent</h3>
+            <p class="projects-proposals-urgent-sub m-0">Des idées de projet attendent votre validation avant d’être créées.</p>
+          </div>
+          <a
+            [routerLink]="projectProposalsReviewPath"
+            pButton
+            label="Voir et traiter"
+            icon="pi pi-arrow-right"
+            iconPos="right"
+            class="projects-proposals-urgent-link p-button-danger"
+          ></a>
+        </div>
+        <ul class="projects-proposals-urgent-list">
+          <li *ngFor="let p of pendingProposals | slice : 0 : 6">
+            <span class="projects-proposals-urgent-name">{{ p.name }}</span>
+            <span class="projects-proposals-urgent-meta">{{ proposalProposerLine(p) }}</span>
+            <span *ngIf="p.deadline" class="projects-proposals-urgent-deadline">Échéance : {{ p.deadline }}</span>
+          </li>
+        </ul>
+        <p *ngIf="pendingProposals.length > 6" class="projects-proposals-urgent-more m-0">
+          + {{ pendingProposals.length - 6 }} autre(s) — ouvrir la page complète pour tout voir.
+        </p>
+      </aside>
+
+      <ng-container *ngIf="showsFullProjectsDashboard()">
+        <h2 class="projects-section-title">{{ isClient ? 'Projets actifs' : 'Projets en cours' }}</h2>
+
+        <div class="projects-grid" *ngIf="filteredInProgressProjects(projects).length">
+          <div class="project-grid-item" *ngFor="let project of filteredInProgressProjects(projects)">
+            <app-project-panel
+              [project]="project"
+              [detailBase]="projectDetailBase"
+              [adminProjectControls]="isAdmin"
+              [managerMenu]="isProjectManager"
+              (edit)="editProject($event)"
+              (archive)="archiveProject($event)"
+              (setPaused)="pauseProject($event)"
+              (setDelivered)="deliverProject($event)">
+            </app-project-panel>
+          </div>
+        </div>
+
+        <ng-container *ngIf="!showsOngoingProjectsOnlyLayout()">
+          <h2 class="projects-section-title" *ngIf="filteredPausedProjects(projects).length">Projets en pause</h2>
+          <div class="projects-grid" *ngIf="filteredPausedProjects(projects).length">
+            <div class="project-grid-item" *ngFor="let project of filteredPausedProjects(projects)">
+              <app-project-panel
+                [project]="project"
+                [detailBase]="projectDetailBase"
+                [adminProjectControls]="isAdmin"
+                [managerMenu]="isProjectManager"
+                (edit)="editProject($event)"
+                (archive)="archiveProject($event)"
+                (setPaused)="pauseProject($event)"
+                (setDelivered)="deliverProject($event)">
+              </app-project-panel>
+            </div>
+          </div>
+        </ng-container>
+
+        <div
+          *ngIf="!filteredInProgressProjects(projects).length"
+          class="projects-main-empty text-center p-5 border-round-xl surface-ground">
+          <i class="pi pi-info-circle text-400 text-4xl mb-3 block"></i>
+          <p class="m-0 text-600" *ngIf="showsOngoingProjectsOnlyLayout()">
+            Aucun projet <strong>en cours</strong> pour le moment. Les projets en pause, pas encore démarrés ou livrés ne
+            figurent pas dans cette liste.
+          </p>
+          <p class="m-0 text-600" *ngIf="!showsOngoingProjectsOnlyLayout()">
+            Aucun projet <strong>en cours</strong> pour cette vue — les correspondances ci-dessous sont à droite (autres
+            statuts).
+          </p>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="projectsViewFilter === 'not-started' && supportsStatusFilteredNav()">
+        <h2 id="projects-not-started-anchor" class="projects-section-title">Not started projects</h2>
+        <p class="text-600 text-sm mb-3 m-0">
+          Projects whose <strong>start date</strong> is still in the future (not archived, paused, or delivered).
+        </p>
+        <div class="projects-grid" *ngIf="filteredNotStartedProjects(projects).length">
+          <div class="project-grid-item" *ngFor="let project of filteredNotStartedProjects(projects)">
+            <app-project-panel
+              [project]="project"
+              [detailBase]="projectDetailBase"
+              [adminProjectControls]="isAdmin"
+              [managerMenu]="isProjectManager"
+              (edit)="editProject($event)"
+              (archive)="archiveProject($event)"
+              (setPaused)="pauseProject($event)"
+              (setDelivered)="deliverProject($event)">
+            </app-project-panel>
+          </div>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="projectsViewFilter === 'in-progress' && supportsStatusFilteredNav()">
+        <h2 id="projects-in-progress-anchor" class="projects-section-title">
+          {{ isClient ? 'Projets actifs' : 'Projets en cours' }}
+        </h2>
+        <p class="text-600 text-sm mb-3 m-0">
+          Projets activement suivis&nbsp;: démarrés (ou sans date bloquante), non en pause, non livrés, non archivés, et avec
+          date de début passée ou aujourd’hui.
+        </p>
+        <div class="projects-grid" *ngIf="filteredInProgressProjects(projects).length">
+          <div class="project-grid-item" *ngFor="let project of filteredInProgressProjects(projects)">
+            <app-project-panel
+              [project]="project"
+              [detailBase]="projectDetailBase"
+              [adminProjectControls]="isAdmin"
+              [managerMenu]="isProjectManager"
+              (edit)="editProject($event)"
+              (archive)="archiveProject($event)"
+              (setPaused)="pauseProject($event)"
+              (setDelivered)="deliverProject($event)">
+            </app-project-panel>
+          </div>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="projectsViewFilter === 'paused' && supportsStatusFilteredNav()">
+        <h2 id="projects-paused-anchor" class="projects-section-title">Projets en pause</h2>
+        <p class="text-600 text-sm mb-3 m-0">
+          Projets marqués <strong>en pause</strong> par un administrateur ou un gestionnaire (non archivés, non livrés).
+        </p>
+        <div class="projects-grid" *ngIf="filteredPausedProjects(projects).length">
+          <div class="project-grid-item" *ngFor="let project of filteredPausedProjects(projects)">
+            <app-project-panel
+              [project]="project"
+              [detailBase]="projectDetailBase"
+              [adminProjectControls]="isAdmin"
+              [managerMenu]="isProjectManager"
+              (edit)="editProject($event)"
+              (archive)="archiveProject($event)"
+              (setPaused)="pauseProject($event)"
+              (setDelivered)="deliverProject($event)">
+            </app-project-panel>
+          </div>
+        </div>
+      </ng-container>
     </div>
 
-    <aside class="projects-aside-column" aria-label="Project monitoring">
+    <aside
+      *ngIf="showsFullProjectsDashboard() && !isClient && !showsOngoingProjectsOnlyLayout()"
+      class="projects-aside-column"
+      aria-label="Project monitoring">
       <div class="projects-monitor-card">
         <div class="projects-monitor-header">
           <h3>Project monitoring</h3>
@@ -112,9 +324,36 @@
           </div>
           <div class="projects-monitor-stats">
             <p><strong>{{ filteredProjects(projects).length }}</strong> total</p>
-            <p><strong>{{ filteredInProgressProjects(projects).length }}</strong> in progress</p>
-            <p><strong>{{ filteredNotStartedProjects(projects).length }}</strong> not started</p>
-            <p><strong>{{ filteredPausedProjects(projects).length }}</strong> paused</p>
+            <p *ngIf="supportsNotStartedNav(); else plainInProgressCount" class="m-0">
+              <a
+                class="projects-monitor-link"
+                [routerLink]="projectsListRoute"
+                [queryParams]="navFilterInProgress">
+                <strong>{{ filteredInProgressProjects(projects).length }}</strong> in progress</a>
+            </p>
+            <ng-template #plainInProgressCount>
+              <p class="m-0"><strong>{{ filteredInProgressProjects(projects).length }}</strong> in progress</p>
+            </ng-template>
+            <p *ngIf="supportsNotStartedNav(); else plainNotStartedCount" class="m-0">
+              <a
+                class="projects-monitor-link"
+                [routerLink]="projectsListRoute"
+                [queryParams]="navFilterNotStarted">
+                <strong>{{ filteredNotStartedProjects(projects).length }}</strong> not started</a>
+            </p>
+            <ng-template #plainNotStartedCount>
+              <p class="m-0"><strong>{{ filteredNotStartedProjects(projects).length }}</strong> not started</p>
+            </ng-template>
+            <p *ngIf="supportsNotStartedNav(); else plainPausedCount" class="m-0">
+              <a
+                class="projects-monitor-link"
+                [routerLink]="projectsListRoute"
+                [queryParams]="navFilterPaused">
+                <strong>{{ filteredPausedProjects(projects).length }}</strong> paused</a>
+            </p>
+            <ng-template #plainPausedCount>
+              <p class="m-0"><strong>{{ filteredPausedProjects(projects).length }}</strong> paused</p>
+            </ng-template>
             <p><strong>{{ deliveredProjects(projects).length }}</strong> delivered</p>
           </div>
         </div>
@@ -123,7 +362,7 @@
       <div class="projects-aside-alert border-round-xl" *ngIf="filteredNotStartedProjects(projects).length">
         <div class="projects-aside-alert-header">
           <i class="pi pi-bell" aria-hidden="true"></i>
-          <span>Not started</span>
+          <span>Not started projects</span>
         </div>
         <p class="projects-aside-alert-sub m-0 mb-3">Projects created but not started yet.</p>
         <ul class="projects-aside-list">
@@ -137,12 +376,16 @@
 
   </div>
 
-  <div *ngIf="!projects.length && !error" class="empty-state">
-    <i class="pi pi-folder-open text-300 text-7xl mb-3"></i>
+  <div *ngIf="!projects.length && !error" class="empty-state projects-empty-assigned">
+    <i class="pi pi-folder-open text-300 text-7xl mb-3" aria-hidden="true"></i>
     <span class="text-600 text-xl font-medium" *ngIf="isAdmin">No projects found. Create a project to get started.</span>
-    <span class="text-600 text-xl font-medium" *ngIf="!isAdmin && canProposeIdea"
-      >No projects yet. Use <strong>Propose new project idea</strong> to send an idea to the administrator.</span
-    >
+    <ng-container *ngIf="!isAdmin && canProposeIdea">
+      <span class="text-900 text-xl font-semibold m-0 mb-2">Aucun projet en cours</span>
+      <p class="text-600 text-lg m-0 mb-0 projects-empty-assigned-copy">
+        Cette page ne liste que les projets <strong>en cours</strong>. Utilisez <strong>Propose new project idea</strong> en
+        haut de page pour envoyer une idée à l’administration.
+      </p>
+    </ng-container>
     <span class="text-600 text-xl font-medium" *ngIf="isClient"
       >No projects yet. When your administrator adds you to a project, it will show up here.</span
     >
@@ -156,6 +399,8 @@
     <span class="text-600 text-xl font-medium">No projects match your search.</span>
   </div>
   </ng-container>
+  </div>
+
 </div>
 
 <p-dialog
@@ -169,20 +414,6 @@
   (onHide)="closeDialog()">
 
   <ng-template pTemplate="content">
-    <div *ngIf="!isEditMode && isAdmin" class="flex flex-column mb-4 mt-1">
-      <label class="font-bold mb-2">Project manager <span class="text-red-500">*</span></label>
-      <p-select
-        [options]="projectManagerOptions()"
-        [(ngModel)]="newProject.managerId"
-        optionLabel="label"
-        optionValue="value"
-        placeholder="Select who will own this project"
-        [showClear]="true"
-        appendTo="body"
-        styleClass="w-full"
-      />
-      <p *ngIf="projectManagersLoadError" class="text-sm text-red-500 mt-1">{{ projectManagersLoadError }}</p>
-    </div>
     <div class="flex flex-column mb-5 mt-3">
       <label class="font-bold mb-2">Name <span class="text-red-500">*</span></label>
       <input pInputText 
@@ -227,6 +458,7 @@
         optionValue="id"
         placeholder="Select required skills"
         [(ngModel)]="newProject.requiredSkillIds"
+        (ngModelChange)="onRequiredSkillsForProjectChange()"
         [filter]="true"
         [showToggleAll]="true"
         display="chip"
@@ -235,6 +467,42 @@
         [appendTo]="'body'"
         [disabled]="skillsLoading">
       </p-multiselect>
+      <p class="text-600 text-sm mt-2 mb-0" *ngIf="!isEditMode && isAdmin">
+        Dès que des compétences sont cochées, la liste des chefs de projet montre d’abord ceux qui ont
+        <strong>toutes</strong> ces compétences, puis ceux qui en ont <strong>au moins une</strong> (indication
+        <em>x/n</em> à côté du nom). Sans compétence requise, tous les chefs de projet apparaissent.
+      </p>
+      <p
+        class="text-sm mt-1 mb-0 text-blue-800"
+        *ngIf="
+          !isEditMode &&
+          isAdmin &&
+          normalizedRequiredSkillIds().length &&
+          projectManagersMatchingRequiredSkills().length &&
+          !projectManagersIncludeFullSkillCover()
+        ">
+        Aucun chef de projet ne possède l’ensemble des compétences en même temps ; choisissez le profil le plus proche.
+      </p>
+    </div>
+
+    <div *ngIf="!isEditMode && isAdmin" class="flex flex-column mb-4 mt-1">
+      <label class="font-bold mb-2">Project manager <span class="text-red-500">*</span></label>
+      <p-select
+        [options]="projectManagerOptions()"
+        [(ngModel)]="newProject.managerId"
+        optionLabel="label"
+        optionValue="value"
+        placeholder="Select who will own this project"
+        [showClear]="true"
+        appendTo="body"
+        styleClass="w-full"
+      />
+      <p *ngIf="projectManagersLoadError" class="text-sm text-red-500 mt-1">{{ projectManagersLoadError }}</p>
+      <p
+        *ngIf="!projectManagersLoadError && normalizedRequiredSkillIds().length && !projectManagersMatchingRequiredSkills().length"
+        class="text-sm text-orange-700 mt-1 m-0">
+        Aucun chef de projet ne possède aucune de ces compétences.
+      </p>
     </div>
 
     <div *ngIf="!isEditMode" class="flex flex-column mb-2">
@@ -259,7 +527,7 @@
 </p-dialog>
 
 <p-dialog
-  header="Propose a project idea"
+  header="Propose new project idea"
   [(visible)]="displayProposeDialog"
   [modal]="true"
   [draggable]="false"
@@ -269,7 +537,13 @@
 >
   <ng-template pTemplate="content">
     <p class="text-600 text-sm mb-3">
-      The administrator can approve your idea to create a real project.
+      Your idea is sent to an administrator for review.
+      <ng-container *ngIf="isCollaborator">
+        If approved, they create the project and assign a project manager when needed.
+      </ng-container>
+      <ng-container *ngIf="isProjectManager">
+        If approved, the project is created with you as project manager.
+      </ng-container>
     </p>
     <div class="flex flex-column mb-4">
       <label class="font-bold mb-2">Project title <span class="text-red-500">*</span></label>

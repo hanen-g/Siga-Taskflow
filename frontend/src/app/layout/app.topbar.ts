@@ -1,6 +1,6 @@
 import { ChangeDetectorRef, Component, inject, OnInit, OnDestroy, ElementRef, ViewChild, HostListener } from '@angular/core';
 import { MenuItem } from 'primeng/api';
-import { RouterModule } from '@angular/router';
+import { NavigationEnd, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { OverlayBadgeModule } from 'primeng/overlaybadge';
 import { ProjectsCalendarDialog } from './projects-calendar-dialog';
@@ -9,7 +9,7 @@ import { WebsocketService } from '../services/websocket.service';
 import { Notification } from '../models/notification.model';
 import { NotificationService } from '../services/notification.service';
 import { Subject } from 'rxjs';
-import { takeUntil } from 'rxjs/operators';
+import { distinctUntilChanged, filter, takeUntil } from 'rxjs/operators';
 
 @Component({
     selector: 'app-topbar',
@@ -195,6 +195,7 @@ export class AppTopbar implements OnInit, OnDestroy {
     layoutService = inject(LayoutService);
     private ws = inject(WebsocketService);
     private notificationService = inject(NotificationService);
+    private router = inject(Router);
     private cdr = inject(ChangeDetectorRef);
     private destroy$ = new Subject<void>();
     @ViewChild('topbarMenu') topbarMenu?: ElementRef<HTMLElement>;
@@ -236,6 +237,26 @@ export class AppTopbar implements OnInit, OnDestroy {
                 this.triggerShake();
                 this.cdr.detectChanges();
             });
+
+        this.router.events
+            .pipe(
+                filter((e): e is NavigationEnd => e instanceof NavigationEnd),
+                takeUntil(this.destroy$)
+            )
+            .subscribe(() => this.loadStoredNotifications());
+
+        this.notificationService.refreshNotifications$
+            .pipe(takeUntil(this.destroy$))
+            .subscribe(() => this.loadStoredNotifications());
+
+        this.ws
+            .getConnectionState()
+            .pipe(
+                filter((c) => c === true),
+                distinctUntilChanged(),
+                takeUntil(this.destroy$)
+            )
+            .subscribe(() => this.loadStoredNotifications());
     }
 
     ngOnDestroy() {

@@ -15,6 +15,13 @@ export interface AdminUser {
   role: Exclude<EmployeeRole, 'ALL'> | 'ADMIN';
   profilePicture?: string;
   active: boolean;
+  phoneNumber?: string | null;
+  address?: string | null;
+  dateOfBirth?: string | null;
+  gender?: string | null;
+  recruitmentDate?: string | null;
+  company?: string | null;
+  fiscalMatricule?: string | null;
   createdAt?: string;
   skills?: Skill[];
 }
@@ -30,6 +37,8 @@ export interface ProjectManagerOption {
   firstName: string;
   lastName: string;
   email: string;
+  /** Non-archived skills on this PM; used to filter managers vs required project skills. */
+  skillIds?: number[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -63,7 +72,21 @@ export class UserService {
 
   updateAdminUser(
     id: number,
-    payload: { firstName: string; lastName: string; email: string; role: CreateUserRole; skillIds?: number[] }
+    payload: {
+      firstName: string;
+      lastName: string;
+      email: string;
+      role: CreateUserRole;
+      skillIds?: number[];
+      phoneNumber?: string;
+      address?: string;
+      /** ISO yyyy-MM-dd */
+      dateOfBirth?: string;
+      gender?: string;
+      recruitmentDate?: string;
+      company?: string;
+      fiscalMatricule?: string;
+    }
   ) {
     return this.http.put<AdminUser>(`${this.apiUrl}/admin/users/${id}`, payload);
   }
@@ -72,7 +95,23 @@ export class UserService {
     return this.http.patch<AdminUser>(`${this.apiUrl}/admin/users/${id}/status`, { active });
   }
 
-  createAdminUser(payload: { firstName: string; lastName: string; email: string; role: CreateUserRole; skillIds?: number[] }) {
+  createAdminUser(payload: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: CreateUserRole;
+    skillIds?: number[];
+    phoneNumber?: string;
+    address?: string;
+    /** ISO yyyy-MM-dd */
+    dateOfBirth?: string;
+    active?: boolean;
+    gender?: string;
+    /** ISO yyyy-MM-dd — date de recrutement / mise en relation */
+    recruitmentDate?: string;
+    company?: string;
+    fiscalMatricule?: string;
+  }) {
     return this.http.post<AdminUserCreatedResponse>(`${this.apiUrl}/admin/users`, payload);
   }
 }

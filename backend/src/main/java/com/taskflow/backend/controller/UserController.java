@@ -10,18 +10,24 @@ import org.springframework.data.domain.PageRequest;
 import com.taskflow.backend.security.JwtService;
 import com.taskflow.backend.service.AccountEmailService;
 import com.taskflow.backend.service.AuthService;
+import com.taskflow.backend.service.SkillService;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 @RestController
@@ -55,16 +61,58 @@ public class UserController {
     @GetMapping("/admin/project-managers")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<ProjectManagerOption>> getProjectManagersForAdmin() {
-        List<ProjectManagerOption> out = userRepository.findByRoleAndActiveIncludingNull(UserRole.PROJECT_MANAGER)
-                .stream()
-                .map(u -> new ProjectManagerOption(
-                        u.getId(),
-                        u.getFirstName(),
-                        u.getLastName(),
-                        u.getEmail()
-                ))
+        List<User> fetched = userRepository.findByRoleAndActiveIncludingNullWithSkillsFetched(
+                UserRole.PROJECT_MANAGER);
+        /*
+         * JOIN FETCH on a collection duplicates the same User in the JDBC result; without merging,
+         * each row can carry an incomplete skills bag and skillIds sent to the client look wrong/empty.
+         */
+        List<User> managers = mergeDuplicateUsersMergingSkills(fetched);
+        List<ProjectManagerOption> out = managers.stream()
+                .map(u -> {
+                    List<Long> skillIds = u.getSkills() == null
+                            ? List.of()
+                            : u.getSkills().stream()
+                                    .filter(s -> !s.isArchived())
+                                    .map(Skill::getId)
+                                    .distinct()
+                                    .sorted()
+                                    .toList();
+                    return new ProjectManagerOption(
+                            u.getId(),
+                            u.getFirstName(),
+                            u.getLastName(),
+                            u.getEmail(),
+                            skillIds
+                    );
+                })
                 .toList();
         return ResponseEntity.ok(out);
+    }
+
+    /**
+     * Collapses duplicate {@link User} rows from {@code JOIN FETCH} on skills into one instance per id
+     * with a unified skill set.
+     */
+    private static List<User> mergeDuplicateUsersMergingSkills(List<User> fetched) {
+        Map<Long, User> byId = new LinkedHashMap<>();
+        for (User u : fetched) {
+            byId.merge(u.getId(), u, (existing, incoming) -> {
+                mergeUserSkills(existing, incoming);
+                return existing;
+            });
+        }
+        return new ArrayList<>(byId.values());
+    }
+
+    private static void mergeUserSkills(User target, User source) {
+        if (source.getSkills() == null || source.getSkills().isEmpty()) {
+            return;
+        }
+        if (target.getSkills() == null) {
+            target.setSkills(new HashSet<>());
+        }
+        target.getSkills().addAll(source.getSkills());
     }
 
     @GetMapping("/collaborators")
@@ -111,6 +159,12 @@ public class UserController {
                     .body(new AdminUserCreatedResponse(new AdminUserResponse(user), emailSent, emailMessage));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+        } catch (DataIntegrityViolationException e) {
+            String msg = messageForDataIntegrityViolation(e);
+            HttpStatus status = "Email already exists".equals(msg)
+                    ? HttpStatus.CONFLICT
+                    : HttpStatus.BAD_REQUEST;
+            return ResponseEntity.status(status).body(new ErrorResponse(msg));
         } catch (RuntimeException e) {
             if ("Email already exists".equals(e.getMessage())) {
                 return ResponseEntity.status(HttpStatus.CONFLICT).body(new ErrorResponse(e.getMessage()));
@@ -154,6 +208,7 @@ public class UserController {
     ) {
         User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
 
+        try {
         if (request.getFirstName() != null) {
             user.setFirstName(request.getFirstName().trim());
         }
@@ -177,9 +232,44 @@ public class UserController {
         } else if (user.getRole() != UserRole.PROJECT_MANAGER && user.getRole() != UserRole.COLLABORATOR) {
             user.setSkills(new HashSet<>());
         }
+        if (request.getPhoneNumber() != null) {
+            user.setPhoneNumber(request.getPhoneNumber().trim().isEmpty() ? null : request.getPhoneNumber().trim());
+        }
+        if (request.getAddress() != null) {
+            user.setAddress(request.getAddress().trim().isEmpty() ? null : request.getAddress().trim());
+        }
+        if (request.getDateOfBirth() != null) {
+            user.setDateOfBirth(request.getDateOfBirth());
+        }
+        if (request.getGender() != null) {
+            String trimmed = request.getGender().trim();
+            if (trimmed.isEmpty()) {
+                user.setGender(null);
+            } else {
+                String u = trimmed.toUpperCase(Locale.ROOT);
+                if (u.equals("FEMALE") || u.equals("MALE") || u.equals("OTHER")) {
+                    user.setGender(u);
+                } else {
+                    throw new IllegalArgumentException("gender must be FEMALE, MALE, or OTHER");
+                }
+            }
+        }
+        if (request.getRecruitmentDate() != null) {
+            user.setRecruitmentDate(request.getRecruitmentDate());
+        }
+        if (request.getCompany() != null) {
+            user.setCompany(request.getCompany().trim().isEmpty() ? null : request.getCompany().trim());
+        }
+        if (request.getFiscalMatricule() != null) {
+            user.setFiscalMatricule(
+                    request.getFiscalMatricule().trim().isEmpty() ? null : request.getFiscalMatricule().trim());
+        }
 
         userRepository.save(user);
         return ResponseEntity.ok(new AdminUserResponse(user));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+        }
     }
 
     @PatchMapping("/admin/users/{id}/status")
@@ -298,6 +388,13 @@ public class UserController {
         private String role;
         private String profilePicture;
         private boolean isActive;
+        private String phoneNumber;
+        private String address;
+        private LocalDate dateOfBirth;
+        private String gender;
+        private LocalDate recruitmentDate;
+        private String company;
+        private String fiscalMatricule;
         private String createdAt;
         private List<SkillOption> skills;
 
@@ -309,6 +406,13 @@ public class UserController {
             this.role = user.getRole().name();
             this.profilePicture = user.getProfilePicture();
             this.isActive = user.isActive();
+            this.phoneNumber = user.getPhoneNumber();
+            this.address = user.getAddress();
+            this.dateOfBirth = user.getDateOfBirth();
+            this.gender = user.getGender();
+            this.recruitmentDate = user.getRecruitmentDate();
+            this.company = user.getCompany();
+            this.fiscalMatricule = user.getFiscalMatricule();
             this.createdAt = user.getCreatedAt() == null
                     ? null
                     : user.getCreatedAt().atOffset(ZoneOffset.UTC).toString();
@@ -327,6 +431,13 @@ public class UserController {
         public String getRole() { return role; }
         public String getProfilePicture() { return profilePicture; }
         public boolean isActive() { return isActive; }
+        public String getPhoneNumber() { return phoneNumber; }
+        public String getAddress() { return address; }
+        public LocalDate getDateOfBirth() { return dateOfBirth; }
+        public String getGender() { return gender; }
+        public LocalDate getRecruitmentDate() { return recruitmentDate; }
+        public String getCompany() { return company; }
+        public String getFiscalMatricule() { return fiscalMatricule; }
         public String getCreatedAt() { return createdAt; }
         public List<SkillOption> getSkills() { return skills; }
     }
@@ -372,12 +483,15 @@ public class UserController {
         private final String firstName;
         private final String lastName;
         private final String email;
+        /** Non-archived skill ids on this project manager (for admin project creation filtering). */
+        private final List<Long> skillIds;
 
-        ProjectManagerOption(Long id, String firstName, String lastName, String email) {
+        ProjectManagerOption(Long id, String firstName, String lastName, String email, List<Long> skillIds) {
             this.id = id;
             this.firstName = firstName;
             this.lastName = lastName;
             this.email = email;
+            this.skillIds = skillIds == null ? List.of() : List.copyOf(skillIds);
         }
 
         public Long getId() {
@@ -394,6 +508,10 @@ public class UserController {
 
         public String getEmail() {
             return email;
+        }
+
+        public List<Long> getSkillIds() {
+            return skillIds;
         }
     }
 
@@ -451,6 +569,13 @@ public class UserController {
         private String email;
         private String role;
         private List<Long> skillIds;
+        private String phoneNumber;
+        private String address;
+        private LocalDate dateOfBirth;
+        private String gender;
+        private LocalDate recruitmentDate;
+        private String company;
+        private String fiscalMatricule;
 
         public String getFirstName() { return firstName; }
         public void setFirstName(String firstName) { this.firstName = firstName; }
@@ -462,6 +587,20 @@ public class UserController {
         public void setRole(String role) { this.role = role; }
         public List<Long> getSkillIds() { return skillIds; }
         public void setSkillIds(List<Long> skillIds) { this.skillIds = skillIds; }
+        public String getPhoneNumber() { return phoneNumber; }
+        public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
+        public String getAddress() { return address; }
+        public void setAddress(String address) { this.address = address; }
+        public LocalDate getDateOfBirth() { return dateOfBirth; }
+        public void setDateOfBirth(LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }
+        public String getGender() { return gender; }
+        public void setGender(String gender) { this.gender = gender; }
+        public LocalDate getRecruitmentDate() { return recruitmentDate; }
+        public void setRecruitmentDate(LocalDate recruitmentDate) { this.recruitmentDate = recruitmentDate; }
+        public String getCompany() { return company; }
+        public void setCompany(String company) { this.company = company; }
+        public String getFiscalMatricule() { return fiscalMatricule; }
+        public void setFiscalMatricule(String fiscalMatricule) { this.fiscalMatricule = fiscalMatricule; }
     }
 
     static class SkillOption {
@@ -488,7 +627,12 @@ public class UserController {
         String fullName = ((user.getFirstName() == null ? "" : user.getFirstName()) + " " + (user.getLastName() == null ? "" : user.getLastName()))
                 .toLowerCase(Locale.ROOT);
         String email = user.getEmail() == null ? "" : user.getEmail().toLowerCase(Locale.ROOT);
-        return fullName.contains(searchValue) || email.contains(searchValue);
+        String phone = user.getPhoneNumber() == null ? "" : user.getPhoneNumber().toLowerCase(Locale.ROOT);
+        String addr = user.getAddress() == null ? "" : user.getAddress().toLowerCase(Locale.ROOT);
+        String company = user.getCompany() == null ? "" : user.getCompany().toLowerCase(Locale.ROOT);
+        String fiscal = user.getFiscalMatricule() == null ? "" : user.getFiscalMatricule().toLowerCase(Locale.ROOT);
+        return fullName.contains(searchValue) || email.contains(searchValue) || phone.contains(searchValue)
+                || addr.contains(searchValue) || company.contains(searchValue) || fiscal.contains(searchValue);
     }
 
     private Set<Skill> resolveSkillsForRole(UserRole role, List<Long> skillIds) {
@@ -503,6 +647,23 @@ public class UserController {
         if (found.size() != uniqueIds.size()) {
             throw new RuntimeException("One or more selected skills are invalid.");
         }
+        SkillService.ensureNotArchived(found);
         return new HashSet<>(found);
+    }
+
+    private static String messageForDataIntegrityViolation(DataIntegrityViolationException ex) {
+        Throwable cause = ex.getMostSpecificCause();
+        String raw = cause != null ? cause.getMessage() : ex.getMessage();
+        String msg = "Unable to save this user. Check that the email is unique and the role is accepted by the database.";
+        if (raw != null) {
+            String low = raw.toLowerCase(Locale.ROOT);
+            if (low.contains("duplicate") || low.contains("unique")) {
+                msg = "Email already exists";
+            } else if (low.contains("data truncated") || low.contains("truncated")) {
+                msg = "The database refused the stored role (often a too-narrow MySQL ENUM or column). "
+                        + "Run: ALTER TABLE users MODIFY COLUMN role VARCHAR(64); then restart the app.";
+            }
+        }
+        return msg;
     }
 }

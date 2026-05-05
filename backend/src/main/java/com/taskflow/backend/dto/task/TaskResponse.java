@@ -53,4 +53,11 @@ public class TaskResponse {
                 skillRows
         );
     }
+
+    /** Same as {@link #fromTask(Task)} but hides assignee emails (client-facing progress view). */
+    public static TaskResponse fromTaskForClient(Task task) {
+        TaskResponse r = fromTask(task);
+        r.setCollaboratorEmails(List.of());
+        return r;
+    }
 }

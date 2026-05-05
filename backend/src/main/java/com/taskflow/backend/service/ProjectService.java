@@ -95,15 +95,16 @@ public class ProjectService {
             throw new UnauthorizedException("You cannot access this project");
         }
         if (user.getRole() == UserRole.COLLABORATOR) {
-            ProjectResponse response = ProjectResponse.fromProject(project, task ->
-                    task.getCollaborators() != null
-                            && task.getCollaborators().stream().anyMatch(c -> c.getId().equals(user.getId()))
-            );
+            ProjectResponse response = collaboratorAssignedViaTasks(project, user)
+                    ? ProjectResponse.fromProject(project, task ->
+                            task.getCollaborators() != null
+                                    && task.getCollaborators().stream().anyMatch(c -> c.getId().equals(user.getId())))
+                    : ProjectResponse.fromProject(project);
             response.setFiles(uploadedFileService.listProjectFilesForUser(project, user));
             return response;
         }
         if (user.getRole() == UserRole.CLIENT) {
-            ProjectResponse response = ProjectResponse.fromProject(project);
+            ProjectResponse response = ProjectResponse.fromProjectForClient(project);
             response.setFiles(uploadedFileService.listProjectFilesForUser(project, user));
             return response;
         }
@@ -115,6 +116,19 @@ public class ProjectService {
     private boolean userCanViewProject(Project project, User user) {
         if (user.getRole() == UserRole.ADMIN) {
             return true;
+        }
+        if (user.getRole() == UserRole.CLIENT) {
+            if (project.isArchived()) {
+                return false;
+            }
+            return project.getMembers() != null
+                    && project.getMembers().stream().anyMatch(m -> m.getId().equals(user.getId()));
+        }
+        if (user.getRole() == UserRole.COLLABORATOR) {
+            if (project.isArchived()) {
+                return false;
+            }
+            return collaboratorCanAccessProject(project, user);
         }
         if (project.getManager() != null && project.getManager().getId().equals(user.getId())) {
             return true;
@@ -132,6 +146,44 @@ public class ProjectService {
             }
         }
         return false;
+    }
+
+    /** Collaborator sees a project only when assigned by the PM/chef on at least one task. */
+    private boolean collaboratorAssignedViaTasks(Project project, User collaborator) {
+        Long id = collaborator.getId();
+        if (project.getTasks() == null || id == null) {
+            return false;
+        }
+        return project.getTasks().stream()
+                .anyMatch(task -> task.getCollaborators() != null
+                        && task.getCollaborators().stream().anyMatch(c -> id.equals(c.getId())));
+    }
+
+    /**
+     * Collaborator may access a project when they are on the project member list (e.g. after an approved
+     * proposal) or when assigned on at least one task.
+     */
+    private boolean collaboratorCanAccessProject(Project project, User collaborator) {
+        Long id = collaborator.getId();
+        if (id == null) {
+            return false;
+        }
+        if (project.getMembers() != null
+                && project.getMembers().stream().anyMatch(m -> m.getId().equals(id))) {
+            return true;
+        }
+        return collaboratorAssignedViaTasks(project, collaborator);
+    }
+
+    /**
+     * Projects listed for collaborators: non-archived, non-paused, non-delivered, and either a member or
+     * assigned on a task. Future start dates stay visible so they match the “not started” column in the UI.
+     */
+    private boolean collaboratorSeesListableProject(Project project, User collaborator) {
+        if (project.isArchived() || project.isPaused() || project.isDelivered()) {
+            return false;
+        }
+        return collaboratorCanAccessProject(project, collaborator);
     }
 
     /**
@@ -258,19 +310,23 @@ public class ProjectService {
         }
         if (manager.getRole() == UserRole.COLLABORATOR) {
             return projectRepository.findAll().stream()
-                    .filter(project -> !project.isArchived())
-                    .filter(project -> userCanViewProject(project, manager))
-                    .map(project -> ProjectResponse.fromProject(project, task ->
-                            task.getCollaborators() != null
-                                    && task.getCollaborators().stream().anyMatch(c -> c.getId().equals(manager.getId()))
-                    ))
+                    .filter(project -> collaboratorSeesListableProject(project, manager))
+                    .map(project -> {
+                        boolean onTasks = collaboratorAssignedViaTasks(project, manager);
+                        return onTasks
+                                ? ProjectResponse.fromProject(project, task ->
+                                        task.getCollaborators() != null
+                                                && task.getCollaborators().stream()
+                                                        .anyMatch(c -> c.getId().equals(manager.getId())))
+                                : ProjectResponse.fromProject(project);
+                    })
                     .toList();
         }
         if (manager.getRole() == UserRole.CLIENT) {
             return projectRepository.findAll().stream()
                     .filter(project -> !project.isArchived())
                     .filter(project -> userCanViewProject(project, manager))
-                    .map(ProjectResponse::fromProject)
+                    .map(ProjectResponse::fromProjectForClient)
                     .toList();
         }
         return projectRepository.findByManagerAndArchived(manager, false)
@@ -380,6 +436,7 @@ public class ProjectService {
             if (found.size() != unique.size()) {
                 throw new BadRequestException("One or more skill ids are invalid");
             }
+            SkillService.ensureNotArchived(found);
             project.setRequiredSkills(new HashSet<>(found));
         }
         projectRepository.save(project);
@@ -392,6 +449,9 @@ public class ProjectService {
 
     @Transactional(readOnly = true)
     public ProjectSkillMatchResponse getProjectSkillMatches(Long projectId, User user) {
+        if (user.getRole() == UserRole.CLIENT) {
+            throw new UnauthorizedException("Clients cannot access internal team matching data");
+        }
         Project project = projectRepository.findDetailedById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", projectId));
         if (!userCanViewProject(project, user)) {
@@ -401,9 +461,12 @@ public class ProjectService {
         if (actorRole != UserRole.ADMIN && actorRole != UserRole.PROJECT_MANAGER) {
             throw new UnauthorizedException("You cannot access team skill matches for this project");
         }
-        Set<Skill> required = project.getRequiredSkills() == null
+        Set<Skill> requiredRaw = project.getRequiredSkills() == null
                 ? Set.of()
                 : new HashSet<>(project.getRequiredSkills());
+        Set<Skill> required = requiredRaw.stream()
+                .filter(sk -> !sk.isArchived())
+                .collect(Collectors.toSet());
         List<SkillResponse> requiredDtos = required.stream()
                 .map(SkillResponse::fromEntity)
                 .sorted(Comparator.comparing(SkillResponse::getName, String.CASE_INSENSITIVE_ORDER))
@@ -479,6 +542,7 @@ public class ProjectService {
         if (found.size() != uniqueIds.size()) {
             throw new BadRequestException("One or more selected skills are invalid.");
         }
+        SkillService.ensureNotArchived(found);
         return new HashSet<>(found);
     }
 }
