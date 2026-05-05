@@ -2,6 +2,10 @@
   <p-toast />
   <p-confirmdialog />
 
+  <ng-container *ngIf="isClient">
+    <app-client-reporting />
+  </ng-container>
+
   <div class="workspace-header">
     <div>
       <h1 class="workspace-title">{{ pageTitle }}</h1>
@@ -51,7 +55,7 @@
         </div>
       </div>
 
-      <h2 class="projects-section-title">{{ isClient ? 'Projets actifs' : 'Projets en cours' }}</h2>
+      <h2 class="projects-section-title">{{ isClient ? 'Active projects' : 'In progress' }}</h2>
 
       <div class="projects-grid" *ngIf="filteredInProgressProjects(projects).length">
         <div class="project-grid-item" *ngFor="let project of filteredInProgressProjects(projects)">
@@ -68,7 +72,7 @@
         </div>
       </div>
 
-      <h2 class="projects-section-title" *ngIf="filteredPausedProjects(projects).length">Projets en pause</h2>
+      <h2 class="projects-section-title" *ngIf="filteredPausedProjects(projects).length">Paused projects</h2>
       <div class="projects-grid" *ngIf="filteredPausedProjects(projects).length">
         <div class="project-grid-item" *ngFor="let project of filteredPausedProjects(projects)">
           <app-project-panel
@@ -89,7 +93,7 @@
         class="projects-main-empty text-center p-5 border-round-xl surface-ground">
         <i class="pi pi-info-circle text-400 text-4xl mb-3 block"></i>
         <p class="m-0 text-600">
-          Aucun projet <strong>en cours</strong> pour cette vue — les correspondances ci-dessous sont à droite (autres statuts).
+          No projects <strong>in progress</strong> in this view — related items appear on the right (other statuses).
         </p>
       </div>
     </div>
@@ -149,7 +153,7 @@
 
   <div *ngIf="projects.length && !filteredProjects(projects).length" class="empty-state">
     <i class="pi pi-search text-300 text-6xl mb-3"></i>
-    <span class="text-600 text-xl font-medium">Aucun projet ne correspond à votre recherche.</span>
+    <span class="text-600 text-xl font-medium">No projects match your search.</span>
   </div>
   </ng-container>
 </div>
@@ -198,7 +202,7 @@
     </div>
 
     <div class="flex flex-column mb-2">
-      <label class="font-bold mb-2">Début du projet (optionnel)</label>
+      <label class="font-bold mb-2">Project start (optional)</label>
       <input
         pInputText
         type="date"
@@ -207,7 +211,7 @@
     </div>
 
     <div class="flex flex-column mb-2">
-      <label class="font-bold mb-2">Date limite (optionnel)</label>
+      <label class="font-bold mb-2">Deadline (optional)</label>
       <input
         pInputText
         type="date"
@@ -232,12 +236,24 @@
         [disabled]="skillsLoading">
       </p-multiselect>
     </div>
+
+    <div *ngIf="!isEditMode" class="flex flex-column mb-2">
+      <label class="font-bold mb-2">Attachment (optional)</label>
+      <input
+        type="file"
+        class="w-full"
+        (change)="onCreateProjectFileSelected($event)" />
+      <small *ngIf="createProjectAttachmentFile" class="text-600 mt-1 block">{{ createProjectAttachmentFile.name }}</small>
+    </div>
   </ng-template>
 
   <ng-template pTemplate="footer">
-    <button pButton 
-            [label]="isEditMode ? 'Update' : 'Create'" 
-            (click)="isEditMode ? updateProject() : createProject()">
+    <button
+      pButton
+      [label]="isEditMode ? 'Update' : 'Create'"
+      [loading]="saveInProgress"
+      [disabled]="saveInProgress"
+      (click)="isEditMode ? updateProject() : createProject()">
     </button>
   </ng-template>
 </p-dialog>

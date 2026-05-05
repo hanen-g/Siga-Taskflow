@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { Login } from './pages/login/login';
+import { Signup } from './pages/signup/signup';
 import { Dashboard } from './pages/dashboard/dashboard';
 import { ProjectsPage } from './pages/project_manager/projects/projects';
 import { IAChatComponent } from './ia-dashbord/ia-chat.component';
@@ -11,7 +12,7 @@ export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
 
   { path: 'login', component: Login },
-  { path: 'signup', redirectTo: 'login', pathMatch: 'full' },
+  { path: 'signup', component: Signup },
 
   {
     path: '',

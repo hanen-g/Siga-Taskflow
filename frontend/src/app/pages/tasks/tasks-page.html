@@ -2,6 +2,29 @@
 
 <div class="kanban-page">
   <div class="header-row">
+    <div class="pm-kanban-filters" *ngIf="isManager" role="group" aria-label="Task scope">
+      <span class="pm-filter-label">Show</span>
+      <div class="pm-filter-buttons">
+        <button
+          type="button"
+          class="pm-filter-btn"
+          [class.is-active]="managerKanbanFilter === 'assigned_to_me'"
+          (click)="setManagerFilter('assigned_to_me')"
+        >
+          My assigned tasks
+          <span class="pm-filter-count">{{ countManagerMyAssignedTasks() }}</span>
+        </button>
+        <button
+          type="button"
+          class="pm-filter-btn"
+          [class.is-active]="managerKanbanFilter === 'assigned_to_others'"
+          (click)="setManagerFilter('assigned_to_others')"
+        >
+          Assigned to collaborators
+          <span class="pm-filter-count">{{ countManagerCollaboratorTasks() }}</span>
+        </button>
+      </div>
+    </div>
     <div class="priority-legend" aria-label="Task priorities">
       <span class="legend-label">Priority:</span>
       <span class="legend-item">
@@ -65,7 +88,7 @@
           >
             <span class="card-priority-dot" [ngClass]="getPriorityClass(task.priority)"></span>
             <div class="task-title">{{ task.title }}</div>
-            <div class="task-description">{{ task.description || task.projectName || 'No description provided.' }}</div>
+            <div class="task-project-name">{{ task.projectName || '—' }}</div>
             <div class="task-deadline" [class.overdue]="isOverdue(task)">
               <span class="label">Due Date:</span>
               <span class="value">{{ formatDeadline(task.deadline) }}</span>
@@ -84,7 +107,7 @@
   *ngIf="selectedTask"
   [task]="selectedTask"
   [showAssignedTo]="!isCollaborator"
-  [canManageStatus]="isCollaborator"
+  [canManageStatus]="canManageSelectedTaskStatus"
   (requestStart)="requestStartFromPanel($event)"
   (requestPause)="requestPauseFromPanel($event)"
   (requestResume)="requestResumeFromPanel($event)"
@@ -97,9 +120,10 @@
   [draggable]="false"
   [resizable]="false"
   [style]="{ width: '30rem' }"
-  header="Put task on hold"
+  [header]="pauseDialogTitle"
   (onHide)="cancelPauseDialog()"
 >
+  <p *ngIf="pendingTask" class="text-600 mb-3 m-0">{{ pauseConfirmIntro }}</p>
   <label class="dialog-label" for="pauseReason">Reason for hold:</label>
   <input id="pauseReason" pInputText [(ngModel)]="pauseReason" class="w-full" />
 
@@ -115,9 +139,10 @@
   [draggable]="false"
   [resizable]="false"
   [style]="{ width: '30rem' }"
-  header="Submit for review"
+  [header]="reviewDialogTitle"
   (onHide)="cancelReviewDialog()"
 >
+  <p *ngIf="pendingTask" class="text-600 mb-3 m-0">{{ reviewConfirmIntro }}</p>
   <label class="dialog-label" for="reviewNote">Note for project manager (optional):</label>
   <input id="reviewNote" pInputText [(ngModel)]="reviewNote" class="w-full" />
 

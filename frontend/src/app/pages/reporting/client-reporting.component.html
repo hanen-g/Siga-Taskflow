@@ -1,0 +1,91 @@
+<div class="reporting-page wide">
+  <div *ngIf="loading" class="loading">
+    <app-loader label="Loading your reporting dashboard..." />
+  </div>
+
+  <ng-container *ngIf="!loading && data">
+    <div class="kpi-grid kpi-three">
+      <p-card header="Assigned projects"><span class="kpi-num">{{ data.projectCount }}</span></p-card>
+      <p-card header="Overall completion"><span class="kpi-num">{{ data.overallCompletionPercent }}%</span></p-card>
+      <p-card header="Projects at risk">
+        <span class="kpi-num danger">{{ data.atRiskProjectCount }}</span>
+      </p-card>
+    </div>
+
+    <div class="chart-row-two">
+      <p-card header="Progress by project">
+        <div class="chart-tall">
+          <p-chart type="bar" [data]="bar" [options]="barOpts" />
+        </div>
+      </p-card>
+      <p-card header="Combined task status">
+        <div class="chart-box">
+          <p-chart type="doughnut" [data]="donut" [options]="opts" />
+        </div>
+      </p-card>
+    </div>
+
+    <h2 class="section-h">My projects</h2>
+    <div class="project-panels">
+      <p-panel
+        *ngFor="let p of data.projects"
+        [toggleable]="true"
+        expandIcon="pi pi-chevron-down"
+        collapseIcon="pi pi-chevron-up"
+      >
+        <ng-template pTemplate="header">
+          <div class="panel-title-row">
+            <span class="panel-title">{{ p.projectName }}</span>
+            <p-tag [severity]="riskSeverity(p.statusLabel)" [value]="p.statusLabel" />
+            <span class="panel-progress">{{ p.progressPercent }}%</span>
+          </div>
+        </ng-template>
+
+        <div class="panel-meta">
+          <span>Tasks: {{ p.completedTasks }} / {{ p.totalTasks }}</span>
+          <span *ngIf="p.deadlineIso">Deadline: {{ p.deadlineIso }}</span>
+        </div>
+        <p-progressBar [value]="p.progressPercent" [style]="{ height: '10px', margin: '0.75rem 0' }" />
+
+        <h4 class="sub-h">Task list</h4>
+        <div class="task-grid">
+          <div class="task-row head">
+            <span>Title</span><span>Assignee</span><span>Status</span><span>Due</span>
+          </div>
+          <div class="task-row" *ngFor="let t of p.tasks">
+            <span>{{ t.title }}</span>
+            <span>{{ t.assigneeNames || '—' }}</span>
+            <span><p-tag [value]="t.status" /></span>
+            <span>{{ t.deadlineIso ? (t.deadlineIso | date : 'mediumDate') : '—' }}</span>
+          </div>
+        </div>
+      </p-panel>
+    </div>
+
+    <h2 class="section-h">Project timelines (by deadline)</h2>
+    <div class="timeline-stack">
+      <p-card *ngFor="let tl of data.projectTimelines" [header]="tl.projectName">
+        <div class="tl-item" *ngFor="let e of tl.entries; let i = index">
+          <span class="tl-idx">{{ i + 1 }}</span>
+          <div>
+            <div class="tl-title">{{ e.title }}</div>
+            <div class="tl-sub">{{ e.assigneeNames }} · {{ e.status }}</div>
+          </div>
+          <span class="tl-due">{{ e.deadlineIso ? (e.deadlineIso | date : 'mediumDate') : '—' }}</span>
+        </div>
+      </p-card>
+    </div>
+
+    <h2 class="section-h">Recent activity</h2>
+    <p-card>
+      <div class="feed" *ngIf="data.recentActivity.length; else emptyFeed">
+        <div class="feed-row" *ngFor="let a of data.recentActivity">
+          <span class="feed-time">{{ a.occurredAtIso }}</span>
+          <p-tag [value]="a.kind" [severity]="severityFor(a.kind)" />
+          <span class="feed-summary">{{ a.summary }}</span>
+        </div>
+      </div>
+      <ng-template #emptyFeed><p class="muted">No recent activity items.</p></ng-template>
+    </p-card>
+  </ng-container>
+</div>

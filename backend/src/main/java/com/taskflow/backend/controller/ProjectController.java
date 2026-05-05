@@ -1,5 +1,6 @@
 package com.taskflow.backend.controller;
 
+import com.taskflow.backend.dto.project.AssigneeCandidateResponse;
 import com.taskflow.backend.dto.project.ProjectLifecycleRequest;
 import com.taskflow.backend.dto.project.ProjectResponse;
 import com.taskflow.backend.dto.skill.ProjectSkillMatchResponse;
@@ -94,6 +95,14 @@ public class ProjectController {
             @PathVariable Long id,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         return projectService.getProjectSkillMatches(id, userDetails.getUser());
+    }
+
+    @GetMapping("/{id}/assignee-candidates")
+    public List<AssigneeCandidateResponse> getAssigneeCandidates(
+            @PathVariable Long id,
+            @RequestParam(name = "skillIds", required = false) List<Long> skillIds,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return projectService.getAssigneeCandidates(id, skillIds, userDetails.getUser());
     }
 
     @PutMapping("/{id}/required-skills")

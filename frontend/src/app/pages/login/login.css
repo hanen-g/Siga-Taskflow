@@ -224,6 +224,21 @@
   cursor: not-allowed;
 }
 
+.login-signup-hint {
+  margin: 1rem 0 0;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.login-signup-hint a {
+  color: #9b7fd4;
+  text-decoration: none;
+}
+
+.login-signup-hint a:hover {
+  text-decoration: underline;
+}
+
 .error-message {
   margin-bottom: -12px;
 }

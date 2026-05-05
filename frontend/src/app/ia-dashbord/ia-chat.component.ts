@@ -13,7 +13,7 @@ import { AdminService } from './admin.service';
       <div class="input-section">
         <textarea 
           [(ngModel)]="prompt" 
-          placeholder="Entrer vos stats..."
+          placeholder="Enter your stats or prompt..."
           [disabled]="loading">
         </textarea>
         <br><br>
@@ -21,19 +21,19 @@ import { AdminService } from './admin.service';
         <button 
           (click)="analyze()"
           [disabled]="!prompt || loading">
-          {{ loading ? 'Analyse en cours...' : 'Analyser' }}
+          {{ loading ? 'Analyzing...' : 'Analyze' }}
         </button>
       </div>
 
       @if (error) {
         <div class="error-message">
-          <strong>Erreur :</strong> {{ error }}
+          <strong>Error:</strong> {{ error }}
         </div>
       }
 
       @if (response) {
         <div class="response-section">
-          <strong>Réponse IA :</strong><br>
+          <strong>AI response:</strong><br>
           <p>{{ getResponseText() }}</p>
         </div>
       }
@@ -122,25 +122,21 @@ export class IAChatComponent {
   getResponseText(): string {
     if (!this.response) return '';
     
-    // Si c'est un objet
     if (typeof this.response === 'object') {
-      // Vérifier différentes propriétés communes
       if (this.response.response) return this.response.response;
       if (this.response.data) return this.response.data;
       if (this.response.message) return this.response.message;
       if (this.response.result) return this.response.result;
       if (this.response.analysis) return this.response.analysis;
-      // Si c'est un objet, le convertir en JSON lisible
       return JSON.stringify(this.response, null, 2);
     }
     
-    // Si c'est une chaîne
     return this.response.toString();
   }
 
   analyze() {
     if (!this.prompt.trim()) {
-      this.error = 'Veuillez entrer un prompt';
+      this.error = 'Please enter a prompt';
       this.debugInfo = '';
       return;
     }
@@ -150,31 +146,30 @@ export class IAChatComponent {
     this.response = null;
     this.debugInfo = '';
 
-    console.log('Envoi de la requête avec:', this.prompt);
+    console.log('Sending request with:', this.prompt);
 
     this.adminService.analyze(this.prompt)
       .subscribe({
         next: (res) => {
-          console.log('Réponse reçue:', res);
+          console.log('Response received:', res);
           this.response = res;
           this.loading = false;
-          this.debugInfo = `Type: ${typeof res}, Clés: ${Object.keys(res).join(', ')}`;
+          this.debugInfo = `Type: ${typeof res}, Keys: ${Object.keys(res).join(', ')}`;
         },
         error: (err) => {
-          console.error('Erreur lors de l\'analyse:', err);
+          console.error('Error while analyzing:', err);
           
-          // Gestion des erreurs plus détaillée
           if (err.status === 0) {
-            this.error = 'Impossible de se connecter au serveur (vérifiez que le backend est en cours d\'exécution)';
+            this.error = 'Could not reach the server (check that the backend is running)';
           } else if (err.error?.message) {
             this.error = err.error.message;
           } else if (err.message) {
             this.error = err.message;
           } else {
-            this.error = `Erreur HTTP ${err.status}: ${err.statusText || 'Erreur serveur'}`;
+            this.error = `HTTP error ${err.status}: ${err.statusText || 'Server error'}`;
           }
           
-          this.debugInfo = `Erreur complète: ${JSON.stringify(err)}`;
+          this.debugInfo = `Full error: ${JSON.stringify(err)}`;
           this.loading = false;
         }
       });

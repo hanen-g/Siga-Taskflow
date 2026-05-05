@@ -15,4 +15,6 @@ public class TaskRequest {
     private List<String> collaboratorEmails;
     private String priority;
     private LocalDateTime deadline;
+    /** Subset of the project's required skill ids; omit or null on update to leave skills unchanged. */
+    private List<Long> skillIds;
 }

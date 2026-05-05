@@ -16,7 +16,7 @@ import { ConfirmationService, MessageService } from 'primeng/api';
 
 import { AppLoaderComponent } from '../../../layout/app-loader';
 import { FolderFileUploadComponent } from '../../../layout/folder-file-upload';
-import { ProjectService } from '../../../services/project.service';
+import { AssigneeCandidate, ProjectService } from '../../../services/project.service';
 import { Project } from '../../../models/project.model';
 import { Priority, Task, TaskStatus } from '../../../models/task.model';
 import { TaskService } from '../../../services/task.service';
@@ -25,6 +25,10 @@ import { FileAccessService } from '../../../services/file-access.service';
 import { SkillService } from '../../../services/skill.service';
 import { Skill, ProjectSkillMatchResult, UserSkillMatch } from '../../../models/skill.model';
 import { MultiSelectModule } from 'primeng/multiselect';
+import { AutoCompleteModule } from 'primeng/autocomplete';
+import type { AutoCompleteCompleteEvent } from 'primeng/autocomplete';
+
+import { UserService } from '../../../services/user.service';
 
 type ProjectAction =
   | 'edit'
@@ -61,7 +65,8 @@ interface ProjectActionItem {
     InputTextModule,
     TextareaModule,
     FolderFileUploadComponent,
-    MultiSelectModule
+    MultiSelectModule,
+    AutoCompleteModule
   ],
   providers: [MessageService, ConfirmationService]
 })
@@ -84,8 +89,10 @@ export class ProjectDetailPage implements OnInit {
   searchText = '';
   displayDialog = false;
   taskDialogVisible = false;
+  editTaskDialogVisible = false;
   isSavingProject = false;
   isSavingTask = false;
+  isUpdatingTask = false;
   readonly priorities: Priority[] = [Priority.LOW, Priority.MEDIUM, Priority.HIGH];
   editableProject: Pick<Project, 'name' | 'description' | 'startDate' | 'deadline'> = {
     name: '',
@@ -94,6 +101,14 @@ export class ProjectDetailPage implements OnInit {
     deadline: ''
   };
   newTask: Task = this.createEmptyTask();
+  editableTask: Task = this.createEmptyTask();
+  editingTaskId: number | null = null;
+  newTaskAttachmentFile: File | null = null;
+  collaboratorEmailSuggestions: string[] = [];
+  assigneeCandidates: AssigneeCandidate[] = [];
+  assigneeCandidatesLoading = false;
+  assigneeSuggestionsPopupVisible = false;
+  private assigneeLoadSeq = 0;
 
   backLink = '/dashboard/pm/projects';
 
@@ -130,20 +145,11 @@ export class ProjectDetailPage implements OnInit {
       !project.paused &&
       !project.delivered
     ) {
-      actions.push({ action: 'add-task', icon: 'pi pi-plus', label: 'Add task', tone: 'success' });
+      actions.push({ action: 'add-task', icon: 'pi pi-plus', label: 'Create new task', tone: 'success' });
     }
     return actions;
   }
 
-  projectActionsVisible(project: Project | null): ProjectActionItem[] {
-    const actions = this.projectToolbarActions(project);
-    if (this.currentUserRole() === 'ADMIN') {
-      return actions;
-    }
-    return actions.filter(
-      (a: ProjectActionItem) => a.action !== 'edit' && a.action !== 'delete'
-    );
-  }
   bannerColor(project: Project | null): string {
     if (!project) {
       return '#dbeafe';
@@ -213,7 +219,8 @@ export class ProjectDetailPage implements OnInit {
     private fileAccess: FileAccessService,
     private messageService: MessageService,
     private confirmationService: ConfirmationService,
-    private skillService: SkillService
+    private skillService: SkillService,
+    private userService: UserService
   ) {}
 
   ngOnInit() {
@@ -330,7 +337,15 @@ export class ProjectDetailPage implements OnInit {
     return email || 'Unassigned';
   }
 
+  taskSkillIds(task: Task | undefined): number[] {
+    return [...(task?.skillIds ?? []), ...(task?.skills?.map((skill) => skill.id).filter((id): id is number => id != null) ?? [])]
+      .filter((id, index, ids) => ids.indexOf(id) === index);
+  }
+
   switchTab(tab: 'tasks' | 'files' | 'team', project: Project | null): void {
+    if (tab === 'team' && !this.canViewTeamSkillsTab()) {
+      tab = 'tasks';
+    }
     this.activeTab = tab;
     this.searchText = '';
     if (tab === 'team' && project?.id) {
@@ -351,6 +366,21 @@ export class ProjectDetailPage implements OnInit {
       return project.managerId === uid;
     }
     return false;
+  }
+
+  /** Tab and API: collaborators and clients never see skill matching. */
+  canViewTeamSkillsTab(): boolean {
+    const role = this.currentUserRole();
+    return role === 'ADMIN' || role === 'PROJECT_MANAGER';
+  }
+
+  isAdminRole(): boolean {
+    return this.currentUserRole() === 'ADMIN';
+  }
+
+  /** Section title for the match table (admins → PM fits, PMs → collaborator fits). */
+  teamMatchesSectionTitle(): string {
+    return this.isAdminRole() ? 'Best-fit project managers' : 'Best-fit collaborators';
   }
 
   saveProjectRequiredSkills(project: Project | null): void {
@@ -381,7 +411,7 @@ export class ProjectDetailPage implements OnInit {
   }
 
   private refreshTeamPanel(project: Project): void {
-    if (!this.projectId) {
+    if (!this.projectId || !this.canViewTeamSkillsTab()) {
       return;
     }
     this.selectedRequiredSkillIds = (project.requiredSkills ?? []).map((s) => s.id);
@@ -389,7 +419,7 @@ export class ProjectDetailPage implements OnInit {
   }
 
   private reloadTeamMatches(): void {
-    if (!this.projectId) {
+    if (!this.projectId || !this.canViewTeamSkillsTab()) {
       return;
     }
     this.teamPanelLoading = true;
@@ -518,6 +548,10 @@ export class ProjectDetailPage implements OnInit {
     return project.managerId != null && uid != null && project.managerId === uid;
   }
 
+  canEditTask(project: Project | null): boolean {
+    return this.isProjectManagerOfProject(project) && !project?.archived && !project?.delivered;
+  }
+
   handleProjectAction(action: ProjectAction, project: Project | null, event: Event): void {
     if (!project) {
       return;
@@ -613,17 +647,136 @@ export class ProjectDetailPage implements OnInit {
     });
   }
 
+  onNewTaskFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.newTaskAttachmentFile = input.files?.[0] ?? null;
+  }
+
+  loadAssigneeSuggestions(project: Project | null): void {
+    if (!project?.id || !this.isProjectManagerOfProject(project)) {
+      this.assigneeCandidates = [];
+      this.assigneeCandidatesLoading = false;
+      return;
+    }
+    const seq = ++this.assigneeLoadSeq;
+    this.assigneeCandidatesLoading = true;
+    const ids = [...(this.newTask.skillIds ?? [])].filter((id): id is number => id != null);
+    this.projectService.getAssigneeCandidates(project.id, ids).subscribe({
+      next: (rows) => {
+        if (seq !== this.assigneeLoadSeq) {
+          return;
+        }
+        this.assigneeCandidates = rows;
+        this.assigneeCandidatesLoading = false;
+      },
+      error: () => {
+        if (seq !== this.assigneeLoadSeq) {
+          return;
+        }
+        this.assigneeCandidates = [];
+        this.assigneeCandidatesLoading = false;
+      }
+    });
+  }
+
+  onNewTaskSkillsChange(project: Project | null): void {
+    this.loadAssigneeSuggestions(project);
+  }
+
+  pickAssignee(email: string): void {
+    const trimmed = email?.trim();
+    if (trimmed) {
+      this.newTask.collaboratorEmail = trimmed;
+    }
+  }
+
+  openAssigneeSuggestionsPopup(): void {
+    this.assigneeSuggestionsPopupVisible = true;
+  }
+
+  pickAssigneeFromPopup(email: string): void {
+    this.pickAssignee(email);
+    this.assigneeSuggestionsPopupVisible = false;
+  }
+
+  formatAssigneeRow(c: AssigneeCandidate): string {
+    const name = `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim();
+    const label = name ? `${name} <${c.email}>` : c.email;
+    const n = c.activeTaskCount ?? 0;
+    const suffix = n === 1 ? '1 active task' : `${n} active tasks`;
+    return `${label} — ${suffix}`;
+  }
+
+  searchCollaborators(event: AutoCompleteCompleteEvent): void {
+    const q = event.query ?? '';
+    this.userService.searchCollaboratorEmails(q).subscribe({
+      next: (emails) => {
+        this.collaboratorEmailSuggestions = this.mergeAssigneeSuggestionsForPm(emails, q);
+      },
+      error: () => {
+        this.collaboratorEmailSuggestions = [];
+      }
+    });
+  }
+
+  /**
+   * Ensures the signed-in project manager can pick their own email (API list is capped and sorted globally).
+   */
+  private mergeAssigneeSuggestionsForPm(apiEmails: string[], queryRaw: string): string[] {
+    const unique = [...new Set(apiEmails.map((e) => e.trim()).filter((e) => e.length > 0))];
+    unique.sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
+    const me = this.readStoredUser()?.email?.trim();
+    if (this.currentUserRole() !== 'PROJECT_MANAGER' || !me) {
+      return unique;
+    }
+    const q = queryRaw.trim().toLowerCase();
+    const meLower = me.toLowerCase();
+    if (q && !meLower.includes(q)) {
+      return unique;
+    }
+    const rest = unique.filter((e) => e.toLowerCase() !== meLower);
+    return [me, ...rest];
+  }
+
+  /** Set new task assignee to the current user (project manager). */
+  assignNewTaskToMe(): void {
+    const email = this.readStoredUser()?.email?.trim();
+    if (!email) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Could not assign',
+        detail: 'Your account email was not found. Try typing it in the assignee field.'
+      });
+      return;
+    }
+    if (this.currentUserRole() !== 'PROJECT_MANAGER') {
+      return;
+    }
+    this.newTask.collaboratorEmail = email;
+  }
+
   openTaskDialog(project: Project): void {
     if (project.archived || project.paused || project.delivered || !this.isProjectManagerOfProject(project)) {
       return;
     }
     this.newTask = this.createEmptyTask(project.id);
+    this.newTaskAttachmentFile = null;
+    this.collaboratorEmailSuggestions = [];
+    this.assigneeCandidates = [];
     this.taskDialogVisible = true;
+    this.loadAssigneeSuggestions(project);
   }
 
   closeTaskDialog(): void {
     this.taskDialogVisible = false;
     this.isSavingTask = false;
+    this.newTaskAttachmentFile = null;
+    this.collaboratorEmailSuggestions = [];
+    this.assigneeCandidates = [];
+    this.assigneeCandidatesLoading = false;
+    this.assigneeSuggestionsPopupVisible = false;
+    this.assigneeLoadSeq++;
   }
 
   saveTask(project: Project): void {
@@ -632,16 +785,18 @@ export class ProjectDetailPage implements OnInit {
     }
 
     this.isSavingTask = true;
+    const attachment = this.newTaskAttachmentFile;
     this.taskService.createTask({ ...this.newTask, projectId: project.id }).subscribe({
-      next: () => {
-        this.closeTaskDialog();
-        this.newTask = this.createEmptyTask(project.id);
-        this.loadProject(project.id);
-        this.messageService.add({
-          severity: 'success',
-          summary: 'Task created',
-          detail: 'The new task was added to this project.'
-        });
+      next: (created) => {
+        const taskId = created?.id;
+        if (attachment && taskId != null) {
+          this.taskService.uploadTaskFile(taskId, attachment).subscribe({
+            next: () => this.afterTaskCreatedSuccess(project, false),
+            error: () => this.afterTaskCreatedSuccess(project, true)
+          });
+          return;
+        }
+        this.afterTaskCreatedSuccess(project, false);
       },
       error: () => {
         this.isSavingTask = false;
@@ -652,6 +807,104 @@ export class ProjectDetailPage implements OnInit {
         });
       }
     });
+  }
+
+  private afterTaskCreatedSuccess(project: Project, attachmentUploadFailed: boolean): void {
+    this.isSavingTask = false;
+    this.newTaskAttachmentFile = null;
+    this.closeTaskDialog();
+    this.newTask = this.createEmptyTask(project.id);
+    this.loadProject(project.id);
+    if (attachmentUploadFailed) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Task created',
+        detail: 'The task was added, but the attachment could not be uploaded. Try adding a file from the task row.'
+      });
+    } else {
+      this.messageService.add({
+        severity: 'success',
+        summary: 'Task created',
+        detail: 'The new task was added to this project.'
+      });
+    }
+  }
+
+  openEditTaskDialog(task: Task, project: Project): void {
+    if (!task.id || !this.canEditTask(project)) {
+      return;
+    }
+    this.editingTaskId = task.id;
+    this.editableTask = {
+      ...this.createEmptyTask(project.id),
+      ...task,
+      projectId: project.id,
+      collaboratorEmail: this.taskAssignee(task) === 'Unassigned' ? '' : this.taskAssignee(task),
+      skillIds: this.taskSkillIds(task)
+    };
+    this.collaboratorEmailSuggestions = [];
+    this.editTaskDialogVisible = true;
+  }
+
+  closeEditTaskDialog(): void {
+    this.editTaskDialogVisible = false;
+    this.isUpdatingTask = false;
+    this.editingTaskId = null;
+    this.editableTask = this.createEmptyTask();
+    this.collaboratorEmailSuggestions = [];
+  }
+
+  saveEditedTask(project: Project): void {
+    if (
+      !project.id ||
+      !this.editingTaskId ||
+      this.isUpdatingTask ||
+      !this.editableTask.title.trim() ||
+      !this.canEditTask(project)
+    ) {
+      return;
+    }
+
+    this.isUpdatingTask = true;
+    this.taskService
+      .updateTask(this.editingTaskId, {
+        projectId: project.id,
+        title: this.editableTask.title.trim(),
+        description: this.editableTask.description ?? '',
+        status: this.editableTask.status,
+        priority: this.editableTask.priority,
+        deadline: this.editableTask.deadline,
+        collaboratorEmail: this.editableTask.collaboratorEmail?.trim() ?? '',
+        skillIds: this.editableTask.skillIds ?? []
+      })
+      .subscribe({
+        next: () => {
+          this.isUpdatingTask = false;
+          this.closeEditTaskDialog();
+          this.loadProject(project.id);
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Task updated',
+            detail: 'The task was updated successfully.'
+          });
+        },
+        error: () => {
+          this.isUpdatingTask = false;
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Update failed',
+            detail: 'Could not update the task. Try again.'
+          });
+        }
+      });
+  }
+
+  assignEditedTaskToMe(): void {
+    const email = this.readStoredUser()?.email?.trim();
+    if (!email || this.currentUserRole() !== 'PROJECT_MANAGER') {
+      return;
+    }
+    this.editableTask.collaboratorEmail = email;
   }
 
   private resolveProjectsListUrl(): string {
@@ -884,13 +1137,19 @@ export class ProjectDetailPage implements OnInit {
     return true;
   }
 
+  private projectConfirmPhrase(project: Project | null): string {
+    const n = project?.name?.trim() ?? '';
+    return n ? `the project “${n}”` : 'this project';
+  }
+
   private confirmSetPaused(project: Project, paused: boolean, event: Event): void {
     const action = paused ? 'Pause' : 'Resume';
+    const phrase = this.projectConfirmPhrase(project);
     this.confirmationService.confirm({
       target: event.target as EventTarget,
       message: paused
-        ? 'Pause this project? The team can still view it.'
-        : 'Resume this project and clear the paused state?',
+        ? `Are you sure you want to pause ${phrase}? The team can still view it.`
+        : `Are you sure you want to resume ${phrase} and clear the paused state?`,
       header: `${action} project`,
       icon: 'pi pi-info-circle',
       rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
@@ -916,11 +1175,12 @@ export class ProjectDetailPage implements OnInit {
 
   private confirmSetDelivered(project: Project, delivered: boolean, event: Event): void {
     const action = delivered ? 'Mark as delivered' : 'Reopen';
+    const phrase = this.projectConfirmPhrase(project);
     this.confirmationService.confirm({
       target: event.target as EventTarget,
       message: delivered
-        ? 'Mark this project as delivered (closed)?'
-        : 'Reopen this project and clear the delivered state?',
+        ? `Are you sure you want to deliver ${phrase} (mark it as closed)?`
+        : `Are you sure you want to reopen ${phrase} and clear the delivered state?`,
       header: action,
       icon: 'pi pi-info-circle',
       rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
@@ -947,9 +1207,10 @@ export class ProjectDetailPage implements OnInit {
   private confirmArchiveProject(project: Project, event: Event): void {
     const archived = !project.archived;
     const action = archived ? 'Archive' : 'Unarchive';
+    const phrase = this.projectConfirmPhrase(project);
     this.confirmationService.confirm({
       target: event.target as EventTarget,
-      message: `Do you want to ${action.toLowerCase()} this project?`,
+      message: `Are you sure you want to ${action.toLowerCase()} ${phrase}?`,
       header: `${action} Confirmation`,
       icon: 'pi pi-info-circle',
       rejectButtonProps: {
@@ -969,7 +1230,7 @@ export class ProjectDetailPage implements OnInit {
               severity: 'info',
               summary: `${action}d`,
               detail: archived
-                ? 'Projet archivé. Il n’apparaît plus dans la liste principale ; utilisez « Archived projects » / Projets archivés.'
+                ? 'Project archived. It no longer appears in the main list; open Archived projects to find it.'
                 : 'Project unarchived successfully.'
             });
           },
@@ -997,6 +1258,7 @@ export class ProjectDetailPage implements OnInit {
       priority: undefined,
       deadline: undefined,
       collaboratorEmail: '',
+      skillIds: [],
       projectId
     };
   }

@@ -7,8 +7,10 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
 
   const token = localStorage.getItem('token');
+  const isPublicAuthCall =
+    req.url.includes('/api/auth/login') || req.url.includes('/api/auth/signup');
 
-  if (token) {
+  if (token && !isPublicAuthCall) {
     req = req.clone({
       setHeaders: {
         Authorization: `Bearer ${token}`
@@ -19,9 +21,8 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   return next(req).pipe(
     catchError((err: HttpErrorResponse) => {
       const isAuthFailure = err.status === 401 || err.status === 403;
-      const isLoginCall = req.url.includes('/api/auth/login');
 
-      if (isAuthFailure && !isLoginCall) {
+      if (isAuthFailure && !isPublicAuthCall) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         setTimeout(() => {

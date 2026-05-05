@@ -1,0 +1,140 @@
+<div class="reporting-page wide">
+  <div *ngIf="loading" class="loading">
+    <app-loader label="Loading PM dashboard..." />
+  </div>
+
+  <ng-container *ngIf="!loading && data">
+    <div class="kpi-grid kpi-five">
+      <p-card header="Projects">
+        <span class="kpi-num">{{ data.projectsManaged }}</span>
+      </p-card>
+      <p-card header="Total tasks">
+        <span class="kpi-num">{{ data.totalTasks }}</span>
+      </p-card>
+      <p-card header="Completed">
+        <span class="kpi-num">{{ data.completedTasks }}</span>
+      </p-card>
+      <p-card header="Blocked (ON_HOLD)">
+        <span class="kpi-num warn">{{ data.blockedTasks }}</span>
+      </p-card>
+      <p-card header="Awaiting review">
+        <span class="kpi-num accent">{{ data.inReviewAttentionCount }}</span>
+      </p-card>
+    </div>
+
+    <div class="chart-grid-4">
+      <p-card header="Project progress">
+        <div class="chart-tall">
+          <p-chart type="bar" [data]="projectBar" [options]="barOpts" />
+        </div>
+      </p-card>
+      <p-card header="Portfolio status distribution">
+        <div class="chart-box">
+          <p-chart type="doughnut" [data]="donut" [options]="opts" />
+        </div>
+      </p-card>
+      <p-card header="Collaborator completions (DONE)">
+        <div class="chart-tall">
+          <p-chart type="bar" [data]="collabBar" [options]="barOpts" />
+        </div>
+      </p-card>
+      <p-card header="Completions trend (last 30 days, comment proxy)">
+        <div class="chart-tall">
+          <p-chart type="line" [data]="line" [options]="lineOpts" />
+        </div>
+      </p-card>
+    </div>
+
+    <p-card header="Projects">
+      <p-table [value]="data.projectsTable" [paginator]="true" [rows]="8">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Name</th>
+            <th>Tasks</th>
+            <th>Done</th>
+            <th>Progress</th>
+            <th>Deadline</th>
+            <th>Risk</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-r>
+          <tr>
+            <td>{{ r.projectName }}</td>
+            <td>{{ r.totalTasks }}</td>
+            <td>{{ r.completedTasks }}</td>
+            <td>
+              <p-progressBar [value]="r.progressPercent" [style]="{ height: '8px' }" />
+              {{ r.progressPercent }}%
+            </td>
+            <td>{{ r.deadlineIso || '—' }}</td>
+            <td><p-tag [severity]="riskSeverity(r.riskLabel)" [value]="r.riskLabel" /></td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </p-card>
+
+    <p-card header="Collaborator performance" class="blk">
+      <p-table [value]="data.collaboratorPerformance">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Collaborator</th>
+            <th>Assigned</th>
+            <th>Completed</th>
+            <th>On hold</th>
+            <th>Signals (PM comments)</th>
+            <th>Score</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-r>
+          <tr>
+            <td>{{ r.collaboratorName }}</td>
+            <td>{{ r.totalAssigned }}</td>
+            <td>{{ r.completed }}</td>
+            <td>{{ r.onHold }}</td>
+            <td>{{ r.rejectedHeuristic }}</td>
+            <td><strong>{{ r.performanceScore }}</strong></td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </p-card>
+
+    <div class="tables-row">
+      <p-card header="Needs approval (IN_REVIEW)" class="alert-card">
+        <p-table [value]="data.inReviewAttention">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Task</th>
+              <th>Collaborators</th>
+              <th>Waiting ~hours</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-r>
+            <tr>
+              <td>{{ r.taskTitle }}</td>
+              <td>{{ r.collaboratorNames }}</td>
+              <td>{{ r.waitingHoursApprox }}</td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </p-card>
+      <p-card header="On hold escalations" class="alert-card">
+        <p-table [value]="data.onHoldAttention">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Task</th>
+              <th>Collaborators</th>
+              <th>Hold reason</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-r>
+            <tr>
+              <td>{{ r.taskTitle }}</td>
+              <td>{{ r.collaboratorNames }}</td>
+              <td>{{ r.holdReason }}</td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </p-card>
+    </div>
+  </ng-container>
+</div>

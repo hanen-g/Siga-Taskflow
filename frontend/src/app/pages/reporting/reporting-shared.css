@@ -1,0 +1,40 @@
+.reporting-page {
+  padding: 1.25rem 1.25rem 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.5rem;
+}
+
+.muted {
+  color: #64748b;
+}
+
+.kpi-grid {
+  display: grid;
+  gap: 1rem;
+  margin: 1.25rem 0;
+}
+
+.chart-box {
+  height: 260px;
+}
+
+.tables-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.loading {
+  margin: 2rem 0;
+}
+
+.deadline-risk {
+  color: #dc2626;
+  font-weight: 600;
+}

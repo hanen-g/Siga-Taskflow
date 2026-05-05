@@ -1,7 +1,16 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ProjectSkillMatchResult } from '../models/skill.model';
+
+export interface AssigneeCandidate {
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  activeTaskCount: number;
+  matchedSkillCount: number;
+}
 
 @Injectable({
   providedIn: 'root'
@@ -75,6 +84,16 @@ export class ProjectService {
 
   getProject(id: number): Observable<any> {
     return this.http.get<any>(`${this.apiUrl}/${id}`);
+  }
+
+  getAssigneeCandidates(projectId: number, skillIds: number[]): Observable<AssigneeCandidate[]> {
+    let params = new HttpParams();
+    for (const id of skillIds ?? []) {
+      if (id != null) {
+        params = params.append('skillIds', String(id));
+      }
+    }
+    return this.http.get<AssigneeCandidate[]>(`${this.apiUrl}/${projectId}/assignee-candidates`, { params });
   }
 
   getProjectSkillMatches(projectId: number): Observable<ProjectSkillMatchResult> {

@@ -1,0 +1,36 @@
+@import './reporting-shared.css';
+
+.wide {
+  max-width: 1600px;
+}
+
+.kpi-five {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+
+.kpi-num.warn {
+  color: #ea580c;
+}
+
+.kpi-num.accent {
+  color: #7c3aed;
+}
+
+.chart-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.chart-tall {
+  height: 300px;
+}
+
+.blk {
+  margin-top: 1rem;
+}
+
+.alert-card ::ng-deep .p-card {
+  border-left: 4px solid #f59e0b;
+}

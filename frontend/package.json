@@ -36,6 +36,7 @@
     "primeflex": "^4.0.0",
     "primeicons": "^7.0.0",
     "primeng": "^21.1.1",
+    "chart.js": "^4.4.9",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },

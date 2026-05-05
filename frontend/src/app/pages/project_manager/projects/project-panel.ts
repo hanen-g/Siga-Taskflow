@@ -270,9 +270,14 @@ export class ProjectPanel implements OnInit, OnChanges {
   @Input() managerMenu = false;
 
   @Output() edit = new EventEmitter<Project>();
-  @Output() archive = new EventEmitter<{ id: number; archived: boolean; nativeEvent: Event }>();
-  @Output() setPaused = new EventEmitter<{ id: number; paused: boolean; nativeEvent: Event }>();
-  @Output() setDelivered = new EventEmitter<{ id: number; delivered: boolean; nativeEvent: Event }>();
+  @Output() archive = new EventEmitter<{
+    id: number;
+    archived: boolean;
+    name: string;
+    nativeEvent: Event;
+  }>();
+  @Output() setPaused = new EventEmitter<{ id: number; paused: boolean; name: string; nativeEvent: Event }>();
+  @Output() setDelivered = new EventEmitter<{ id: number; delivered: boolean; name: string; nativeEvent: Event }>();
 
   @ViewChild('fileInput') fileInput?: ElementRef<HTMLInputElement>;
   @ViewChild('menu') menu?: Menu;
@@ -328,6 +333,7 @@ export class ProjectPanel implements OnInit, OnChanges {
               this.setPaused.emit({
                 id: this.project.id,
                 paused: false,
+                name: this.project.name ?? '',
                 nativeEvent: event.originalEvent as Event
               })
           }
@@ -341,6 +347,7 @@ export class ProjectPanel implements OnInit, OnChanges {
               this.archive.emit({
                 id: this.project.id,
                 archived: !archived,
+                name: this.project.name ?? '',
                 nativeEvent: event.originalEvent as Event
               })
           },
@@ -351,6 +358,7 @@ export class ProjectPanel implements OnInit, OnChanges {
               this.setPaused.emit({
                 id: this.project.id,
                 paused: true,
+                name: this.project.name ?? '',
                 nativeEvent: event.originalEvent as Event
               })
           },
@@ -361,6 +369,7 @@ export class ProjectPanel implements OnInit, OnChanges {
               this.setDelivered.emit({
                 id: this.project.id,
                 delivered: !delivered,
+                name: this.project.name ?? '',
                 nativeEvent: event.originalEvent as Event
               })
           },
@@ -418,6 +427,7 @@ export class ProjectPanel implements OnInit, OnChanges {
     this.setPaused.emit({
       id: this.project.id,
       paused: false,
+      name: this.project.name ?? '',
       nativeEvent: event
     });
   }

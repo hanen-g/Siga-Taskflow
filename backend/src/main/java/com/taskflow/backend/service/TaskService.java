@@ -4,11 +4,14 @@ import com.taskflow.backend.dto.task.TaskRequest;
 import com.taskflow.backend.dto.task.TaskResponse;
 import com.taskflow.backend.dto.task.TaskStatusUpdateRequest;
 import com.taskflow.backend.entity.Project;
+import com.taskflow.backend.entity.Skill;
 import com.taskflow.backend.entity.Task;
 import com.taskflow.backend.entity.Priority;
 import com.taskflow.backend.entity.TaskStatus;
 import com.taskflow.backend.entity.User;
+import com.taskflow.backend.entity.UserRole;
 import com.taskflow.backend.repository.ProjectRepository;
+import com.taskflow.backend.repository.SkillRepository;
 import com.taskflow.backend.repository.TaskRepository;
 import com.taskflow.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +24,7 @@ import com.taskflow.backend.exception.BadRequestException;
 import com.taskflow.backend.exception.ResourceNotFoundException;
 import com.taskflow.backend.exception.UnauthorizedException;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -34,6 +38,7 @@ public class TaskService {
 
     private final TaskRepository taskRepository;
     private final ProjectRepository projectRepository;
+    private final SkillRepository skillRepository;
     private final UserRepository userRepository;
     private final ProjectService projectService;
     private final SimpMessagingTemplate messagingTemplate;
@@ -42,7 +47,7 @@ public class TaskService {
 
     public Task createTask(TaskRequest request, User manager) {
 
-        Project project = projectRepository.findById(request.getProjectId())
+        Project project = projectRepository.findDetailedById(request.getProjectId())
                 .orElseThrow(() -> new ResourceNotFoundException("Project", request.getProjectId()));
 
         if (!project.getManager().getId().equals(manager.getId())) {
@@ -54,6 +59,7 @@ public class TaskService {
         task.setDescription(request.getDescription());
         task.setProject(project);
         task.setCollaborators(resolveCollaborators(request));
+        task.setSkills(resolveTaskSkillsFromRequest(project, request.getSkillIds()));
         task.setStatus(TaskStatus.TODO);
         if (request.getPriority() != null) {
             task.setPriority(Priority.valueOf(request.getPriority()));
@@ -113,6 +119,12 @@ public class TaskService {
             task.setCollaborators(resolveCollaborators(request));
         }
 
+        if (request.getSkillIds() != null) {
+            Project detailed = projectRepository.findDetailedById(task.getProject().getId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Project", task.getProject().getId()));
+            task.setSkills(resolveTaskSkillsFromRequest(detailed, request.getSkillIds()));
+        }
+
         Task saved = taskRepository.save(task);
 
         // Broadcast the update via WebSocket
@@ -169,7 +181,7 @@ public class TaskService {
     }
 
     public List<TaskResponse> getAllTasks() {
-        return taskRepository.findAll()
+        return taskRepository.findAllFetchingProject()
                 .stream()
                 .map(TaskResponse::fromTask)
                 .toList();
@@ -180,7 +192,7 @@ public class TaskService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task", taskId));
 
-        if (!isAssignedCollaborator(task, user)) {
+        if (!isAssignedToTask(task, user)) {
             throw new UnauthorizedException("You are not assigned to this task");
         }
 
@@ -215,7 +227,7 @@ public class TaskService {
         if (nextStatus != TaskStatus.IN_PROGRESS
                 && nextStatus != TaskStatus.ON_HOLD
                 && nextStatus != TaskStatus.IN_REVIEW) {
-            throw new BadRequestException("Collaborators can only move tasks to IN_PROGRESS, ON_HOLD or IN_REVIEW");
+            throw new BadRequestException("Assignees can only move tasks to IN_PROGRESS, ON_HOLD or IN_REVIEW");
         }
     }
 
@@ -240,7 +252,7 @@ public class TaskService {
         }
     }
 
-    private boolean isAssignedCollaborator(Task task, User user) {
+    private boolean isAssignedToTask(Task task, User user) {
         if (task.getCollaborators() == null || user == null) {
             return false;
         }
@@ -277,12 +289,48 @@ public class TaskService {
         }
 
         if (emails.isEmpty()) {
-            throw new ResourceNotFoundException("Collaborator", "No collaborator email provided");
+            throw new ResourceNotFoundException("Assignee", "No assignee email provided");
         }
 
         return emails.stream()
                 .map(email -> userRepository.findByEmail(email)
-                        .orElseThrow(() -> new ResourceNotFoundException("Collaborator", email)))
+                        .orElseThrow(() -> new ResourceNotFoundException("User", email)))
+                .peek(this::assertAssignableTaskUser)
                 .collect(Collectors.toSet());
+    }
+
+    private void assertAssignableTaskUser(User user) {
+        UserRole role = user.getRole();
+        if (role != UserRole.COLLABORATOR && role != UserRole.PROJECT_MANAGER) {
+            throw new BadRequestException(
+                    "Tasks can only be assigned to users with role COLLABORATOR or PROJECT_MANAGER: " + user.getEmail());
+        }
+    }
+
+    private Set<Skill> resolveTaskSkillsFromRequest(Project project, List<Long> skillIds) {
+        if (skillIds == null || skillIds.isEmpty()) {
+            return new HashSet<>();
+        }
+        Set<Long> allowed = project.getRequiredSkills() == null || project.getRequiredSkills().isEmpty()
+                ? Set.of()
+                : project.getRequiredSkills().stream()
+                .map(Skill::getId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+        if (allowed.isEmpty()) {
+            throw new BadRequestException(
+                    "This project has no required skills configured; remove task skills or add required skills on the project first.");
+        }
+        List<Long> unique = skillIds.stream().filter(Objects::nonNull).distinct().toList();
+        for (Long sid : unique) {
+            if (!allowed.contains(sid)) {
+                throw new BadRequestException("Each task skill must be among this project's required skills.");
+            }
+        }
+        List<Skill> found = new ArrayList<>(skillRepository.findAllById(unique));
+        if (found.size() != unique.size()) {
+            throw new BadRequestException("One or more skill ids are invalid");
+        }
+        return new HashSet<>(found);
     }
 }

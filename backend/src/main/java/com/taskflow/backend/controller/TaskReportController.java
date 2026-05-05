@@ -25,7 +25,7 @@ public class TaskReportController {
     private final TaskReportService taskReportService;
 
     @PostMapping("/tasks/{taskId:\\d+}")
-    @PreAuthorize("hasRole('COLLABORATOR')")
+    @PreAuthorize("hasAnyRole('COLLABORATOR', 'PROJECT_MANAGER')")
     public TaskReportResponse createReport(
             @PathVariable Long taskId,
             @RequestBody TaskReportRequest request,

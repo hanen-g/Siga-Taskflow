@@ -2,6 +2,8 @@ package com.taskflow.backend.controller;
 
 import com.taskflow.backend.dto.auth.AuthResponse;
 import com.taskflow.backend.dto.auth.LoginRequest;
+import com.taskflow.backend.dto.auth.SignupRequest;
+import com.taskflow.backend.exception.BadRequestException;
 import com.taskflow.backend.service.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
@@ -9,13 +11,23 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "http://localhost:4200")
+@CrossOrigin(origins = {"http://localhost:4200", "http://127.0.0.1:4200"})
 public class AuthController {
 
     private final AuthService authService;
 
     public AuthController(AuthService authService) {
         this.authService = authService;
+    }
+
+    @PostMapping("/signup")
+    public ResponseEntity<?> signup(@RequestBody SignupRequest request) {
+        try {
+            AuthResponse response = authService.signup(request);
+            return ResponseEntity.ok(response);
+        } catch (BadRequestException e) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+        }
     }
 
     @PostMapping("/login")

@@ -15,9 +15,12 @@ import { Priority, Task, TaskStatus } from '../../models/task.model';
 import { TaskService } from '../../services/task.service';
 import { WebsocketService } from '../../services/websocket.service';
 import { AppLoaderComponent } from '../../layout/app-loader';
-import { TaskDetailsPanelComponent } from './components/task-details-panel';
+import { TaskDetailsPanelComponent } from './task-details-panel';
 
 type KanbanColumn = { status: TaskStatus; title: string; canDrop: boolean; colorClass: string };
+
+/** Project manager kanban scope (full task list still loaded from the API). */
+type ManagerKanbanFilter = 'assigned_to_me' | 'assigned_to_others';
 
 @Component({
   selector: 'app-tasks-page',
@@ -71,6 +74,9 @@ export class TasksPage implements OnInit, OnDestroy {
   reviewNote = '';
   pendingTask: Task | null = null;
   pendingStatus: TaskStatus | null = null;
+
+  /** Only used when `isManager`; controls which subset of manager tasks is shown on the board. */
+  managerKanbanFilter: ManagerKanbanFilter = 'assigned_to_me';
 
   private readonly subscriptions = new Subscription();
 
@@ -143,6 +149,89 @@ export class TasksPage implements OnInit, OnDestroy {
     }
   }
 
+  /** Email of the signed-in user (for assignee checks on the kanban). */
+  private readStoredUserEmail(): string | null {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        const email = user?.email;
+        if (typeof email === 'string' && email.trim()) {
+          return email.trim();
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return null;
+  }
+
+  /** True when this task lists the current user as an assignee (collaborator or project manager). */
+  isCurrentUserAssignee(task: Task | null | undefined): boolean {
+    if (!task) {
+      return false;
+    }
+    const currentEmail = this.readStoredUserEmail();
+    if (!currentEmail) {
+      return false;
+    }
+    const assignees = new Set<string>([
+      ...(task.collaboratorEmails ?? []).map((e) => (e ?? '').trim().toLowerCase()),
+      ...(task.collaborators?.map((c) => (c?.email ?? '').trim().toLowerCase()) ?? []),
+      (task.collaboratorEmail ?? '').trim().toLowerCase()
+    ]);
+    return assignees.has(currentEmail.trim().toLowerCase());
+  }
+
+  /** Collaborators and project managers may execute workflow on tasks where they are assignees. */
+  isAssigneeExecutor(task: Task | null | undefined): boolean {
+    if (!task) {
+      return false;
+    }
+    return (this.isCollaborator || this.isManager) && this.isCurrentUserAssignee(task);
+  }
+
+  get canManageSelectedTaskStatus(): boolean {
+    return this.isAssigneeExecutor(this.selectedTask);
+  }
+
+  /** Tasks assigned to someone other than the current PM (at least one assignee, PM not in the list). */
+  isAssignedToCollaboratorsView(task: Task | null | undefined): boolean {
+    if (!task || this.isCurrentUserAssignee(task)) {
+      return false;
+    }
+    return this.hasAnyAssignee(task);
+  }
+
+  countManagerMyAssignedTasks(): number {
+    if (!this.isManager) {
+      return 0;
+    }
+    return this.tasks.filter((t) => this.isCurrentUserAssignee(t)).length;
+  }
+
+  countManagerCollaboratorTasks(): number {
+    if (!this.isManager) {
+      return 0;
+    }
+    return this.tasks.filter((t) => this.isAssignedToCollaboratorsView(t)).length;
+  }
+
+  setManagerFilter(filter: ManagerKanbanFilter): void {
+    if (!this.isManager || this.managerKanbanFilter === filter) {
+      return;
+    }
+    this.managerKanbanFilter = filter;
+    this.rebuildColumnTasks();
+    const visibleIds = new Set(
+      this.getFilteredTasksForBoard().map((t) => t.id).filter((id): id is number => id != null)
+    );
+    if (this.selectedTask?.id != null && !visibleIds.has(this.selectedTask.id)) {
+      this.selectedTask = null;
+    }
+    this.cdr.markForCheck();
+  }
+
   loadTasks(): void {
     this.isLoading = true;
     this.errorMessage = '';
@@ -183,19 +272,22 @@ export class TasksPage implements OnInit, OnDestroy {
   }
 
   canDragTask(task: Task): boolean {
-    return this.isCollaborator && this.draggableStatuses.includes(task.status);
+    return this.isAssigneeExecutor(task) && this.draggableStatuses.includes(task.status);
   }
 
   canDropInColumn(_column: KanbanColumn): boolean {
-    return this.isCollaborator;
+    return this.isCollaborator || this.isManager;
   }
 
   canEnterColumn = (drag: CdkDrag<Task>, drop: CdkDropList<Task[]>): boolean => {
-    if (!this.isCollaborator) {
+    if (!this.isCollaborator && !this.isManager) {
+      return false;
+    }
+    const source = drag.data;
+    if (!this.isCurrentUserAssignee(source)) {
       return false;
     }
     const targetStatus = this.statusFromListId(drop.id);
-    const source = drag.data;
     // From To Do: only In Progress or On Hold (not directly to In Review / Done / back to To Do)
     if (source?.status === TaskStatus.TODO) {
       return targetStatus === TaskStatus.IN_PROGRESS || targetStatus === TaskStatus.ON_HOLD;
@@ -207,7 +299,7 @@ export class TasksPage implements OnInit, OnDestroy {
 
   onTaskDrop(event: CdkDragDrop<Task[]>, targetStatus: TaskStatus): void {
     const task = event.item.data as Task;
-    if (!task || task.status === targetStatus || !this.isCollaborator) {
+    if (!task || task.status === targetStatus || !this.isAssigneeExecutor(task)) {
       return;
     }
 
@@ -269,6 +361,28 @@ export class TasksPage implements OnInit, OnDestroy {
     this.resetPendingDialogState();
   }
 
+  get pauseDialogTitle(): string {
+    const t = this.pendingTask?.title?.trim();
+    return t ? `Put “${t}” on hold` : 'Put task on hold';
+  }
+
+  get reviewDialogTitle(): string {
+    const t = this.pendingTask?.title?.trim();
+    return t ? `Submit “${t}” for review` : 'Submit for review';
+  }
+
+  get pauseConfirmIntro(): string {
+    const t = this.pendingTask?.title?.trim();
+    const label = t ? `the task “${t}”` : 'this task';
+    return `Are you sure you want to put ${label} on hold?`;
+  }
+
+  get reviewConfirmIntro(): string {
+    const t = this.pendingTask?.title?.trim();
+    const label = t ? `the task “${t}”` : 'this task';
+    return `Are you sure you want to submit ${label} for review?`;
+  }
+
   selectTask(task: Task): void {
     this.selectedTask = task;
     this.cdr.markForCheck();
@@ -287,6 +401,7 @@ export class TasksPage implements OnInit, OnDestroy {
   }
 
   requestResumeFromPanel(task: Task): void {
+    this.closeTaskDetails();
     this.changeStatus(task, TaskStatus.IN_PROGRESS, null);
   }
 
@@ -297,7 +412,7 @@ export class TasksPage implements OnInit, OnDestroy {
 
   formatDeadline(deadline?: string): string {
     if (!deadline) return '-';
-    return new Date(deadline).toLocaleDateString('fr-FR');
+    return new Date(deadline).toLocaleDateString('en-US');
   }
 
   isOverdue(task: Task): boolean {
@@ -365,6 +480,26 @@ export class TasksPage implements OnInit, OnDestroy {
     this.reviewNote = '';
   }
 
+  /** Tasks placed into kanban columns (after PM scope filter, if any). */
+  private getFilteredTasksForBoard(): Task[] {
+    if (!this.isManager) {
+      return this.tasks;
+    }
+    if (this.managerKanbanFilter === 'assigned_to_me') {
+      return this.tasks.filter((t) => this.isCurrentUserAssignee(t));
+    }
+    return this.tasks.filter((t) => this.isAssignedToCollaboratorsView(t));
+  }
+
+  private hasAnyAssignee(task: Task): boolean {
+    const raw = [
+      ...(task.collaboratorEmails ?? []),
+      ...(task.collaborators?.map((c) => c?.email) ?? []),
+      task.collaboratorEmail
+    ];
+    return raw.some((e) => typeof e === 'string' && e.trim().length > 0);
+  }
+
   private rebuildColumnTasks(): void {
     const next: Record<TaskStatus, Task[]> = {
       [TaskStatus.TODO]: [],
@@ -373,7 +508,7 @@ export class TasksPage implements OnInit, OnDestroy {
       [TaskStatus.IN_REVIEW]: [],
       [TaskStatus.DONE]: []
     };
-    for (const task of this.tasks) {
+    for (const task of this.getFilteredTasksForBoard()) {
       if (next[task.status]) {
         next[task.status].push(task);
       }

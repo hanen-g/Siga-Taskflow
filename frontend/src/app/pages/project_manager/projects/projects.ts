@@ -22,6 +22,7 @@ import { WebsocketService } from '../../../services/websocket.service';
 import { ApiService } from '../../../services/api';
 import { ProjectPanel } from './project-panel';
 import { AppLoaderComponent } from '../../../layout/app-loader';
+import { ClientReportingPage } from '../../reporting/client-reporting.component';
 import { Skill } from '../../../models/skill.model';
 import { SkillService } from '../../../services/skill.service';
 
@@ -45,7 +46,8 @@ import { SkillService } from '../../../services/skill.service';
     ConfirmDialogModule,
     ToastModule,
     SelectModule,
-    MultiSelectModule
+    MultiSelectModule,
+    ClientReportingPage
   ],
   providers: [ConfirmationService, MessageService]
 })
@@ -81,6 +83,10 @@ export class ProjectsPage implements OnInit {
   projectManagersLoadError: string | null = null;
   allSkills: Skill[] = [];
   skillsLoading = false;
+
+  /** Optional file uploaded with admin “create project”. */
+  createProjectAttachmentFile: File | null = null;
+  saveInProgress = false;
 
   constructor(
     private projectService: ProjectService,
@@ -264,8 +270,14 @@ export class ProjectsPage implements OnInit {
     return 'Other';
   }
 
+  onCreateProjectFileSelected(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.createProjectAttachmentFile = input.files?.[0] ?? null;
+  }
+
   showDialog() {
     this.isEditMode = false;
+    this.createProjectAttachmentFile = null;
     this.newProject = { name: '', description: '', startDate: '', deadline: '', managerId: null, requiredSkillIds: [] };
     this.projectManagersLoadError = null;
     this.loadSkillsIfNeeded();
@@ -286,10 +298,12 @@ export class ProjectsPage implements OnInit {
     this.displayDialog = false;
     this.isEditMode = false;
     this.selectedProjectId = null;
+    this.createProjectAttachmentFile = null;
   }
 
   editProject(project: any) {
     this.isEditMode = true;
+    this.createProjectAttachmentFile = null;
     this.selectedProjectId = project.id;
     this.newProject = {
       ...project,
@@ -343,6 +357,9 @@ export class ProjectsPage implements OnInit {
   }
 
   private saveProject() {
+    if (this.saveInProgress) {
+      return;
+    }
     if (!this.validateProjectName()) return;
 
     const isEditing = this.isEditMode;
@@ -380,20 +397,33 @@ export class ProjectsPage implements OnInit {
           requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id }))
         });
 
+    this.saveInProgress = true;
     request.subscribe({
-      next: () => {
-        this.closeDialog();
-        this.refresh$.next();
+      next: (result: unknown) => {
+        const attachment = this.createProjectAttachmentFile;
+        const newProjectId =
+          !isEditing && result && typeof result === 'object' && 'id' in result
+            ? (result as { id: number }).id
+            : null;
 
-        this.notify(
-          'success',
-          'Success',
-          isEditing
-            ? 'Project updated successfully'
-            : 'Project created successfully'
-        );
+        if (!isEditing && attachment && newProjectId != null) {
+          this.projectService.uploadAttachment(newProjectId, attachment).subscribe({
+            next: () => {
+              this.createProjectAttachmentFile = null;
+              this.finishProjectSave(isEditing, false);
+            },
+            error: () => {
+              this.createProjectAttachmentFile = null;
+              this.finishProjectSave(isEditing, true);
+            }
+          });
+          return;
+        }
+
+        this.finishProjectSave(isEditing, false);
       },
       error: (err) => {
+        this.saveInProgress = false;
         const msg = err?.error?.message;
         this.notify(
           'error',
@@ -405,6 +435,26 @@ export class ProjectsPage implements OnInit {
         );
       }
     });
+  }
+
+  /** @param attachmentUploadFailed only when project was already created and optional file upload failed */
+  private finishProjectSave(isEditing: boolean, attachmentUploadFailed: boolean): void {
+    this.saveInProgress = false;
+    this.closeDialog();
+    this.refresh$.next();
+    if (attachmentUploadFailed) {
+      this.notify(
+        'warn',
+        'Partial success',
+        'The project was created, but the attachment could not be uploaded. You can add a file from the project page.'
+      );
+    } else {
+      this.notify(
+        'success',
+        'Success',
+        isEditing ? 'Project updated successfully' : 'Project created successfully'
+      );
+    }
   }
 
   showProposeDialog() {
@@ -452,13 +502,18 @@ export class ProjectsPage implements OnInit {
     this.saveProject();
   }
 
-  archiveProject(event: { id: number; archived: boolean; nativeEvent: Event }) {
+  private projectConfirmPhrase(name: string | undefined | null): string {
+    const n = typeof name === 'string' ? name.trim() : '';
+    return n ? `the project “${n}”` : 'this project';
+  }
 
+  archiveProject(event: { id: number; archived: boolean; name?: string; nativeEvent: Event }) {
     const action = event.archived ? 'Archive' : 'Unarchive';
+    const phrase = this.projectConfirmPhrase(event.name);
 
     this.confirmationService.confirm({
       target: event.nativeEvent.target as EventTarget,
-      message: `Do you want to ${action.toLowerCase()} this project?`,
+      message: `Are you sure you want to ${action.toLowerCase()} ${phrase}?`,
       header: `${action} Confirmation`,
       icon: 'pi pi-info-circle',
       rejectButtonProps: {
@@ -479,7 +534,7 @@ export class ProjectsPage implements OnInit {
               'info',
               `${action}d`,
               event.archived
-                ? 'Projet archivé. Il apparaît dans le menu « Archived projects » / Projets archivés.'
+                ? 'Project archived. You can open it again from Archived projects.'
                 : `Project ${action.toLowerCase()}d successfully.`
             );
           },
@@ -487,8 +542,8 @@ export class ProjectsPage implements OnInit {
             const m = err?.error?.message ?? err?.error?.error;
             this.notify(
               'error',
-              'Échec',
-              typeof m === 'string' ? m : 'Impossible de modifier le statut d’archivage. Vérifiez d’être connecté en administrateur.'
+              'Failed',
+              typeof m === 'string' ? m : 'Could not change archive status. Make sure you are signed in as an administrator.'
             );
           }
         });
@@ -496,13 +551,14 @@ export class ProjectsPage implements OnInit {
     });
   }
 
-  pauseProject(event: { id: number; paused: boolean; nativeEvent: Event }): void {
+  pauseProject(event: { id: number; paused: boolean; name?: string; nativeEvent: Event }): void {
     const action = event.paused ? 'pause' : 'resume';
+    const phrase = this.projectConfirmPhrase(event.name);
     this.confirmationService.confirm({
       target: event.nativeEvent.target as EventTarget,
       message: event.paused
-        ? 'Pause this project? The team can still view it; task changes should follow your internal process.'
-        : 'Resume this project and clear the paused state?',
+        ? `Are you sure you want to pause ${phrase}? The team can still view it; task changes should follow your internal process.`
+        : `Are you sure you want to resume ${phrase} and clear the paused state?`,
       header: event.paused ? 'Pause project' : 'Resume project',
       icon: 'pi pi-info-circle',
       rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
@@ -522,12 +578,13 @@ export class ProjectsPage implements OnInit {
     });
   }
 
-  deliverProject(event: { id: number; delivered: boolean; nativeEvent: Event }): void {
+  deliverProject(event: { id: number; delivered: boolean; name?: string; nativeEvent: Event }): void {
+    const phrase = this.projectConfirmPhrase(event.name);
     this.confirmationService.confirm({
       target: event.nativeEvent.target as EventTarget,
       message: event.delivered
-        ? 'Mark this project as delivered (closed) for delivery tracking?'
-        : 'Reopen this project and clear the delivered state?',
+        ? `Are you sure you want to deliver ${phrase} (mark it as closed for delivery tracking)?`
+        : `Are you sure you want to reopen ${phrase} and clear the delivered state?`,
       header: event.delivered ? 'Mark as delivered' : 'Reopen project',
       icon: 'pi pi-info-circle',
       rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
