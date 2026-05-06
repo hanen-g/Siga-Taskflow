@@ -15,14 +15,6 @@
   color: #0f172a;
 }
 
-.catalog-subtitle {
-  margin: 0.5rem 0 0;
-  max-width: 44rem;
-  color: #64748b;
-  font-size: 1rem;
-  line-height: 1.5;
-}
-
 .create-skill-card {
   background: #ffffff;
   border-radius: 1rem;

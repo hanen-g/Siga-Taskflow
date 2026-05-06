@@ -1,8 +1,8 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { Observable, of } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { Observable, forkJoin, of } from 'rxjs';
+import { catchError, finalize } from 'rxjs/operators';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { TagModule } from 'primeng/tag';
@@ -12,6 +12,8 @@ import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { TextareaModule } from 'primeng/textarea';
+import { SelectModule } from 'primeng/select';
+import { MultiSelectModule } from 'primeng/multiselect';
 import { ConfirmationService, MessageService } from 'primeng/api';
 
 import { AppLoaderComponent } from '../../../layout/app-loader';
@@ -22,10 +24,15 @@ import { Priority, Task, TaskStatus } from '../../../models/task.model';
 import { TaskService } from '../../../services/task.service';
 import { UploadedFile } from '../../../models/uploaded-file.model';
 import { FileAccessService } from '../../../services/file-access.service';
-import { SkillService } from '../../../services/skill.service';
-import { Skill, ProjectSkillMatchResult, UserSkillMatch } from '../../../models/skill.model';
-import { MultiSelectModule } from 'primeng/multiselect';
 import { TaskKanbanBoardComponent } from '../../tasks/components/task-kanban-board/task-kanban-board.component';
+import {
+  AdminUser,
+  CollaboratorDirectoryEntry,
+  ProjectManagerOption,
+  UserService
+} from '../../../services/user.service';
+import { SkillService } from '../../../services/skill.service';
+import { Skill } from '../../../models/skill.model';
 
 type ProjectAction =
   | 'edit'
@@ -64,8 +71,9 @@ interface ProjectActionItem {
     DialogModule,
     InputTextModule,
     TextareaModule,
-    FolderFileUploadComponent,
+    SelectModule,
     MultiSelectModule,
+    FolderFileUploadComponent,
     TaskKanbanBoardComponent
   ],
   providers: [MessageService, ConfirmationService]
@@ -78,27 +86,40 @@ export class ProjectDetailPage implements OnInit {
   error: string | null = null;
   uploadingAttachment = false;
   uploadingTaskFileIds = new Set<number>();
-  activeTab: 'tasks' | 'files' | 'team' = 'tasks';
-
-  allSkills: Skill[] = [];
-  selectedRequiredSkillIds: number[] = [];
-  teamMatchResult: ProjectSkillMatchResult | null = null;
-  teamPanelLoading = false;
-  savingRequiredSkills = false;
-  skillsCatalogLoading = false;
-  searchText = '';
+  activeTab: 'tasks' | 'files' = 'tasks';
   displayDialog = false;
   taskDialogVisible = false;
   isSavingProject = false;
   isSavingTask = false;
   readonly priorities: Priority[] = [Priority.LOW, Priority.MEDIUM, Priority.HIGH];
-  editableProject: Pick<Project, 'name' | 'description' | 'startDate' | 'deadline'> = {
+  editableProject: {
+    name: string;
+    description: string;
+    startDate: string;
+    deadline: string;
+    managerId: number | null;
+    clientIds: number[];
+    requiredSkillIds: number[];
+  } = {
     name: '',
     description: '',
     startDate: '',
-    deadline: ''
+    deadline: '',
+    managerId: null,
+    clientIds: [],
+    requiredSkillIds: []
   };
+  /** Admin edit staffing */
+  projectManagers: ProjectManagerOption[] = [];
+  activeClientsForProject: AdminUser[] = [];
+  clientSelectOptions: { label: string; value: number }[] = [];
+  allSkills: Skill[] = [];
+  skillsLoading = false;
   newTask: Task = this.createEmptyTask();
+  collaboratorDirectory: CollaboratorDirectoryEntry[] = [];
+  collaboratorsLoading = false;
+  /** When the directory is loaded: overrides the dropdown if filled. */
+  collaboratorEmailManual = '';
 
   backLink = '/dashboard/pm/projects';
 
@@ -201,7 +222,16 @@ export class ProjectDetailPage implements OnInit {
       .join(' ')
       .trim();
 
-    return fullName || project?.managerEmail || 'Not available';
+    return fullName || project?.managerEmail || '—';
+  }
+
+  /** Client accounts linked to the project (role CLIENT on members). */
+  clientNamesLabel(project: Project | null): string {
+    const names = (project?.clientNames ?? []).map((n) => String(n).trim()).filter(Boolean);
+    if (!names.length) {
+      return '—';
+    }
+    return names.join(', ');
   }
 
   teamMembersLabel(project: Project | null): string {
@@ -214,10 +244,11 @@ export class ProjectDetailPage implements OnInit {
     private router: Router,
     private projectService: ProjectService,
     private taskService: TaskService,
+    private userService: UserService,
+    private skillService: SkillService,
     private fileAccess: FileAccessService,
     private messageService: MessageService,
-    private confirmationService: ConfirmationService,
-    private skillService: SkillService
+    private confirmationService: ConfirmationService
   ) {}
 
   ngOnInit() {
@@ -312,187 +343,8 @@ export class ProjectDetailPage implements OnInit {
     return Number.isNaN(parsed.getTime()) ? 'Unknown date' : parsed.toLocaleString();
   }
 
-  statusLabel(status?: string): string {
-    switch (status) {
-      case 'IN_PROGRESS':
-        return 'In Progress';
-      case 'DONE':
-        return 'Completed';
-      case 'TODO':
-        return 'To Do';
-      default:
-        return status ?? 'Unknown';
-    }
-  }
-
-  taskAssignee(task: Task | undefined): string {
-    const email =
-      task?.collaboratorEmails?.find(Boolean) ??
-      task?.collaborators?.map((collaborator) => collaborator?.email).find(Boolean) ??
-      task?.collaboratorEmail;
-
-    return email || 'Unassigned';
-  }
-
-  switchTab(tab: 'tasks' | 'files' | 'team', project: Project | null): void {
+  switchTab(tab: 'tasks' | 'files'): void {
     this.activeTab = tab;
-    this.searchText = '';
-    if (tab === 'team' && project?.id) {
-      this.refreshTeamPanel(project);
-    }
-  }
-
-  canEditProjectSkills(project: Project | null): boolean {
-    if (!project) {
-      return false;
-    }
-    const role = this.currentUserRole();
-    const uid = this.readStoredUser()?.id;
-    if (role === 'ADMIN') {
-      return true;
-    }
-    if (role === 'PROJECT_MANAGER' && project.managerId != null && uid != null) {
-      return project.managerId === uid;
-    }
-    return false;
-  }
-
-  saveProjectRequiredSkills(project: Project | null): void {
-    if (!project?.id || !this.canEditProjectSkills(project)) {
-      return;
-    }
-    this.savingRequiredSkills = true;
-    this.projectService.setProjectRequiredSkills(project.id, this.selectedRequiredSkillIds).subscribe({
-      next: () => {
-        this.savingRequiredSkills = false;
-        this.loadProject(project.id);
-        this.reloadTeamMatches();
-        this.messageService.add({
-          severity: 'success',
-          summary: 'Saved',
-          detail: 'Required skills were updated.'
-        });
-      },
-      error: (err) => {
-        this.savingRequiredSkills = false;
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: err.error?.error ?? err.error?.message ?? 'Could not save required skills.'
-        });
-      }
-    });
-  }
-
-  private refreshTeamPanel(project: Project): void {
-    if (!this.projectId) {
-      return;
-    }
-    this.selectedRequiredSkillIds = (project.requiredSkills ?? []).map((s) => s.id);
-    this.loadSkillsCatalogIfNeeded(() => this.reloadTeamMatches());
-  }
-
-  private reloadTeamMatches(): void {
-    if (!this.projectId) {
-      return;
-    }
-    this.teamPanelLoading = true;
-    this.projectService.getProjectSkillMatches(this.projectId).subscribe({
-      next: (res) => {
-        this.teamMatchResult = res;
-        this.teamPanelLoading = false;
-      },
-      error: () => {
-        this.teamMatchResult = null;
-        this.teamPanelLoading = false;
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: 'Could not load team matches.'
-        });
-      }
-    });
-  }
-
-  private loadSkillsCatalogIfNeeded(done: () => void): void {
-    if (this.allSkills.length > 0) {
-      done();
-      return;
-    }
-    this.skillsCatalogLoading = true;
-    this.skillService.getAllSkills().subscribe({
-      next: (skills) => {
-        this.allSkills = skills;
-        this.skillsCatalogLoading = false;
-        done();
-      },
-      error: () => {
-        this.skillsCatalogLoading = false;
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: 'Could not load skills catalog.'
-        });
-        done();
-      }
-    });
-  }
-
-  matchRowLabel(m: UserSkillMatch): string {
-    const parts = [m.firstName, m.lastName].filter(Boolean);
-    return parts.length ? parts.join(' ') : m.email ?? 'User';
-  }
-
-  filteredTasks(project: Project | null): Task[] {
-    const tasks = project?.tasks ?? [];
-    const q = this.searchText.trim().toLowerCase();
-    const filtered = !q
-      ? [...tasks]
-      : tasks.filter((task) => {
-          const title = String(task.title ?? '').toLowerCase();
-          const desc = String(task.description ?? '').toLowerCase();
-          const assignee = this.taskAssignee(task).toLowerCase();
-          const statusRaw = String(task.status ?? '').toLowerCase();
-          const statusLabel = this.statusLabel(task.status).toLowerCase();
-          return (
-            title.includes(q) ||
-            desc.includes(q) ||
-            assignee.includes(q) ||
-            statusRaw.includes(q) ||
-            statusLabel.includes(q)
-          );
-        });
-    return filtered.sort((a, b) => this.taskDisplayOrder(a.status) - this.taskDisplayOrder(b.status));
-  }
-
-  /** In progress first, then pending, completed last (same idea as tasks list page). */
-  private taskDisplayOrder(status: TaskStatus | string | undefined): number {
-    const s = String(status ?? '').toUpperCase();
-    if (s === TaskStatus.IN_PROGRESS) {
-      return 0;
-    }
-    if (s === TaskStatus.TODO) {
-      return 1;
-    }
-    if (s === TaskStatus.DONE) {
-      return 2;
-    }
-    return 9;
-  }
-
-  filteredProjectFiles(project: Project | null): UploadedFile[] {
-    const files = this.sortedProjectFiles(project);
-    const q = this.searchText.trim().toLowerCase();
-    if (!q) {
-      return files;
-    }
-    return files.filter((file) => {
-      const name = String(file.originalFileName ?? '').toLowerCase();
-      const context = this.fileContextLabel(file).toLowerCase();
-      const by = String(file.uploadedByName ?? file.uploadedByEmail ?? '').toLowerCase();
-      const fromUrl = this.fileName(file.fileUrl).toLowerCase();
-      return name.includes(q) || context.includes(q) || by.includes(q) || fromUrl.includes(q);
-    });
   }
 
   actionIconClass(action: ProjectActionItem): string {
@@ -560,13 +412,76 @@ export class ProjectDetailPage implements OnInit {
   }
 
   openEditProjectDialog(project: Project): void {
-    this.editableProject = {
-      name: project.name ?? '',
-      description: project.description ?? '',
-      startDate: project.startDate ?? '',
-      deadline: project.deadline ?? ''
-    };
-    this.displayDialog = true;
+    if (!project.id) {
+      return;
+    }
+    this.loadSkillsIfNeeded();
+    forkJoin({
+      detail: this.projectService.getProject(project.id),
+      pms: this.userService.getProjectManagersForAdmin(),
+      clients: this.userService.getAdminUsers('', 'CLIENT', 'active')
+    }).subscribe({
+      next: ({ detail, pms, clients }) => {
+        this.projectManagers = pms ?? [];
+        this.activeClientsForProject = clients ?? [];
+        this.rebuildClientSelectOptionsDetail();
+        this.editableProject = {
+          name: detail?.name ?? '',
+          description: detail?.description ?? '',
+          startDate: detail?.startDate ?? '',
+          deadline: detail?.deadline ?? '',
+          managerId: detail?.managerId ?? null,
+          clientIds: [...(detail?.clientIds ?? [])],
+          requiredSkillIds: (detail?.requiredSkills ?? []).map((s: Skill) => s.id)
+        };
+        this.displayDialog = true;
+      },
+      error: () => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error',
+          detail: 'Could not load project for editing.'
+        });
+      }
+    });
+  }
+
+  projectManagerSelectOptionsDetail(): { label: string; value: number }[] {
+    return (this.projectManagers ?? []).map((u) => ({
+      label: `${u.firstName ?? ''} ${u.lastName ?? ''} (${u.email})`.replace(/^\s+|\s+$/g, ''),
+      value: u.id
+    }));
+  }
+
+  private rebuildClientSelectOptionsDetail(): void {
+    this.clientSelectOptions = this.activeClientsForProject.map((c) => {
+      const name = `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim();
+      return {
+        label: name ? `${name} (${c.email})` : c.email,
+        value: c.id
+      };
+    });
+  }
+
+  private loadSkillsIfNeeded(): void {
+    if (this.allSkills.length > 0 || this.skillsLoading) {
+      return;
+    }
+    this.skillsLoading = true;
+    this.skillService.getAllSkills().subscribe({
+      next: (skills) => {
+        this.allSkills = skills ?? [];
+        this.skillsLoading = false;
+      },
+      error: () => {
+        this.skillsLoading = false;
+        this.messageService.add({
+          severity: 'warn',
+          summary: 'Skills',
+          detail: 'Could not load the skills catalog.'
+        });
+      }
+    });
   }
 
 
@@ -588,33 +503,84 @@ export class ProjectDetailPage implements OnInit {
       return;
     }
 
+    if (this.currentUserRole() === 'ADMIN') {
+      if (this.editableProject.managerId == null) {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Validation',
+          detail: 'Select a project manager.'
+        });
+        return;
+      }
+    }
+
+    const clientIdsNorm =
+      this.currentUserRole() === 'ADMIN'
+        ? (this.editableProject.clientIds ?? [])
+            .map((id) => Number(id))
+            .filter((n) => Number.isFinite(n) && n > 0)
+        : [];
+
     this.isSavingProject = true;
+    const mid =
+      this.editableProject.managerId != null ? Number(this.editableProject.managerId) : NaN;
+    const skillPayload = (this.editableProject.requiredSkillIds ?? []).map((id) => ({
+      id: Number(id)
+    }));
+
     this.projectService
       .updateProject(project.id, {
         name: this.editableProject.name,
         description: this.editableProject.description,
         startDate: this.editableProject.startDate || undefined,
-        deadline: this.editableProject.deadline || undefined
+        deadline: this.editableProject.deadline || undefined,
+        requiredSkills: skillPayload,
+        ...(this.currentUserRole() === 'ADMIN' && Number.isFinite(mid)
+          ? {
+              manager: { id: mid },
+              clientIds: clientIdsNorm
+            }
+          : {})
       })
+      .pipe(finalize(() => (this.isSavingProject = false)))
       .subscribe({
-      next: () => {
-        this.displayDialog = false;
-        this.loadProject(project.id);
-        this.messageService.add({
-          severity: 'success',
-          summary: 'Updated',
-          detail: 'Project updated successfully.'
-        });
-      },
-      error: () => {
-        this.isSavingProject = false;
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Update failed',
-          detail: 'Could not update the project. Try again.'
-        });
+        next: () => {
+          this.displayDialog = false;
+          this.loadProject(project.id);
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Updated',
+            detail: 'Project updated successfully.'
+          });
+        },
+        error: (err) => {
+          const m = this.httpErrorDetail(err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Update failed',
+            detail: m ?? 'Could not update the project. Try again.'
+          });
+        }
+      });
+  }
+
+  private httpErrorDetail(err: unknown): string | null {
+    const anyErr = err as { error?: unknown; status?: number; message?: string } | null;
+    const body = anyErr?.error;
+    if (typeof body === 'string' && body.trim()) {
+      return body.trim();
+    }
+    if (body && typeof body === 'object') {
+      const o = body as { message?: string; error?: string };
+      const m = o.message ?? o.error;
+      if (typeof m === 'string' && m.trim()) {
+        return m.trim();
       }
-    });
+    }
+    if (typeof anyErr?.message === 'string' && anyErr.message.trim()) {
+      return anyErr.message.trim();
+    }
+    return null;
   }
 
   openTaskDialog(project: Project): void {
@@ -622,22 +588,70 @@ export class ProjectDetailPage implements OnInit {
       return;
     }
     this.newTask = this.createEmptyTask(project.id);
+    this.collaboratorEmailManual = '';
     this.taskDialogVisible = true;
+    this.loadCollaboratorDirectory();
+  }
+
+  collaboratorLabel(entry: CollaboratorDirectoryEntry): string {
+    const name = `${entry.firstName ?? ''} ${entry.lastName ?? ''}`.trim();
+    return name ? `${name} — ${entry.email}` : entry.email;
+  }
+
+  private loadCollaboratorDirectory(): void {
+    this.collaboratorsLoading = true;
+    this.userService.getCollaboratorDirectory().subscribe({
+      next: (list) => {
+        this.collaboratorDirectory = list ?? [];
+        this.collaboratorsLoading = false;
+      },
+      error: () => {
+        this.collaboratorDirectory = [];
+        this.collaboratorsLoading = false;
+        this.messageService.add({
+          severity: 'warn',
+          summary: 'Collaborator list',
+          detail: 'Could not load collaborators. Ask an administrator to check your access.'
+        });
+      }
+    });
   }
 
   closeTaskDialog(): void {
     this.taskDialogVisible = false;
     this.isSavingTask = false;
+    this.collaboratorEmailManual = '';
   }
 
   saveTask(project: Project): void {
     if (!project.id || this.isSavingTask || !this.newTask.title.trim() || !this.isProjectManagerOfProject(project)) {
       return;
     }
+    const collabEmail =
+      this.collaboratorEmailManual.trim() || this.newTask.collaboratorEmail?.trim() || '';
+    if (!collabEmail) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Collaborator required',
+        detail: 'Select a collaborator in the list or enter their email.'
+      });
+      return;
+    }
 
     this.isSavingTask = true;
-    this.taskService.createTask({ ...this.newTask, projectId: project.id }).subscribe({
+    this.taskService
+      .createTask({
+        title: this.newTask.title.trim(),
+        description: this.newTask.description?.trim() ?? '',
+        status: TaskStatus.TODO,
+        projectId: project.id,
+        collaboratorEmail: collabEmail,
+        priority: this.newTask.priority,
+        deadline: this.newTask.deadline
+      })
+      .subscribe({
       next: () => {
+        this.collaboratorEmailManual = '';
         this.closeTaskDialog();
         this.newTask = this.createEmptyTask(project.id);
         this.loadProject(project.id);
@@ -647,12 +661,16 @@ export class ProjectDetailPage implements OnInit {
           detail: 'The new task was added to this project.'
         });
       },
-      error: () => {
+      error: (err) => {
         this.isSavingTask = false;
+        const m = err?.error?.message ?? err?.error?.error;
         this.messageService.add({
           severity: 'error',
           summary: 'Creation failed',
-          detail: 'Could not create the task. Try again.'
+          detail:
+            typeof m === 'string' && m.trim()
+              ? m
+              : 'Could not create the task. Try again.'
         });
       }
     });
@@ -978,7 +996,7 @@ export class ProjectDetailPage implements OnInit {
               severity: 'info',
               summary: `${action}d`,
               detail: archived
-                ? 'Projet archivé. Il n’apparaît plus dans la liste principale ; utilisez « Archived projects » / Projets archivés.'
+                ? 'Project archived. It no longer appears in the main list — open Archived projects in the menu to find it.'
                 : 'Project unarchived successfully.'
             });
           },

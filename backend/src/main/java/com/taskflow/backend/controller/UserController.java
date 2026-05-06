@@ -1,5 +1,6 @@
 package com.taskflow.backend.controller;
 
+import com.taskflow.backend.dto.user.CollaboratorDirectoryEntry;
 import com.taskflow.backend.dto.auth.AdminCreateUserRequest;
 import com.taskflow.backend.entity.Skill;
 import com.taskflow.backend.entity.User;
@@ -127,6 +128,26 @@ public class UserController {
                 .toList();
 
         return ResponseEntity.ok(collaboratorEmails);
+    }
+
+    /**
+     * Full list of active collaborator accounts (for task assignment pickers, etc.).
+     */
+    @GetMapping("/collaborators/directory")
+    @PreAuthorize("hasAnyRole('PROJECT_MANAGER','ADMIN')")
+    public ResponseEntity<List<CollaboratorDirectoryEntry>> getCollaboratorDirectory() {
+        List<CollaboratorDirectoryEntry> list = userRepository
+                .findByRoleAndActiveIncludingNull(UserRole.COLLABORATOR)
+                .stream()
+                .sorted(Comparator.comparing(User::getEmail, Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER)))
+                .map(u -> new CollaboratorDirectoryEntry(
+                        u.getId(),
+                        u.getEmail(),
+                        u.getFirstName(),
+                        u.getLastName()
+                ))
+                .toList();
+        return ResponseEntity.ok(list);
     }
 
     @PostMapping("/admin/users")

@@ -206,6 +206,8 @@ export class AppTopbar implements OnInit, OnDestroy {
     showNotificationPanel = false;
     showShake = false;
     userName = '';
+    /** CLIENT uses a direct profile icon in the topbar (no ⋮ menu). */
+    isClientUser = false;
     projectsCalendarOpen = false;
     mobileTopbarMenuVisible = false;
     isDesktopView = window.innerWidth > 991;
@@ -218,6 +220,16 @@ export class AppTopbar implements OnInit, OnDestroy {
         // ensure websocket is connected
         this.ws.connect();
         this.loadStoredNotifications();
+
+        const token = localStorage.getItem('token');
+        if (token) {
+            try {
+                const payload = JSON.parse(atob(token.split('.')[1]));
+                this.isClientUser = payload.role === 'CLIENT';
+            } catch {
+                this.isClientUser = false;
+            }
+        }
 
         const storedUser = localStorage.getItem('user');
         if (storedUser) {

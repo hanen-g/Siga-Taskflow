@@ -42,62 +42,79 @@
       </aside>
 
       <div class="details-column">
-        <div class="details-form">
-          <div class="field-group">
-            <label for="firstName">First Name</label>
-            <div class="field-shell" [class.readonly-shell]="!isEditingProfile">
-              <i class="pi pi-user"></i>
-              <input
-                id="firstName"
-                type="text"
-                pInputText
-                [(ngModel)]="firstName"
-                [readonly]="!isEditingProfile" />
+        <div class="details-main">
+          <div class="details-form">
+            <div class="field-group">
+              <label for="firstName">First Name</label>
+              <div class="field-shell" [class.readonly-shell]="!isEditingProfile">
+                <i class="pi pi-user"></i>
+                <input
+                  id="firstName"
+                  type="text"
+                  pInputText
+                  [(ngModel)]="firstName"
+                  [readonly]="!isEditingProfile" />
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label for="lastName">Last Name</label>
+              <div class="field-shell" [class.readonly-shell]="!isEditingProfile">
+                <i class="pi pi-user"></i>
+                <input
+                  id="lastName"
+                  type="text"
+                  pInputText
+                  [(ngModel)]="lastName"
+                  [readonly]="!isEditingProfile" />
+              </div>
+            </div>
+
+            <div class="field-group">
+              <label for="email">Email</label>
+              <div class="field-shell readonly-shell">
+                <i class="pi pi-envelope"></i>
+                <input
+                  id="email"
+                  type="text"
+                  pInputText
+                  [value]="email"
+                  readonly />
+              </div>
             </div>
           </div>
 
-          <div class="field-group">
-            <label for="lastName">Last Name</label>
-            <div class="field-shell" [class.readonly-shell]="!isEditingProfile">
-              <i class="pi pi-user"></i>
-              <input
-                id="lastName"
-                type="text"
-                pInputText
-                [(ngModel)]="lastName"
-                [readonly]="!isEditingProfile" />
+          <section *ngIf="showSkillsSection" class="skills-panel" aria-labelledby="skills-heading">
+            <div class="skills-panel-top">
+              <div class="skills-panel-heading">
+                <h3 id="skills-heading">Your skills</h3>
+                <span class="skills-readonly-badge">Read-only</span>
+              </div>
+              <p class="skills-panel-hint">
+                Used to match you with project work. Updates go through an administrator.
+              </p>
             </div>
-          </div>
 
-          <div class="field-group">
-            <label for="email">Email</label>
-            <div class="field-shell readonly-shell">
-              <i class="pi pi-envelope"></i>
-              <input
-                id="email"
-                type="text"
-                pInputText
-                [value]="email"
-                readonly />
+            <div *ngIf="skillsUiLoading" class="skills-panel-body skills-panel-loading">
+              <i class="pi pi-spin pi-spinner" aria-hidden="true"></i>
+              <span>Loading skills…</span>
             </div>
-          </div>
+
+            <ng-container *ngIf="!skillsUiLoading">
+              <div class="skills-panel-body" *ngIf="mySkills.length">
+                <ul class="skills-chip-list" role="list">
+                  <li *ngFor="let s of mySkills" role="listitem">
+                    <span class="skills-chip">{{ s.name }}</span>
+                  </li>
+                </ul>
+              </div>
+              <div *ngIf="!mySkills.length" class="skills-panel-body skills-panel-empty">
+                <i class="pi pi-briefcase" aria-hidden="true"></i>
+                <p>No skills listed yet. Ask an administrator if something looks wrong.</p>
+              </div>
+            </ng-container>
+          </section>
         </div>
-
-        <section *ngIf="showSkillsSection" class="skills-card surface-card p-3 mb-3">
-          <h3>Your skills</h3>
-          <p class="text-600 text-sm mb-3">
-            These skills are used to match you with project needs. They are read-only here; contact an administrator if updates are needed.
-          </p>
-          <div *ngIf="skillsUiLoading" class="py-3">
-            <i class="pi pi-spin pi-spinner"></i> Loading…
-          </div>
-          <ng-container *ngIf="!skillsUiLoading">
-            <ul class="skills-readonly-list" *ngIf="mySkills.length">
-              <li *ngFor="let s of mySkills">{{ s.name }}</li>
-            </ul>
-            <p *ngIf="!mySkills.length" class="text-600 text-sm m-0">No skills are listed yet.</p>
-          </ng-container>
-        </section>
 
         <div class="profile-footer-row">
           <div class="action-row">

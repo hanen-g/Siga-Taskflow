@@ -45,7 +45,7 @@ public class JwtFilter extends OncePerRequestFilter {
             return;
         }
 
-        User user = userRepository.findByEmail(email).orElse(null);
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
         if (user == null) {
             writeUnauthorized(response);
             return;

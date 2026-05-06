@@ -1,12 +1,11 @@
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Observable, Subject, of } from 'rxjs';
+import { Observable, Subject, forkJoin, of } from 'rxjs';
 import { catchError, switchMap, startWith, tap } from 'rxjs/operators';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
-import { MessageModule } from 'primeng/message';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { MenuModule } from 'primeng/menu';
@@ -18,7 +17,7 @@ import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
 
 import { ProjectService } from '../../../services/project.service';
-import { UserService, ProjectManagerOption } from '../../../services/user.service';
+import { AdminUser, UserService, ProjectManagerOption } from '../../../services/user.service';
 import { WebsocketService } from '../../../services/websocket.service';
 import { ApiService } from '../../../services/api';
 import { ProjectPanel } from './project-panel';
@@ -36,7 +35,6 @@ import { NotificationService } from '../../../services/notification.service';
     CommonModule,
     FormsModule,
     RouterLink,
-    MessageModule,
     ButtonModule,
     DialogModule,
     InputTextModule,
@@ -81,7 +79,21 @@ export class ProjectsPage implements OnInit {
     deadline: string;
     managerId: number | null;
     requiredSkillIds: number[];
-  } = { name: '', description: '', startDate: '', deadline: '', managerId: null, requiredSkillIds: [] };
+    /** Admin create only: existing CLIENT users invited to the project. */
+    clientIds: number[];
+  } = {
+    name: '',
+    description: '',
+    startDate: '',
+    deadline: '',
+    managerId: null,
+    requiredSkillIds: [],
+    clientIds: []
+  };
+
+  /** Active clients for optional assignment on new project (admin). */
+  activeClientsForProject: AdminUser[] = [];
+  clientSelectOptions: { label: string; value: number }[] = [];
 
   displayProposeDialog = false;
   proposeIdea = { name: '', description: '', deadline: '' as string | null };
@@ -209,7 +221,7 @@ export class ProjectsPage implements OnInit {
   }
 
   /**
-   * Liste projet PM / collaborateur : uniquement les projets « en cours » (pas pause, pas colonne latérale, pas idées).
+   * PM / collaborator project list: only “in progress” projects (no paused column, sidebar, or idea panel).
    */
   showsOngoingProjectsOnlyLayout(): boolean {
     return this.canProposeIdea && !this.isAdmin && !this.isClient;
@@ -263,8 +275,9 @@ export class ProjectsPage implements OnInit {
     return this.isProjectManager || this.isCollaborator;
   }
 
+  /** Create is admin-only; edit can be opened by a project manager (name, dates, skills) or admin (full staffing). */
   get showNewProjectFormDialog(): boolean {
-    return this.displayDialog && this.isAdmin;
+    return this.displayDialog && (this.isAdmin || this.isEditMode);
   }
 
   /** Normalized ids for multiselect + API (avoids string/number mismatches). Exposed for template hints. */
@@ -282,7 +295,7 @@ export class ProjectsPage implements OnInit {
     );
   }
 
-  /** Nombre de compétences requises (parmi `required`) possédées par ce PM. */
+  /** Count of required skills (from `required`) that this PM has. */
   private pmSkillOverlapCount(pm: ProjectManagerOption, required: number[]): number {
     if (!required.length) {
       return 0;
@@ -292,9 +305,8 @@ export class ProjectsPage implements OnInit {
   }
 
   /**
-   * Chefs de projet à proposer selon les compétences cochées :
-   * sans compétence → tous les PM ; sinon → ceux qui ont **au moins une** compétence en commun
-   * (tri : d’abord ceux qui ont **toutes** les compétences, puis par nombre de correspondances).
+   * Project managers to suggest from selected skills:
+   * no skills → all PMs; otherwise those sharing **at least one** skill (sort: **full** matches first, then by overlap count).
    */
   projectManagersMatchingRequiredSkills(): ProjectManagerOption[] {
     const required = this.normalizedRequiredSkillIds();
@@ -322,7 +334,7 @@ export class ProjectsPage implements OnInit {
     return matched.map((s) => s.pm);
   }
 
-  /** Au moins un PM possède toutes les compétences cochées. */
+  /** At least one PM has every selected skill. */
   projectManagersIncludeFullSkillCover(): boolean {
     const required = this.normalizedRequiredSkillIds();
     if (!required.length) {
@@ -348,7 +360,7 @@ export class ProjectsPage implements OnInit {
       if (n > 0) {
         const mc = this.pmSkillOverlapCount(u, required);
         if (mc < n) {
-          suffix = ` — ${mc}/${n} compétence(s)`;
+          suffix = ` — ${mc}/${n} skill(s)`;
         }
       }
       return {
@@ -517,19 +529,55 @@ export class ProjectsPage implements OnInit {
 
   showDialog() {
     this.isEditMode = false;
-    this.newProject = { name: '', description: '', startDate: '', deadline: '', managerId: null, requiredSkillIds: [] };
+    this.newProject = {
+      name: '',
+      description: '',
+      startDate: '',
+      deadline: '',
+      managerId: null,
+      requiredSkillIds: [],
+      clientIds: []
+    };
     this.projectManagersLoadError = null;
+    this.activeClientsForProject = [];
+    this.clientSelectOptions = [];
     this.loadSkillsIfNeeded();
-    this.userService.getProjectManagersForAdmin().subscribe({
-      next: (m) => {
-        this.projectManagers = m;
+    forkJoin({
+      pms: this.userService.getProjectManagersForAdmin(),
+      clients: this.userService.getAdminUsers('', 'CLIENT', 'active')
+    }).subscribe({
+      next: ({ pms, clients }) => {
+        this.projectManagers = pms;
+        this.activeClientsForProject = clients ?? [];
+        this.rebuildClientSelectOptions();
         this.displayDialog = true;
       },
       error: () => {
-        this.projectManagersLoadError = 'Could not load project managers.';
-        this.notify('error', 'Error', 'Could not load project managers for assignment.');
-        this.displayDialog = true;
+        this.projectManagersLoadError = 'Could not load project managers or clients.';
+        this.notify('error', 'Error', 'Could not load data for the create form.');
+        this.activeClientsForProject = [];
+        this.clientSelectOptions = [];
+        this.userService.getProjectManagersForAdmin().subscribe({
+          next: (m) => {
+            this.projectManagers = m;
+            this.displayDialog = true;
+          },
+          error: () => {
+            this.projectManagers = [];
+            this.displayDialog = true;
+          }
+        });
       }
+    });
+  }
+
+  private rebuildClientSelectOptions(): void {
+    this.clientSelectOptions = this.activeClientsForProject.map((c) => {
+      const name = `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim();
+      return {
+        label: name ? `${name} (${c.email})` : c.email,
+        value: c.id
+      };
     });
   }
 
@@ -542,12 +590,53 @@ export class ProjectsPage implements OnInit {
   editProject(project: any) {
     this.isEditMode = true;
     this.selectedProjectId = project.id;
-    this.newProject = {
-      ...project,
-      requiredSkillIds: (project.requiredSkills ?? []).map((s: Skill) => s.id)
-    };
     this.loadSkillsIfNeeded();
-    this.displayDialog = true;
+    this.projectManagersLoadError = null;
+    const detail$ = this.projectService.getProject(project.id);
+    if (this.isAdmin) {
+      forkJoin({
+        pms: this.userService.getProjectManagersForAdmin(),
+        clients: this.userService.getAdminUsers('', 'CLIENT', 'active'),
+        detail: detail$
+      }).subscribe({
+        next: ({ pms, clients, detail }) => {
+          this.projectManagers = pms;
+          this.activeClientsForProject = clients ?? [];
+          this.rebuildClientSelectOptions();
+          this.patchNewProjectFromDetail(detail);
+          this.displayDialog = true;
+        },
+        error: () => {
+          this.notify('error', 'Error', 'Could not load project for editing.');
+          this.isEditMode = false;
+          this.selectedProjectId = null;
+        }
+      });
+    } else {
+      detail$.subscribe({
+        next: (detail) => {
+          this.patchNewProjectFromDetail(detail);
+          this.displayDialog = true;
+        },
+        error: () => {
+          this.notify('error', 'Error', 'Could not load project for editing.');
+          this.isEditMode = false;
+          this.selectedProjectId = null;
+        }
+      });
+    }
+  }
+
+  private patchNewProjectFromDetail(detail: any): void {
+    this.newProject = {
+      name: detail?.name ?? '',
+      description: detail?.description ?? '',
+      startDate: detail?.startDate ?? '',
+      deadline: detail?.deadline ?? '',
+      managerId: detail?.managerId ?? null,
+      requiredSkillIds: (detail?.requiredSkills ?? []).map((s: Skill) => s.id),
+      clientIds: [...(detail?.clientIds ?? [])]
+    };
   }
 
   private loadSkillsIfNeeded(): void {
@@ -598,23 +687,26 @@ export class ProjectsPage implements OnInit {
 
     const isEditing = this.isEditMode;
 
-    if (!isEditing && this.isAdmin) {
-      const reqs = this.newProject.requiredSkillIds ?? [];
+    if (this.isAdmin) {
       if (this.normalizedRequiredSkillIds().length && this.projectManagersMatchingRequiredSkills().length === 0) {
         this.notify(
           'error',
           'Validation',
-          'Aucun chef de projet ne possède au moins une des compétences sélectionnées. Associez des compétences aux profils ou modifiez la sélection.'
+          'No project manager has at least one of the selected skills. Assign skills on profiles or adjust your selection.'
         );
         return;
       }
       if (this.newProject.managerId == null) {
-        this.notify('error', 'Validation', 'Select a project manager for this new project.');
+        this.notify(
+          'error',
+          'Validation',
+          isEditing ? 'Select a project manager for this project.' : 'Select a project manager for this new project.'
+        );
         return;
       }
       const allowed = new Set(this.projectManagersMatchingRequiredSkills().map((m) => m.id));
       if (!allowed.has(this.newProject.managerId)) {
-        this.notify('error', 'Validation', 'Le chef de projet choisi ne correspond pas aux compétences filtrées.');
+        this.notify('error', 'Validation', 'The chosen project manager does not match the filtered skills.');
         return;
       }
     }
@@ -628,13 +720,25 @@ export class ProjectsPage implements OnInit {
       return;
     }
 
+    const clientIdsNorm = (this.newProject.clientIds ?? [])
+      .map((id) => Number(id))
+      .filter((n) => Number.isFinite(n) && n > 0);
+
     const request = isEditing
       ? this.projectService.updateProject(this.selectedProjectId!, {
           name: this.newProject.name,
           description: this.newProject.description,
           startDate: this.newProject.startDate || undefined,
           deadline: this.newProject.deadline || undefined,
-          requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id }))
+          requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id: Number(id) })),
+          ...(this.isAdmin &&
+          this.newProject.managerId != null &&
+          Number.isFinite(Number(this.newProject.managerId))
+            ? {
+                manager: { id: Number(this.newProject.managerId) },
+                clientIds: clientIdsNorm
+              }
+            : {})
         })
       : this.projectService.createProject({
           name: this.newProject.name,
@@ -642,7 +746,8 @@ export class ProjectsPage implements OnInit {
           startDate: this.newProject.startDate || undefined,
           deadline: this.newProject.deadline || undefined,
           manager: { id: this.newProject.managerId! },
-          requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id }))
+          requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id })),
+          clientIds: clientIdsNorm
         });
 
     request.subscribe({
@@ -663,10 +768,7 @@ export class ProjectsPage implements OnInit {
         this.notify(
           'error',
           'Request Failed',
-          typeof msg === 'string' ? msg
-            : isEditing
-            ? 'Project was updated on the server, but the app could not finish the request cleanly.'
-            : 'Unable to save the project.'
+          typeof msg === 'string' ? msg : isEditing ? 'Could not update the project.' : 'Unable to save the project.'
         );
       }
     });
@@ -746,7 +848,7 @@ export class ProjectsPage implements OnInit {
               'info',
               `${action}d`,
               event.archived
-                ? 'Projet archivé. Il apparaît dans le menu « Archived projects » / Projets archivés.'
+                ? 'Project archived. You can find it under Archived projects in the menu.'
                 : `Project ${action.toLowerCase()}d successfully.`
             );
           },
@@ -754,8 +856,8 @@ export class ProjectsPage implements OnInit {
             const m = err?.error?.message ?? err?.error?.error;
             this.notify(
               'error',
-              'Échec',
-              typeof m === 'string' ? m : 'Impossible de modifier le statut d’archivage. Vérifiez d’être connecté en administrateur.'
+              'Failed',
+              typeof m === 'string' ? m : 'Could not change archive status. Make sure you are signed in as an administrator.'
             );
           }
         });
@@ -787,6 +889,46 @@ export class ProjectsPage implements OnInit {
         });
       }
     });
+  }
+
+  /**
+   * Moves a “not started” project (future start date) into “in progress” by setting start date to today.
+   */
+  startProjectNow(project: any): void {
+    if (!project?.id) {
+      return;
+    }
+    const deadlineYmd = this.projectStartDateYmd(project.deadline);
+    const skillIds = (project.requiredSkills ?? [])
+      .map((s: Skill) => Number((s as Skill)?.id))
+      .filter((n: number) => Number.isFinite(n));
+
+    this.projectService
+      .updateProject(project.id, {
+        name: project.name,
+        description: project.description ?? '',
+        startDate: this.todayYmdLocal(),
+        ...(deadlineYmd ? { deadline: deadlineYmd } : {}),
+        requiredSkills: skillIds.map((id: number) => ({ id }))
+      })
+      .subscribe({
+        next: () => {
+          this.refresh$.next();
+          this.notify(
+            'success',
+            'Project started',
+            'The start date is set to today; the project now appears under projects in progress.'
+          );
+        },
+        error: (err) => {
+          const msg = err?.error?.message;
+          this.notify(
+            'error',
+            'Error',
+            typeof msg === 'string' ? msg : 'Could not start the project.'
+          );
+        }
+      });
   }
 
   deliverProject(event: { id: number; delivered: boolean; nativeEvent: Event }): void {

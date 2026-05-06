@@ -12,8 +12,8 @@
         type="button"
         class="layout-topbar-action"
         (click)="openProjectsCalendar()"
-        title="Calendrier des projets"
-        aria-label="Calendrier des projets">
+        title="Projects calendar"
+        aria-label="Projects calendar">
         <i class="pi pi-calendar"></i>
       </button>
       <button type="button" class="layout-topbar-action" (click)="toggleDarkMode()">
@@ -56,27 +56,27 @@
                 <div class="notification-body">
                   <p class="notification-message">{{ notif.message }}</p>
                   @if (notif.projectName) {
-                    <small class="notification-meta">Projet / idée : {{ notif.projectName }}</small>
+                    <small class="notification-meta">Project / idea: {{ notif.projectName }}</small>
                   }
                   @if (notif.taskTitle) {
                     <small class="notification-meta">{{ notif.taskTitle }}</small>
                   }
                   @if (notif.managerName) {
-                    <small class="notification-meta">Par : {{ notif.managerName }}</small>
+                    <small class="notification-meta">By: {{ notif.managerName }}</small>
                   }
                 </div>
               </div>
             } @else {
               <div class="no-notifications">
                 <i class="pi pi-inbox"></i>
-                <p>Aucune notification</p>
+                <p>No notifications</p>
               </div>
             }
           </div>
           @if (notifications.length > 0) {
             <div class="notification-panel-footer">
               <button type="button" class="clear-btn" (click)="clearNotifications()">
-                Tout effacer
+                Clear all
               </button>
             </div>
           }
@@ -86,6 +86,7 @@
 
     <app-projects-calendar-dialog [(visible)]="projectsCalendarOpen" />
 
+    @if (!isClientUser) {
     <button
       #topbarMenuButton
       class="layout-topbar-menu-button layout-topbar-action"
@@ -109,5 +110,14 @@
         </button>
       </div>
     </div>
+    } @else {
+    <a
+      class="layout-topbar-action"
+      [routerLink]="['/dashboard/profile']"
+      title="My profile"
+      aria-label="My profile">
+      <i class="pi pi-user"></i>
+    </a>
+    }
   </div>
 </div>

@@ -15,15 +15,9 @@
 .project-detail-progress-bar{position:relative;flex:1;height:1.8rem;overflow:hidden;border:1px solid #d4deec;border-radius:.45rem;box-shadow:inset 0 1px 4px rgba(148,163,184,.18)}
 .project-detail-progress-fill{display:block;height:100%;border-radius:.4rem 0 0 .4rem;background:linear-gradient(90deg,#438de4,#3a7bd5)}
 .project-detail-progress-label{min-width:10.5rem;padding:.35rem .8rem;border:1px solid #d4deec;border-radius:.45rem;background:#fff;color:#526277;font-size:1rem;font-weight:600;text-align:center}
-.project-detail-tabs{display:flex;gap:1rem;margin:0 0 1.25rem;flex-wrap:wrap;align-items:center}
+.project-detail-tabs{display:flex;gap:1rem;margin:0 0 1.25rem;flex-wrap:wrap;align-items:flex-end}
 .project-detail-tab{padding:.7rem 1.8rem;border:0;border-bottom:3px solid transparent;background:transparent;color:#65758c;font-size:1rem;font-weight:600;cursor:pointer}
 .project-detail-tab.is-active{border-bottom-color:#4f8ee7;color:#3b82f6}
-.project-detail-tools{display:flex;margin-bottom:1.25rem}
-.workspace-search{width:100%;max-width:23rem;margin-left:auto}
-.search-input-wrapper{position:relative;display:flex;background:#f8f8f8;border:1px solid #e0e0e0;border-radius:999px;padding:.75rem 1.25rem;transition:border-color .2s ease,background-color .2s ease}
-.search-icon{color:#999;font-size:1rem;margin-right:.75rem;flex-shrink:0}
-.search-input{flex:1;border:none;background:transparent;outline:none;font-size:1rem;color:var(--text-color,#334155);padding:0;font-family:inherit}
-.search-input::placeholder{color:#b3b3b3}
 .project-detail-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(17rem,22rem);gap:1.6rem;align-items:start;padding-top:1.25rem}
 .project-detail-main,.project-detail-sidebar{min-width:0}
 .project-detail-sidebar{position:sticky;top:5.75rem;align-self:start}
@@ -94,14 +88,6 @@ textarea {
   width: 100% !important;
 }
 
-.team-skills-panel{max-width:100%}
-.team-match-table-wrap{overflow-x:auto;border:1px solid rgba(203,213,225,.7);border-radius:.75rem;background:rgba(255,255,255,.9)}
-.team-match-table{width:100%;border-collapse:collapse;font-size:.95rem}
-.team-match-table th,.team-match-table td{padding:.75rem 1rem;text-align:left;border-bottom:1px solid rgba(226,232,240,.9)}
-.team-match-table th{color:#475569;font-weight:600;background:rgba(248,250,252,.9)}
-.team-match-table tr.row-full-match td:first-child{border-left:3px solid #22c55e}
-.skill-chip{padding:.15rem .5rem;border-radius:999px;background:rgba(219,234,254,.9);color:#1e3a5f;font-size:.8rem}
-.surface-card{border:1px solid rgba(203,213,225,.7);border-radius:.75rem;background:rgba(255,255,255,.85)}
 .project-detail-kanban{display:block;width:100%;min-width:0;margin-top:.25rem}
 
 @media (max-width: 960px) {
@@ -114,4 +100,9 @@ textarea {
     margin: 0 auto;
     width: 100%;
   }
+}
+
+/* New task dialog: native select list of collaborators */
+.task-collab-select {
+  min-height: 2.6rem;
 }

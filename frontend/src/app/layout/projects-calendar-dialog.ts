@@ -127,7 +127,7 @@ export class ProjectsCalendarDialog implements OnChanges {
       },
       error: () => {
         this.loading = false;
-        this.loadError = 'Impossible de charger les projets. Réessayez plus tard.';
+        this.loadError = 'Could not load projects. Try again later.';
         this.cdr.markForCheck();
       }
     });

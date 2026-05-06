@@ -1,5 +1,5 @@
 <p-dialog
-  [header]="'Calendrier des projets'"
+  [header]="'Projects calendar'"
   [visible]="visible"
   (visibleChange)="onDialogVisibleChange($event)"
   [modal]="true"
@@ -8,11 +8,14 @@
   [style]="{ width: 'min(96vw, 1100px)' }"
   [dismissableMask]="true"
   [blockScroll]="true"
+  [appendTo]="'body'"
+  [baseZIndex]="2100"
+  styleClass="projects-calendar-dialog"
   (onHide)="onHide()">
   <ng-template pTemplate="content">
     <div class="pcal-wrap">
       @if (loading) {
-        <div class="pcal-loading">Chargement des projets…</div>
+        <div class="pcal-loading">Loading projects…</div>
       } @else if (loadError) {
         <div class="pcal-error">{{ loadError }}</div>
       } @else {
@@ -23,7 +26,7 @@
             icon="pi pi-chevron-left"
             class="p-button-text p-button-secondary"
             (click)="shiftView(-1)"
-            [attr.aria-label]="'Mois précédents'"></button>
+            [attr.aria-label]="'Previous months'"></button>
           <span class="pcal-title">{{ rangeTitle }}</span>
           <button
             pButton
@@ -31,20 +34,20 @@
             icon="pi pi-chevron-right"
             class="p-button-text p-button-secondary"
             (click)="shiftView(1)"
-            [attr.aria-label]="'Mois suivants'"></button>
+            [attr.aria-label]="'Next months'"></button>
         </div>
 
         <div class="pcal-legend">
           <span class="pcal-legend-item"
-            ><span class="pcal-dot pcal-dot--start" aria-hidden="true"></span> Début de projet</span
+            ><span class="pcal-dot pcal-dot--start" aria-hidden="true"></span> Project start</span
           >
           <span class="pcal-legend-item"
-            ><span class="pcal-dot pcal-dot--deadline" aria-hidden="true"></span> Date limite</span
+            ><span class="pcal-dot pcal-dot--deadline" aria-hidden="true"></span> Deadline</span
           >
         </div>
 
         @if (!hasAnyProjectDates) {
-          <p class="pcal-empty m-0">Aucun début ni date limite n’est renseigné sur vos projets visibles.</p>
+          <p class="pcal-empty m-0">No start or deadline dates are set on your visible projects.</p>
         } @else {
           <div class="pcal-months">
             <div class="pcal-month">
@@ -73,7 +76,7 @@
                                 [routerLink]="projectDetailPath(ev.projectId)"
                                 (click)="close()">
                                 <span class="pcal-event-label">{{
-                                  ev.kind === 'start' ? 'Début' : 'Échéance'
+                                  ev.kind === 'start' ? 'Start' : 'Deadline'
                                 }}</span>
                                 {{ ev.projectName }}
                               </a>
@@ -113,7 +116,7 @@
                                 [routerLink]="projectDetailPath(ev.projectId)"
                                 (click)="close()">
                                 <span class="pcal-event-label">{{
-                                  ev.kind === 'start' ? 'Début' : 'Échéance'
+                                  ev.kind === 'start' ? 'Start' : 'Deadline'
                                 }}</span>
                                 {{ ev.projectName }}
                               </a>

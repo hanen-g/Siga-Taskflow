@@ -64,13 +64,13 @@ public class NotificationService {
         Notification entity = new Notification();
         entity.setRecipient(adminRecipient);
         entity.setMessage(
-                "Nouvelle proposition de projet : « "
+                "New project proposal: \""
                         + proposalName
-                        + " » par "
+                        + "\" from "
                         + formatManagerName(submitter)
-                        + ". À valider dans Idées de projet.");
+                        + ". Review it under Proposed project ideas.");
         entity.setProjectName(proposalName);
-        entity.setTaskTitle("Proposition de projet");
+        entity.setTaskTitle("Project proposal");
         entity.setManagerName(formatManagerName(submitter));
         entity.setRead(false);
 
@@ -84,9 +84,9 @@ public class NotificationService {
         Notification entity = new Notification();
         entity.setRecipient(submitter);
         entity.setMessage(
-                "Votre proposition « " + proposalName + " » a été envoyée. Un administrateur la traitera sous peu.");
+                "Your proposal \"" + proposalName + "\" was submitted. An administrator will review it shortly.");
         entity.setProjectName(proposalName);
-        entity.setTaskTitle("Proposition en attente");
+        entity.setTaskTitle("Proposal pending");
         entity.setManagerName(null);
         entity.setRead(false);
 
@@ -102,13 +102,13 @@ public class NotificationService {
         Notification entity = new Notification();
         entity.setRecipient(proposer);
         entity.setMessage(
-                "Votre proposition « "
+                "Your proposal \""
                         + proposalName
-                        + " » a été approuvée. Le projet « "
+                        + "\" was approved. The project \""
                         + createdProjectName
-                        + " » est maintenant disponible.");
+                        + "\" is now available.");
         entity.setProjectName(createdProjectName);
-        entity.setTaskTitle("Proposition approuvée");
+        entity.setTaskTitle("Proposal approved");
         entity.setManagerName(formatManagerName(adminApprover));
         entity.setRead(false);
 

@@ -16,6 +16,8 @@ import com.taskflow.backend.exception.UnauthorizedException;
 import com.taskflow.backend.repository.ProjectRepository;
 import com.taskflow.backend.repository.SkillRepository;
 import com.taskflow.backend.repository.UserRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
@@ -25,13 +27,17 @@ import com.taskflow.backend.dto.websocket.ProjectMessage;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
 public class ProjectService {
+
+    private static final Logger log = LoggerFactory.getLogger(ProjectService.class);
 
     private final ProjectRepository projectRepository;
     private final SimpMessagingTemplate messagingTemplate;
@@ -106,8 +112,7 @@ public class ProjectService {
             if (project.isArchived()) {
                 return false;
             }
-            return project.getMembers() != null
-                    && project.getMembers().stream().anyMatch(m -> m.getId().equals(user.getId()));
+            return clientCanAccessProject(project, user);
         }
         if (user.getRole() == UserRole.COLLABORATOR) {
             if (project.isArchived()) {
@@ -131,6 +136,39 @@ public class ProjectService {
             }
         }
         return false;
+    }
+
+    /**
+     * Client access model:
+     * - direct invitation (client account is in project members), or
+     * - same organization/company as an invited client account.
+     */
+    private boolean clientCanAccessProject(Project project, User clientUser) {
+        if (clientUser == null || clientUser.getId() == null || project.getMembers() == null) {
+            return false;
+        }
+        boolean directlyInvited = project.getMembers().stream()
+                .anyMatch(member -> member != null && clientUser.getId().equals(member.getId()));
+        if (directlyInvited) {
+            return true;
+        }
+        String clientCompany = normalizeCompany(clientUser.getCompany());
+        if (clientCompany == null) {
+            return false;
+        }
+        return project.getMembers().stream()
+                .filter(member -> member != null && member.getRole() == UserRole.CLIENT)
+                .map(User::getCompany)
+                .map(this::normalizeCompany)
+                .anyMatch(clientCompany::equals);
+    }
+
+    private String normalizeCompany(String company) {
+        if (company == null) {
+            return null;
+        }
+        String normalized = company.trim().toLowerCase();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     /** Collaborator sees a project only when assigned by the PM/chef on at least one task. */
@@ -198,15 +236,36 @@ public class ProjectService {
             throw new UnauthorizedException("You are not allowed to update this project");
         }
 
+        if (isAdmin) {
+            applyAdminStaffingUpdates(project, details);
+        }
+
         project.setName(details.getName());
         project.setDescription(details.getDescription());
         project.setStartDate(details.getStartDate());
         project.setDeadline(details.getDeadline());
         project.setRequiredSkills(resolveRequiredSkills(details.getRequiredSkills()));
         Project updated = projectRepository.save(project);
-        ProjectMessage msg = new ProjectMessage("UPDATED", ProjectResponse.fromProject(updated));
-        messagingTemplate.convertAndSend("/topic/projects", msg);
-        return updated;
+        publishProjectUpdatedSafely(updated.getId());
+        return projectRepository.findById(updated.getId()).orElse(updated);
+    }
+
+    /**
+     * Avoid failing the HTTP transaction if WebSocket broadcast raises (e.g. broker issue).
+     */
+    private void publishProjectUpdatedSafely(Long projectId) {
+        try {
+            Project fresh = projectRepository.findById(projectId).orElse(null);
+            if (fresh == null) {
+                return;
+            }
+            messagingTemplate.convertAndSend(
+                    "/topic/projects",
+                    new ProjectMessage("UPDATED", ProjectResponse.fromProject(fresh))
+            );
+        } catch (Exception ex) {
+            log.warn("Could not broadcast project {} update over WebSocket: {}", projectId, ex.getMessage());
+        }
     }
 
     public void deleteProject(Long projectId, User actor) {
@@ -425,6 +484,45 @@ public class ProjectService {
                 )
         );
         return new ProjectSkillMatchResponse(requiredDtos, rows);
+    }
+
+    /**
+     * Reassign project manager and/or linked client accounts (admin only).
+     */
+    private void applyAdminStaffingUpdates(Project project, Project details) {
+        if (details.getManager() != null && details.getManager().getId() != null) {
+            User newManager = userRepository.findById(details.getManager().getId())
+                    .orElseThrow(() -> new BadRequestException("Manager not found."));
+            if (newManager.getRole() != UserRole.PROJECT_MANAGER) {
+                throw new BadRequestException("The assigned user must be a project manager.");
+            }
+            project.setManager(newManager);
+        }
+        if (details.getClientIds() != null) {
+            User mgr = project.getManager();
+            if (mgr == null) {
+                throw new BadRequestException("Assign a project manager before linking clients.");
+            }
+            LinkedHashMap<Long, User> memberById = new LinkedHashMap<>();
+            memberById.put(mgr.getId(), mgr);
+            for (Long clientId : new LinkedHashSet<>(details.getClientIds())) {
+                if (clientId == null) {
+                    continue;
+                }
+                User clientUser = userRepository.findById(clientId)
+                        .orElseThrow(() -> new BadRequestException("Client account not found for id " + clientId + "."));
+                if (clientUser.getRole() != UserRole.CLIENT) {
+                    throw new BadRequestException("Only users with the CLIENT role may be linked this way (id "
+                            + clientId + ").");
+                }
+                if (!clientUser.isActive()) {
+                    throw new BadRequestException("Client account id " + clientId
+                            + " is inactive; activate it first or remove it from the selection.");
+                }
+                memberById.putIfAbsent(clientUser.getId(), clientUser);
+            }
+            project.setMembers(new HashSet<>(memberById.values()));
+        }
     }
 
     private Set<Skill> resolveRequiredSkills(Set<Skill> incomingSkills) {

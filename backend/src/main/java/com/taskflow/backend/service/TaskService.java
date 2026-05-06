@@ -14,6 +14,7 @@ import com.taskflow.backend.repository.TaskRepository;
 import com.taskflow.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import com.taskflow.backend.dto.websocket.Notification;
@@ -41,6 +42,7 @@ public class TaskService {
     private final NotificationService notificationService;
 
 
+    @Transactional
     public Task createTask(TaskRequest request, User manager) {
 
         Project project = projectRepository.findById(request.getProjectId())
@@ -283,7 +285,7 @@ public class TaskService {
         }
 
         return emails.stream()
-                .map(email -> userRepository.findByEmail(email)
+                .map(email -> userRepository.findByEmailIgnoreCase(email)
                         .orElseThrow(() -> new ResourceNotFoundException("Collaborator", email)))
                 .collect(Collectors.toSet());
     }

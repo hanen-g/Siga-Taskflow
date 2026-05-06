@@ -2,7 +2,6 @@
   <div class="page-header">
     <div>
       <h1>User Management</h1>
-      <p>Search, filter, and update employee access from one place.</p>
     </div>
   </div>
 
@@ -71,7 +70,7 @@
               <div class="identity-cell">
                 <p-avatar
                   [image]="getProfilePictureSrc(user.profilePicture)"
-                  [label]="!user.profilePicture ? getUserInitials(user) : undefined"
+                  [label]="getUserAvatarLabel(user)"
                   shape="circle"
                   styleClass="user-avatar"
                 ></p-avatar>
@@ -135,6 +134,18 @@
     [resizable]="false"
     [style]="{ width: 'min(42rem, 96vw)' }"
   >
+    <div *ngIf="selectedUser as su" class="dialog-user-banner">
+      <p-avatar
+        [image]="getProfilePictureSrc(su.profilePicture)"
+        [label]="getUserAvatarLabel(su)"
+        shape="circle"
+        styleClass="dialog-user-avatar"
+      ></p-avatar>
+      <div class="dialog-user-banner-text">
+        <div class="dialog-user-banner-name">{{ su.firstName }} {{ su.lastName }}</div>
+        <div class="dialog-user-banner-email">{{ su.email }}</div>
+      </div>
+    </div>
     <div class="form-grid dialog-form">
       <label>First Name</label>
       <input pInputText [(ngModel)]="editForm.firstName" />

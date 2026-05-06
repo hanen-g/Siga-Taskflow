@@ -122,24 +122,6 @@ export class CreateUsersPage implements OnInit {
     return this.createRoleOptions.find((o) => o.value === this.createRole)?.label ?? 'New account';
   }
 
-  getCreateRoleBlurb(): string {
-    if (!this.createRole) {
-      return '';
-    }
-    switch (this.createRole) {
-      case 'PROJECT_MANAGER':
-        return 'Runs assigned projects (tasks, team, tracking). Can propose new project ideas. Project archive, pause, mark-as-delivered, and deletion are reserved for an administrator.';
-      case 'COLLABORATOR':
-        return 'This user can work on tasks and collaborate on projects they are added to.';
-      case 'CLIENT':
-        return 'This user has a read-focused client view of shared work.';
-      case 'ADMIN':
-        return 'Full administrative access: users, approvals of proposed projects, and project lifecycle (archive, pause, delivered, delete). Only for trusted people.';
-      default:
-        return '';
-    }
-  }
-
   onCreateRoleChange(): void {
     setTimeout(() => {
       this.supportsSkills = this.createRole === 'PROJECT_MANAGER' || this.createRole === 'COLLABORATOR';

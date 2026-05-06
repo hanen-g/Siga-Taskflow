@@ -1,22 +1,15 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, OnChanges, ChangeDetectionStrategy, ChangeDetectorRef, ViewChild } from '@angular/core';
+import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subscription } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
-import { AvatarModule } from 'primeng/avatar';
-import { ScrollPanel, ScrollPanelModule } from 'primeng/scrollpanel';
 import { TooltipModule } from 'primeng/tooltip';
 import { MessageService } from 'primeng/api';
 import { DialogModule } from 'primeng/dialog';
 import { TextareaModule } from 'primeng/textarea';
 
 import { Task, TaskStatus, Priority } from '../../../models/task.model';
-import { Comment } from '../../../models/comment.model';
-import { CommentService } from '../../../services/comment.service';
-import { WebsocketService } from '../../../services/websocket.service';
-import { UserService } from '../../../services/user.service';
 import { TaskService } from '../../../services/task.service';
 import { TaskReportService } from '../../../services/task-report.service';
 
@@ -30,8 +23,6 @@ import { TaskReportService } from '../../../services/task-report.service';
     FormsModule,
     ButtonModule,
     InputTextModule,
-    AvatarModule,
-    ScrollPanelModule,
     TooltipModule,
     DialogModule,
     TextareaModule
@@ -177,96 +168,14 @@ import { TaskReportService } from '../../../services/task-report.service';
       line-height: 1.5;
     }
 
-    .comments-section {
+    .task-footer-actions {
       flex: 1;
       display: flex;
       flex-direction: column;
       padding: 1rem;
     }
 
-    .comments-section h4 {
-      margin: 0 0 1rem 0;
-      font-size: 1rem;
-      font-weight: 600;
-    }
-
-    .comments-scroll {
-      flex: 1;
-      margin-bottom: 1rem;
-    }
-
-    .comments-scroll .p-scrollpanel-content {
-      padding: 0;
-    }
-
-    .comments-list {
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-    }
-
-    .comment-item {
-      padding: 0.75rem;
-      background: #f9fafb;
-      border-radius: 8px;
-    }
-
-    .comment-header {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      margin-bottom: 0.5rem;
-    }
-
-    .comment-meta {
-      display: flex;
-      flex-direction: column;
-    }
-
-    .user-name {
-      font-weight: 500;
-      font-size: 0.875rem;
-    }
-
-    .comment-time {
-      font-size: 0.75rem;
-      color: #6b7280;
-    }
-
-    .comment-content {
-      color: #374151;
-      line-height: 1.5;
-    }
-
-    .no-comments {
-      text-align: center;
-      color: #6b7280;
-      padding: 2rem;
-    }
-
-    .add-comment-section {
-      border-top: 1px solid #e9ecef;
-      padding-top: 1rem;
-    }
-
-    .comment-input-wrapper {
-      display: flex;
-      gap: 0.5rem;
-      align-items: center;
-    }
-
-    .comment-input {
-      flex: 1;
-    }
-
-    .send-btn {
-      padding: 0.5rem;
-    }
-
     .status-actions {
-      border-top: 1px solid #e9ecef;
-      padding-top: 1rem;
-      margin-top: 1rem;
       display: flex;
       flex-direction: column;
       gap: 0.6rem;
@@ -296,21 +205,15 @@ import { TaskReportService } from '../../../services/task-report.service';
     }
   `]
 })
-export class TaskDetailsPanelComponent implements OnInit, OnChanges, OnDestroy {
+export class TaskDetailsPanelComponent {
   @Input() task: Task | null = null;
   @Input() canManageStatus = false;
-  /** When false, hides "Assigned To" (e.g. collaborator view). */
   @Input() showAssignedTo = true;
   @Output() close = new EventEmitter<void>();
   @Output() requestStart = new EventEmitter<Task>();
   @Output() requestPause = new EventEmitter<Task>();
   @Output() requestResume = new EventEmitter<Task>();
 
-@ViewChild('scrollPanel') scrollPanel!: ScrollPanel;
-
-  comments: Comment[] = [];
-  newComment = '';
-  isSending = false;
   isUploading = false;
   reportDialogVisible = false;
   isReporting = false;
@@ -324,115 +227,16 @@ export class TaskDetailsPanelComponent implements OnInit, OnChanges, OnDestroy {
     'Other problem'
   ];
 
-  private commentSubscription: Subscription | null = null;
-  private subscriptions: Subscription[] = [];
-
   constructor(
-    private commentService: CommentService,
-    private ws: WebsocketService,
-    private userService: UserService,
     private taskService: TaskService,
     private taskReportService: TaskReportService,
     private messageService: MessageService,
     private cdr: ChangeDetectorRef
   ) {}
 
-  ngOnInit() {
-  }
-
-  ngOnDestroy() {
-    this.subscriptions.forEach(sub => sub.unsubscribe());
-    if (this.commentSubscription) {
-      this.commentSubscription.unsubscribe();
-    }
-  }
-
-  ngOnChanges() {
-    if (this.task) {
-      // Unsubscribe existing comment subscription before subscribing to new one
-      if (this.commentSubscription) {
-        this.commentSubscription.unsubscribe();
-        this.commentSubscription = null;
-      }
-      this.loadComments();
-      this.subscribeToComments();
-    } else {
-      // If no task, unsubscribe
-      if (this.commentSubscription) {
-        this.commentSubscription.unsubscribe();
-        this.commentSubscription = null;
-      }
-    }
-  }
-
-  loadComments() {
-    if (!this.task?.id) return;
-
-    this.commentService.getCommentsByTask(this.task.id).subscribe({
-      next: (comments) => {
-        this.comments = comments;
-        this.cdr.detectChanges();
-        this.scrollToBottom();
-      },
-      error: (err) => console.error('Failed to load comments', err)
-    });
-  }
-
-  subscribeToComments() {
-    if (!this.task?.id) return;
-
-    this.commentSubscription = this.ws.subscribeToTaskComments(this.task.id).subscribe({
-      next: (comment: Comment) => {
-        this.comments.push(comment);
-        this.cdr.detectChanges();
-        this.scrollToBottom();
-      }
-    });
-  }
-
-  sendComment() {
-    if (!this.newComment.trim() || !this.task?.id || this.isSending) return;
-
-    this.isSending = true;
-    this.commentService.addComment({
-      content: this.newComment.trim(),
-      taskId: this.task.id
-    }).subscribe({
-      next: () => {
-        this.newComment = '';
-        this.isSending = false;
-        this.cdr.detectChanges();
-      },
-      error: (err) => {
-        console.error('Failed to send comment', err);
-        this.isSending = false;
-        this.cdr.detectChanges();
-      }
-    });
-  }
-
   getAssigneeName(): string {
     if (!this.task?.collaboratorEmails?.length) return 'Unassigned';
     return this.task.collaboratorEmails.join(', ');
-  }
-
-  getInitials(name: string): string {
-    return name.split(' ').map(n => n[0]).join('').toUpperCase();
-  }
-
-  formatDate(dateStr: string): string {
-    const date = new Date(dateStr);
-    const now = new Date();
-    const diff = now.getTime() - date.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-
-    if (days === 0) {
-      return `Today at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-    } else if (days === 1) {
-      return `Yesterday at ${date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
-    } else {
-      return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-    }
   }
 
   statusLabel(status: TaskStatus): string {
@@ -588,15 +392,4 @@ export class TaskDetailsPanelComponent implements OnInit, OnChanges, OnDestroy {
       }
     });
   }
-
-private scrollToBottom() {
-  setTimeout(() => {
-    if (this.scrollPanel) {
-      const content = this.scrollPanel.el.nativeElement.querySelector('.p-scrollpanel-content');
-      if (content) {
-        content.scrollTop = content.scrollHeight;
-      }
-    }
-  }, 100);
-}
 }

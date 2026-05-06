@@ -279,6 +279,8 @@ export class ProjectPanel implements OnInit, OnChanges {
   @Output() archive = new EventEmitter<{ id: number; archived: boolean; nativeEvent: Event }>();
   @Output() setPaused = new EventEmitter<{ id: number; paused: boolean; nativeEvent: Event }>();
   @Output() setDelivered = new EventEmitter<{ id: number; delivered: boolean; nativeEvent: Event }>();
+  /** Sets start date to today so the project leaves “not started” and appears as in progress. */
+  @Output() startProjectNow = new EventEmitter<Project>();
 
   @ViewChild('fileInput') fileInput?: ElementRef<HTMLInputElement>;
   @ViewChild('menu') menu?: Menu;
@@ -343,7 +345,15 @@ export class ProjectPanel implements OnInit, OnChanges {
           }
         ];
       } else {
-        this.menuItems = [
+        const items: MenuItem[] = [];
+        if (!archived && !delivered && this.isScheduledNotStartedYet()) {
+          items.push({
+            label: 'Start project',
+            icon: 'pi pi-play-circle',
+            command: () => this.startProjectNow.emit(this.project)
+          });
+        }
+        items.push(
           {
             label: archived ? 'Unarchive' : 'Archive',
             icon: archived ? 'pi pi-folder-open' : ProjectPanel.MENU_ICON_ARCHIVE,
@@ -384,12 +394,22 @@ export class ProjectPanel implements OnInit, OnChanges {
             icon: 'pi pi-upload',
             command: () => this.openFilePicker()
           }
-        ];
+        );
+        this.menuItems = items;
       }
     } else if (this.managerMenu) {
       this.menuItems = paused
         ? []
         : [
+            ...(this.isScheduledNotStartedYet() && !archived && !delivered
+              ? [
+                  {
+                    label: 'Start project',
+                    icon: 'pi pi-play-circle',
+                    command: () => this.startProjectNow.emit(this.project)
+                  } as MenuItem
+                ]
+              : []),
             {
               label: 'Edit',
               icon: 'pi pi-pencil',
@@ -465,6 +485,44 @@ export class ProjectPanel implements OnInit, OnChanges {
       input.value = '';
       this.cdr.markForCheck();
     });
+  }
+
+  /** Future start date (same rule as the “Not started” list on the projects page). */
+  private isScheduledNotStartedYet(): boolean {
+    if (!this.project || this.project.archived || this.project.paused || this.project.delivered) {
+      return false;
+    }
+    const startYmd = this.projectStartDateYmd(this.project.startDate);
+    if (!startYmd) {
+      return false;
+    }
+    return startYmd > this.todayYmdLocal();
+  }
+
+  private todayYmdLocal(): string {
+    const n = new Date();
+    return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}-${String(n.getDate()).padStart(2, '0')}`;
+  }
+
+  private projectStartDateYmd(raw: unknown): string | null {
+    if (raw == null || raw === '') {
+      return null;
+    }
+    if (typeof raw === 'string') {
+      const head = raw.length >= 10 ? raw.slice(0, 10) : raw;
+      if (/^\d{4}-\d{2}-\d{2}$/.test(head)) {
+        return head;
+      }
+    }
+    if (Array.isArray(raw) && raw.length >= 3) {
+      const y = Number(raw[0]);
+      const m = Number(raw[1]);
+      const d = Number(raw[2]);
+      if (Number.isFinite(y) && Number.isFinite(m) && Number.isFinite(d)) {
+        return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      }
+    }
+    return null;
   }
 
   private resolveBannerColor(): string {

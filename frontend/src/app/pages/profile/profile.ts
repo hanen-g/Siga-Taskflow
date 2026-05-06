@@ -15,6 +15,7 @@ import { ApiService, UpdateProfileRequest, UserProfile } from '../../services/ap
 import { FileAccessService } from '../../services/file-access.service';
 import { SkillService } from '../../services/skill.service';
 import { Skill } from '../../models/skill.model';
+import { UserDirectoryRefreshService } from '../../services/user-directory-refresh.service';
 @Component({
   selector: 'app-profile',
   standalone: true,
@@ -83,6 +84,7 @@ export class ProfilePage implements OnInit, OnDestroy {
     private messageService: MessageService,
     private fileAccessService: FileAccessService,
     private skillService: SkillService,
+    private userDirectoryRefresh: UserDirectoryRefreshService
   ) {
     this.picturePath$
       .pipe(
@@ -311,6 +313,7 @@ export class ProfilePage implements OnInit, OnDestroy {
         this.isEditingProfile = false;
         this.isChangingPassword = false;
         this.clearPasswordFields();
+        this.userDirectoryRefresh.notifyProfileOrDirectoryChanged();
         this.messageService.add({ severity: 'success', summary: 'Saved', detail: successMessage, life: 3000 });
       },
       error: (err) => {

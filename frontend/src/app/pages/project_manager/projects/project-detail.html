@@ -8,7 +8,7 @@
       pButton
       type="button"
       icon="pi pi-arrow-left"
-      [label]="isClientPortal() ? 'Retour à mes projets' : 'Back to projects'"
+      [label]="isClientPortal() ? 'Back to my projects' : 'Back to projects'"
       class="p-button-text p-button-secondary project-detail-back"
       [routerLink]="backLink">
     </button>
@@ -25,7 +25,7 @@
     <section class="project-detail-hero">
       <div class="project-detail-kicker">
         <i class="pi pi-file-edit"></i>
-        <span>{{ isClientPortal() ? 'Suivi de projet' : 'Project Details' }}</span>
+        <span>{{ isClientPortal() ? 'Project overview' : 'Project Details' }}</span>
       </div>
 
       <div class="project-detail-hero-inner">
@@ -56,147 +56,31 @@
             type="button"
             class="project-detail-tab"
             [class.is-active]="activeTab === 'tasks'"
-            (click)="switchTab('tasks', project)">
+            (click)="switchTab('tasks')">
             Tasks
           </button>
           <button
             type="button"
             class="project-detail-tab"
             [class.is-active]="activeTab === 'files'"
-            (click)="switchTab('files', project)">
+            (click)="switchTab('files')">
             Files
           </button>
-          <button
-            *ngIf="!isClientPortal()"
-            type="button"
-            class="project-detail-tab"
-            [class.is-active]="activeTab === 'team'"
-            (click)="switchTab('team', project)">
-            Team &amp; skills
-          </button>
-          <div class="workspace-search">
-            <div class="search-input-wrapper">
-              <i class="pi pi-search search-icon"></i>
-              <input
-                type="text"
-                [(ngModel)]="searchText"
-                placeholder="Search"
-                class="search-input" />
-            </div>
-          </div>
         </div>
 
-        <ng-container *ngIf="activeTab === 'tasks'; else teamOrFiles">
+        <ng-container *ngIf="activeTab === 'tasks'; else filesPanel">
           <app-task-kanban-board
             *ngIf="project.id != null"
             class="project-detail-kanban"
-            [projectId]="project.id"
-            [filterText]="searchText" />
+            [projectId]="project.id" />
         </ng-container>
-
-        <ng-template #teamOrFiles>
-          <ng-container *ngIf="activeTab === 'team'; else filesPanel">
-            <div class="team-skills-panel">
-              <p class="text-600 mb-3">
-                Define which skills this project needs, then see which project managers and collaborators match.
-                Users set their skills on the profile page.
-              </p>
-
-              <div *ngIf="skillsCatalogLoading" class="py-3 text-600">
-                <i class="pi pi-spinner pi-spin mr-2"></i> Loading skills…
-              </div>
-
-              <div *ngIf="!skillsCatalogLoading && canEditProjectSkills(project)" class="mb-4 surface-card p-3">
-                <label class="block font-bold mb-2">Required skills for this project</label>
-                <p-multiselect
-                  [options]="allSkills"
-                  optionLabel="name"
-                  optionValue="id"
-                  placeholder="Select required skills"
-                  [(ngModel)]="selectedRequiredSkillIds"
-                  [filter]="true"
-                  [showToggleAll]="true"
-                  display="chip"
-                  [maxSelectedLabels]="6"
-                  styleClass="w-full"
-                  [appendTo]="'body'">
-                </p-multiselect>
-                <div class="mt-2">
-                  <button
-                    pButton
-                    type="button"
-                    label="Save required skills"
-                    [loading]="savingRequiredSkills"
-                    [disabled]="savingRequiredSkills"
-                    (click)="saveProjectRequiredSkills(project)">
-                  </button>
-                </div>
-              </div>
-
-              <div *ngIf="!skillsCatalogLoading && !canEditProjectSkills(project)" class="mb-3 text-600 text-sm">
-                Only the project manager (or an administrator) can change required skills. You can still review the match list below.
-              </div>
-
-              <div *ngIf="teamPanelLoading" class="py-3">
-                <app-loader label="Loading team matches…" />
-              </div>
-
-              <div *ngIf="!teamPanelLoading && teamMatchResult" class="team-match-block">
-                <h3 class="project-detail-section-title mb-2">Match results</h3>
-                <p *ngIf="!teamMatchResult.requiredSkills.length" class="text-600 text-sm mb-2">
-                  No required skills are set yet. Add skills above to filter project managers and collaborators.
-                </p>
-                <div *ngIf="teamMatchResult.matches.length" class="team-match-table-wrap">
-                  <table class="team-match-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Role</th>
-                        <th>Match</th>
-                        <th>Skills covered</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr *ngFor="let m of teamMatchResult.matches" [class.row-full-match]="m.fullMatch">
-                        <td>
-                          <div class="font-medium">{{ matchRowLabel(m) }}</div>
-                          <div class="text-500 text-sm">{{ m.email }}</div>
-                        </td>
-                        <td>{{ m.role.replaceAll('_', ' ') }}</td>
-                        <td>
-                          <span *ngIf="!teamMatchResult.requiredSkills.length" class="text-600">—</span>
-                          <span *ngIf="teamMatchResult.requiredSkills.length">
-                            {{ m.matchedCount }} / {{ m.requiredCount }}
-                            <i *ngIf="m.fullMatch" class="pi pi-check-circle text-green-600 ml-1" title="Full match"></i>
-                          </span>
-                        </td>
-                        <td>
-                          <span *ngFor="let s of m.matchedSkills" class="skill-chip mr-1 mb-1 inline-block">{{ s.name }}</span>
-                          <span *ngIf="!m.matchedSkills.length" class="text-500">—</span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <p *ngIf="!teamPanelLoading && teamMatchResult && !teamMatchResult.matches.length" class="text-600 text-sm">
-                  No project managers or collaborators found.
-                </p>
-              </div>
-            </div>
-          </ng-container>
-        </ng-template>
 
         <ng-template #filesPanel>
           <div class="project-detail-files-panel">
             <ng-container *ngIf="sortedProjectFiles(project).length; else noFilesYet">
-            <div class="project-detail-tools">
-              <div class="workspace-search">
-                
-              </div>
-            </div>
-            <div *ngIf="filteredProjectFiles(project).length" class="project-detail-file-list">
+            <div class="project-detail-file-list">
               <article
-                *ngFor="let file of filteredProjectFiles(project)"
+                *ngFor="let file of sortedProjectFiles(project)"
                 class="project-detail-file-card project-detail-file-row">
                 <div class="project-detail-file-preview">
                   <div class="file-preview-icon">
@@ -220,9 +104,6 @@
                   </small>
                 </div>
               </article>
-            </div>
-            <div *ngIf="!filteredProjectFiles(project).length" class="project-detail-empty-panel">
-              No files match your search.
             </div>
             </ng-container>
 
@@ -260,7 +141,11 @@
               <span class="project-info-value">{{ createdOnLabel(project) }}</span>
             </div>
             <div class="project-info-row">
-              <span class="project-info-label">Project Manager:</span>
+              <span class="project-info-label">Client</span>
+              <span class="project-info-value">{{ clientNamesLabel(project) }}</span>
+            </div>
+            <div class="project-info-row">
+              <span class="project-info-label">Project manager</span>
               <span class="project-info-value">{{ projectManagerLabel(project) }}</span>
             </div>
             <div class="project-info-row" *ngIf="!isClientPortal()">
@@ -268,13 +153,13 @@
               <span class="project-info-value">{{ teamMembersLabel(project) }}</span>
             </div>
             <div class="project-info-row">
-              <span class="project-info-label">Début du projet</span>
+              <span class="project-info-label">Project start</span>
               <span class="project-info-value">
                 {{ project.startDate ? (project.startDate | date: 'mediumDate') : '—' }}
               </span>
             </div>
             <div class="project-info-row">
-              <span class="project-info-label">Date limite</span>
+              <span class="project-info-label">Deadline</span>
               <span class="project-info-value">
                 {{ project.deadline ? (project.deadline | date: 'mediumDate') : '—' }}
               </span>
@@ -377,7 +262,7 @@
     [modal]="true"
     [draggable]="false"
     [resizable]="false"
-    [style]="{ width: '500px' }"
+    [style]="{ width: 'min(520px, 96vw)' }"
     (onHide)="displayDialog = false">
 
     <ng-template pTemplate="content">
@@ -402,13 +287,62 @@
       </div>
 
       <div class="flex flex-column mb-2">
-        <label class="font-bold mb-2">Début du projet (optionnel)</label>
+        <label class="font-bold mb-2">Project start (optional)</label>
         <input pInputText type="date" [(ngModel)]="editableProject.startDate" class="w-full" />
       </div>
 
       <div class="flex flex-column mb-2">
-        <label class="font-bold mb-2">Date limite (optionnel)</label>
+        <label class="font-bold mb-2">Deadline (optional)</label>
         <input pInputText type="date" [(ngModel)]="editableProject.deadline" class="w-full" />
+      </div>
+
+      <div class="flex flex-column mb-2">
+        <label class="font-bold mb-2">Required skills</label>
+        <p-multiselect
+          [options]="allSkills"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="Select required skills"
+          [(ngModel)]="editableProject.requiredSkillIds"
+          [filter]="true"
+          [showToggleAll]="true"
+          display="chip"
+          [maxSelectedLabels]="6"
+          styleClass="w-full"
+          [appendTo]="'body'"
+          [disabled]="skillsLoading">
+        </p-multiselect>
+      </div>
+
+      <div class="flex flex-column mb-2">
+        <label class="font-bold mb-2">Project manager <span class="text-red-500">*</span></label>
+        <p-select
+          [options]="projectManagerSelectOptionsDetail()"
+          [(ngModel)]="editableProject.managerId"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Select project manager"
+          [showClear]="false"
+          appendTo="body"
+          styleClass="w-full"
+        />
+      </div>
+
+      <div class="flex flex-column mb-2">
+        <label class="font-bold mb-2">Linked clients (optional)</label>
+        <p-multiselect
+          [options]="clientSelectOptions"
+          optionLabel="label"
+          optionValue="value"
+          placeholder="Select client accounts for the portal"
+          [(ngModel)]="editableProject.clientIds"
+          [filter]="true"
+          [showToggleAll]="true"
+          display="chip"
+          [maxSelectedLabels]="5"
+          styleClass="w-full"
+          [appendTo]="'body'"
+        ></p-multiselect>
       </div>
     </ng-template>
 
@@ -428,7 +362,7 @@
     [modal]="true"
     [draggable]="false"
     [resizable]="false"
-    [style]="{ width: '400px' }"
+    [style]="{ width: 'min(480px, 96vw)' }"
     (onHide)="closeTaskDialog()">
 
     <div class="flex flex-column gap-3">
@@ -457,11 +391,38 @@
         [(ngModel)]="newTask.deadline"
         placeholder="Deadline">
 
-      <label class="font-bold mb-2">Collaborator Email</label>
+      <label class="font-bold mb-2">Collaborator</label>
+      <p *ngIf="collaboratorsLoading" class="text-sm text-color-secondary m-0 mb-2">Loading collaborator list…</p>
+
+      <select
+        *ngIf="!collaboratorsLoading && collaboratorDirectory.length > 0"
+        class="w-full p-inputtext task-collab-select"
+        [(ngModel)]="newTask.collaboratorEmail">
+        <option [ngValue]="''">— Choose a collaborator —</option>
+        <option *ngFor="let c of collaboratorDirectory" [ngValue]="c.email">{{ collaboratorLabel(c) }}</option>
+      </select>
+
+      <label *ngIf="!collaboratorsLoading && collaboratorDirectory.length > 0" class="font-normal mb-2 text-sm text-color-secondary">
+        Or enter an email manually (optional, overrides the list)
+      </label>
       <input
+        *ngIf="!collaboratorsLoading && collaboratorDirectory.length > 0"
         pInputText
+        class="w-full"
+        type="email"
+        [(ngModel)]="collaboratorEmailManual"
+        placeholder="name@company.com">
+
+      <input
+        *ngIf="!collaboratorsLoading && collaboratorDirectory.length === 0"
+        pInputText
+        class="w-full"
+        type="email"
         [(ngModel)]="newTask.collaboratorEmail"
-        placeholder="Email">
+        placeholder="Collaborator email">
+      <p *ngIf="!collaboratorsLoading && collaboratorDirectory.length === 0" class="text-sm text-color-secondary m-0">
+        No collaborator accounts loaded. Ensure you are logged in as a project manager with access to the directory, then try again—or type an email if the collaborator already exists.
+      </p>
 
       <button
         pButton

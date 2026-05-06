@@ -4,13 +4,17 @@ import com.taskflow.backend.dto.task.TaskResponse;
 import com.taskflow.backend.dto.file.UploadedFileResponse;
 import com.taskflow.backend.dto.skill.SkillResponse;
 import com.taskflow.backend.entity.Project;
+import com.taskflow.backend.entity.User;
+import com.taskflow.backend.entity.UserRole;
 import lombok.Getter;
 import lombok.Setter;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -35,6 +39,10 @@ public class ProjectResponse {
     private List<TaskResponse> tasks;
     private List<UploadedFileResponse> files;
     private List<SkillResponse> requiredSkills;
+    /** Display names of project members with role CLIENT (invited client accounts). */
+    private List<String> clientNames = new ArrayList<>();
+    /** Ids of linked CLIENT accounts (same order as staffing; stable sort by id). */
+    private List<Long> clientIds = new ArrayList<>();
 
     public static ProjectResponse fromProject(Project project) {
         return fromProject(project, task -> true);
@@ -75,7 +83,36 @@ public class ProjectResponse {
                     .collect(Collectors.toList());
         }
 
+        if (project.getMembers() != null) {
+            response.setClientIds(project.getMembers().stream()
+                    .filter(u -> u.getRole() == UserRole.CLIENT)
+                    .map(User::getId)
+                    .filter(Objects::nonNull)
+                    .sorted()
+                    .collect(Collectors.toList()));
+            response.setClientNames(project.getMembers().stream()
+                    .filter(u -> u.getRole() == UserRole.CLIENT)
+                    .map(ProjectResponse::displayNameForUser)
+                    .filter(s -> s != null && !s.isBlank())
+                    .distinct()
+                    .sorted(String.CASE_INSENSITIVE_ORDER)
+                    .collect(Collectors.toList()));
+        }
+
         return response;
+    }
+
+    private static String displayNameForUser(User u) {
+        if (u == null) {
+            return "";
+        }
+        String first = u.getFirstName() != null ? u.getFirstName().trim() : "";
+        String last = u.getLastName() != null ? u.getLastName().trim() : "";
+        String full = (first + " " + last).trim();
+        if (!full.isEmpty()) {
+            return full;
+        }
+        return u.getEmail() != null ? u.getEmail().trim() : "";
     }
 
     /**
@@ -89,6 +126,7 @@ public class ProjectResponse {
                     .collect(Collectors.toList()));
         }
         response.setRequiredSkills(List.of());
+        response.setClientIds(List.of());
         if (response.getManagerEmail() != null) {
             response.setManagerEmail(null);
         }

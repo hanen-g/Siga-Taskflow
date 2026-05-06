@@ -18,13 +18,16 @@ public class Task {
     private String title;
     private String description;
 
+    /** Use explicit length: values like {@code IN_PROGRESS} are 11+ chars (narrow VARCHAR/ENUM causes MySQL truncation). */
     @Enumerated(EnumType.STRING)
+    @Column(length = 32)
     private TaskStatus status;
 
     @Column
     private String holdReason;
 
     @Enumerated(EnumType.STRING)
+    @Column(length = 16)
     private Priority priority;
 
     private LocalDateTime deadline;

@@ -20,9 +20,10 @@ import {
   EmployeeStatusFilter,
   UserService
 } from '../../../services/user.service';
-import { FileAccessService } from '../../../services/file-access.service';
 import { Skill } from '../../../models/skill.model';
 import { SkillService } from '../../../services/skill.service';
+import { UserDirectoryRefreshService } from '../../../services/user-directory-refresh.service';
+import { ProfilePictureCacheService } from '../../../services/profile-picture-cache.service';
 
 type RoleOption = { label: string; value: EmployeeRole };
 type StatusOption = { label: string; value: EmployeeStatusFilter };
@@ -52,8 +53,6 @@ export class UserManagementPage implements OnInit, OnDestroy {
   error: string | null = null;
   private readonly refresh$ = new Subject<void>();
   private readonly destroy$ = new Subject<void>();
-  private readonly profilePictureUrls = new Map<string, string>();
-  private readonly profilePicturesLoading = new Set<string>();
 
   searchTerm = '';
   selectedRole: EmployeeRole = 'ALL';
@@ -130,14 +129,28 @@ export class UserManagementPage implements OnInit, OnDestroy {
         this.applyRoleFromQuery(params);
         this.loadUsers();
       });
+
+    this.userDirectoryRefresh.directoryShouldRefresh$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.clearFetchedProfilePictures();
+        this.loadUsers();
+      });
+
+    this.profilePictureCache.imageReady.pipe(takeUntil(this.destroy$)).subscribe(() => this.cdr.markForCheck());
+  }
+
+  private clearFetchedProfilePictures(): void {
+    this.profilePictureCache.revokeAll();
   }
 
   constructor(
     private userService: UserService,
-    private fileAccessService: FileAccessService,
     private cdr: ChangeDetectorRef,
     private skillService: SkillService,
-    private route: ActivatedRoute
+    private route: ActivatedRoute,
+    private userDirectoryRefresh: UserDirectoryRefreshService,
+    private profilePictureCache: ProfilePictureCacheService
   ) {}
 
   private applyRoleFromQuery(params: ParamMap): void {
@@ -154,11 +167,7 @@ export class UserManagementPage implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.destroy$.next();
     this.destroy$.complete();
-    for (const objectUrl of this.profilePictureUrls.values()) {
-      URL.revokeObjectURL(objectUrl);
-    }
-    this.profilePictureUrls.clear();
-    this.profilePicturesLoading.clear();
+    this.profilePictureCache.revokeAll();
   }
 
   loadUsers(): void {
@@ -209,42 +218,12 @@ export class UserManagementPage implements OnInit, OnDestroy {
   }
 
   getProfilePictureSrc(profilePicture?: string | null): string | undefined {
-    if (!profilePicture) {
-      return undefined;
-    }
+    return this.profilePictureCache.getDisplayUrl(profilePicture);
+  }
 
-    if (
-      profilePicture.startsWith('blob:') ||
-      profilePicture.startsWith('data:') ||
-      profilePicture.startsWith('http')
-    ) {
-      return profilePicture;
-    }
-
-    const cachedUrl = this.profilePictureUrls.get(profilePicture);
-    if (cachedUrl) {
-      return cachedUrl;
-    }
-
-    if (!this.profilePicturesLoading.has(profilePicture)) {
-      this.profilePicturesLoading.add(profilePicture);
-      this.fileAccessService.fetchFileBlob(profilePicture).subscribe({
-        next: (blob) => {
-          const url = URL.createObjectURL(blob);
-          this.profilePicturesLoading.delete(profilePicture);
-          // Defer so avatar [image] does not change during the same change-detection pass (NG0100).
-          setTimeout(() => {
-            this.profilePictureUrls.set(profilePicture, url);
-            this.cdr.markForCheck();
-          }, 0);
-        },
-        error: () => {
-          this.profilePicturesLoading.delete(profilePicture);
-        }
-      });
-    }
-
-    return undefined;
+  /** PrimeNG Avatar renders {@code label} before {@code image}; omit label when a photo URL is ready. */
+  getUserAvatarLabel(user: AdminUser): string | undefined {
+    return this.getProfilePictureSrc(user.profilePicture) ? undefined : this.getUserInitials(user);
   }
 
   openEditDialog(user: AdminUser): void {
