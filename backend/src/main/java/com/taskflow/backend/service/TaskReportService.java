@@ -47,6 +47,11 @@ public class TaskReportService {
             throw new BadRequestException("Report details are required");
         }
 
+        if (task.getProject() == null || task.getProject().getManager() == null) {
+            throw new BadRequestException("Task project has no assigned manager");
+        }
+        User manager = task.getProject().getManager();
+
         TaskReport report = new TaskReport();
         report.setTask(task);
         report.setReporter(reporter);
@@ -54,11 +59,6 @@ public class TaskReportService {
         report.setDetails(details);
 
         TaskReport saved = taskReportRepository.save(report);
-
-        if (task.getProject() == null || task.getProject().getManager() == null) {
-            throw new BadRequestException("Task project has no assigned manager");
-        }
-        User manager = task.getProject().getManager();
         Notification notification = notificationService.createTaskReportNotification(manager, saved);
         messagingTemplate.convertAndSend("/topic/notifications/user/" + manager.getId(), notification);
 

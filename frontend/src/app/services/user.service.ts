@@ -51,6 +51,11 @@ export class UserService {
     return this.http.get<ProjectManagerOption[]>(`${this.apiUrl}/admin/project-managers`);
   }
 
+  /** Active client accounts for admin project assignment dropdowns (same shape as project managers). */
+  getClientsForAdmin(): Observable<ProjectManagerOption[]> {
+    return this.http.get<ProjectManagerOption[]>(`${this.apiUrl}/admin/clients`);
+  }
+
   searchCollaboratorEmails(query: string): Observable<string[]> {
     const params = new HttpParams().set('q', query.trim());
     return this.http.get<string[]>(`${this.apiUrl}/collaborators`, { params });

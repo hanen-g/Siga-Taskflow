@@ -131,7 +131,7 @@ export class ProjectProposalsPage implements OnInit {
   discard(p: { id: number; name: string; nativeEvent?: Event }): void {
     this.confirmation.confirm({
       target: p.nativeEvent?.target ?? undefined,
-      message: `Discard the proposal “${p.name}”?`,
+      message: `Are you sure you want to discard the proposal “${p.name}”? This cannot be undone.`,
       header: 'Discard proposal',
       icon: 'pi pi-times-circle',
       acceptButtonStyleClass: 'p-button-danger',

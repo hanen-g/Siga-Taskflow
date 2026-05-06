@@ -104,13 +104,19 @@ export class ArchivedProjectsPage implements OnInit {
     }
   }
 
-  pauseProject(event: { id: number; paused: boolean; nativeEvent: Event }): void {
+  private projectConfirmPhrase(name: string | undefined | null): string {
+    const n = typeof name === 'string' ? name.trim() : '';
+    return n ? `the project “${n}”` : 'this project';
+  }
+
+  pauseProject(event: { id: number; paused: boolean; name?: string; nativeEvent: Event }): void {
     const action = event.paused ? 'pause' : 'resume';
+    const phrase = this.projectConfirmPhrase(event.name);
     this.confirmationService.confirm({
       target: event.nativeEvent.target as EventTarget,
       message: event.paused
-        ? 'Pause this project?'
-        : 'Resume this project and clear the paused state?',
+        ? `Are you sure you want to pause ${phrase}?`
+        : `Are you sure you want to resume ${phrase} and clear the paused state?`,
       header: event.paused ? 'Pause project' : 'Resume project',
       icon: 'pi pi-info-circle',
       rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
@@ -134,12 +140,13 @@ export class ArchivedProjectsPage implements OnInit {
     });
   }
 
-  deliverProject(event: { id: number; delivered: boolean; nativeEvent: Event }): void {
+  deliverProject(event: { id: number; delivered: boolean; name?: string; nativeEvent: Event }): void {
+    const phrase = this.projectConfirmPhrase(event.name);
     this.confirmationService.confirm({
       target: event.nativeEvent.target as EventTarget,
       message: event.delivered
-        ? 'Mark this project as delivered (closed)?'
-        : 'Reopen this project and clear the delivered state?',
+        ? `Are you sure you want to deliver ${phrase} (mark it as closed)?`
+        : `Are you sure you want to reopen ${phrase} and clear the delivered state?`,
       header: event.delivered ? 'Mark as delivered' : 'Reopen project',
       icon: 'pi pi-info-circle',
       rejectButtonProps: { label: 'Cancel', severity: 'secondary', outlined: true },
@@ -163,12 +170,13 @@ export class ArchivedProjectsPage implements OnInit {
     });
   }
 
-  unarchiveProject(event: { id: number; archived: boolean; nativeEvent: Event }): void {
+  unarchiveProject(event: { id: number; archived: boolean; name?: string; nativeEvent: Event }): void {
     const action = event.archived ? 'Archive' : 'Unarchive';
+    const phrase = this.projectConfirmPhrase(event.name);
 
     this.confirmationService.confirm({
       target: event.nativeEvent.target as EventTarget,
-      message: `Do you want to ${action.toLowerCase()} this project?`,
+      message: `Are you sure you want to ${action.toLowerCase()} ${phrase}?`,
       header: `${action} Confirmation`,
       icon: 'pi pi-info-circle',
       rejectLabel: 'Cancel',

@@ -22,6 +22,10 @@ login(email: string, password: string) {
   );
 }
 
+signup(payload: SignupRequest) {
+  return this.http.post<AuthResponse>(`${this.baseUrl}/auth/signup`, payload);
+}
+
 getProfile() {
   return this.http.get<UserProfile>(`${this.baseUrl}/user/me`);
 }
@@ -65,6 +69,14 @@ getResolvedRole(): string | null {
   }
 }
 
+}
+
+export interface SignupRequest {
+  firstName: string;
+  lastName: string;
+  email: string;
+  password: string;
+  role: string;
 }
 
 export interface AuthResponse {

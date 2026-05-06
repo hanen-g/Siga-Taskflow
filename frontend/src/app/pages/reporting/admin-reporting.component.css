@@ -1,0 +1,53 @@
+@import './reporting-shared.css';
+
+.wide {
+  max-width: 1680px;
+}
+
+.kpi-six {
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+}
+
+.kpi-num {
+  font-size: 1.85rem;
+  font-weight: 700;
+}
+
+.chart-grid-mixed {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.chart-tall {
+  height: 300px;
+}
+
+.blk {
+  margin-top: 1rem;
+}
+
+.health-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  margin-bottom: 1rem;
+}
+
+.section-h {
+  font-size: 1rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.top-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.top-list {
+  margin: 0;
+  padding-left: 1.1rem;
+}

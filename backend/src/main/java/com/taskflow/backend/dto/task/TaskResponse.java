@@ -1,10 +1,12 @@
 package com.taskflow.backend.dto.task;
 
+import com.taskflow.backend.dto.skill.SkillResponse;
 import com.taskflow.backend.entity.Task;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 import java.time.LocalDateTime;
+import java.util.Comparator;
 import java.util.List;
 
 @Getter
@@ -19,11 +21,20 @@ public class TaskResponse {
     private String priority;
     private LocalDateTime deadline;
     private List<String> collaboratorEmails;
+    private Long projectId;
     private String projectName;
     private String holdReason;
+    private List<SkillResponse> skills;
 
 
     public static TaskResponse fromTask(Task task) {
+        List<SkillResponse> skillRows = task.getSkills() == null
+                ? List.of()
+                : task.getSkills().stream()
+                .filter(s -> s != null && s.getId() != null)
+                .map(SkillResponse::fromEntity)
+                .sorted(Comparator.comparing(SkillResponse::getName, Comparator.nullsLast(String::compareToIgnoreCase)))
+                .toList();
         return new TaskResponse(
                 task.getId(),
                 task.getTitle(),
@@ -36,9 +47,10 @@ public class TaskResponse {
                                 .map(u -> u != null ? u.getEmail() : null)
                                 .toList()
                         : List.of(),
+                task.getProject() != null ? task.getProject().getId() : null,
                 task.getProject() != null ? task.getProject().getName() : null,
-                task.getHoldReason()
-
+                task.getHoldReason(),
+                skillRows
         );
     }
 

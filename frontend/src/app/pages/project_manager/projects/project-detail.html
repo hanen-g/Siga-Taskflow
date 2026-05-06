@@ -1,6 +1,4 @@
-<div
-  class="workspace-page project-detail-page p-4 min-h-screen"
-  [class.project-detail-page--tasks-wide]="activeTab === 'tasks'">
+<div class="workspace-page project-detail-page p-4 min-h-screen">
   <p-toast />
   <p-confirmdialog />
   <div class="project-detail-header">
@@ -67,7 +65,7 @@
             Files
           </button>
           <button
-            *ngIf="!isClientPortal()"
+            *ngIf="canViewTeamSkillsTab()"
             type="button"
             class="project-detail-tab"
             [class.is-active]="activeTab === 'team'"
@@ -87,19 +85,77 @@
         </div>
 
         <ng-container *ngIf="activeTab === 'tasks'; else teamOrFiles">
-          <app-task-kanban-board
-            *ngIf="project.id != null"
-            class="project-detail-kanban"
-            [projectId]="project.id"
-            [filterText]="searchText" />
+          <div class="project-detail-task-panel">
+            <p *ngIf="!(project.tasks?.length)" class="project-detail-empty-panel">
+              No tasks yet for this project.
+            </p>
+            <p
+              *ngIf="project.tasks?.length && !filteredTasks(project).length"
+              class="project-detail-empty-panel">
+              No tasks match your search.
+            </p>
+            <div *ngIf="filteredTasks(project).length" class="project-detail-task-list">
+              <article *ngFor="let task of filteredTasks(project)" class="task-card">
+                <div class="task-card-body">
+                  <div class="task-card-title-row">
+                    <i class="pi pi-list task-card-icon" aria-hidden="true"></i>
+                    <h3 class="task-card-title">{{ task.title }}</h3>
+                  </div>
+                  <p *ngIf="task.description && task.description.trim()" class="task-card-description">{{ task.description }}</p>
+                  <div *ngIf="task.skills?.length" class="task-card-skills">
+                    <span *ngFor="let s of task.skills" class="task-skill-chip">{{ s.name }}</span>
+                  </div>
+                  <p class="task-card-assignee">
+                    <strong>Assignee:</strong> {{ taskAssignee(task) }}
+                  </p>
+                  <p class="task-card-assignee">
+                    <strong>Priority:</strong>
+                    {{ task.priority ? priorityLabel(task.priority) : '—' }}
+                  </p>
+                  <p *ngIf="task.deadline" class="task-card-assignee">
+                    <strong>Deadline:</strong> {{ task.deadline | date: 'short' }}
+                  </p>
+                </div>
+                <div class="task-card-side">
+                  <span class="task-card-status" [ngClass]="taskStatusBadgeClass(task.status)">
+                    {{ statusLabel(task.status) }}
+                  </span>
+                  <input
+                    type="file"
+                    class="task-card-file-input"
+                    [id]="'task-upload-' + task.id"
+                    (change)="onTaskFileInputChange($event, task, project)" />
+                  <button
+                    *ngIf="canUploadTaskFile(task, project)"
+                    type="button"
+                    pButton
+                    styleClass="p-button-outlined p-button-sm task-card-upload-btn"
+                    [label]="isUploadingTaskFile(task.id) ? 'Uploading…' : 'Attach file'"
+                    [disabled]="isUploadingTaskFile(task.id)"
+                    (click)="openTaskFilePicker(task.id)"></button>
+                  <button
+                    *ngIf="canEditTask(project)"
+                    type="button"
+                    pButton
+                    styleClass="p-button-sm task-card-edit-btn"
+                    label="Edit"
+                    (click)="openEditTaskDialog(task, project)"></button>
+                </div>
+              </article>
+            </div>
+          </div>
         </ng-container>
 
         <ng-template #teamOrFiles>
-          <ng-container *ngIf="activeTab === 'team'; else filesPanel">
+          <ng-container *ngIf="activeTab === 'team' && canViewTeamSkillsTab(); else filesPanel">
             <div class="team-skills-panel">
-              <p class="text-600 mb-3">
-                Define which skills this project needs, then see which project managers and collaborators match.
-                Users set their skills on the profile page.
+              <p *ngIf="isAdminRole()" class="text-600 mb-3">
+                Define which skills this project needs to see project managers ranked by how well their profile skills match.
+                Managers maintain their skills on the profile page.
+              </p>
+              <p *ngIf="!isAdminRole()" class="text-600 mb-3">
+                Required skills describe what collaborators should cover; you’ll see collaborators ranked by how well their profile skills match.
+                Collaborators maintain their skills on the profile page.
               </p>
 
               <div *ngIf="skillsCatalogLoading" class="py-3 text-600">
@@ -134,7 +190,7 @@
               </div>
 
               <div *ngIf="!skillsCatalogLoading && !canEditProjectSkills(project)" class="mb-3 text-600 text-sm">
-                Only the project manager (or an administrator) can change required skills. You can still review the match list below.
+                Only the assigned project manager or an administrator can change required skills. You can still review the best-fit list below.
               </div>
 
               <div *ngIf="teamPanelLoading" class="py-3">
@@ -142,16 +198,16 @@
               </div>
 
               <div *ngIf="!teamPanelLoading && teamMatchResult" class="team-match-block">
-                <h3 class="project-detail-section-title mb-2">Match results</h3>
+                <h3 class="project-detail-section-title mb-2">{{ teamMatchesSectionTitle() }}</h3>
                 <p *ngIf="!teamMatchResult.requiredSkills.length" class="text-600 text-sm mb-2">
-                  No required skills are set yet. Add skills above to filter project managers and collaborators.
+                  <span *ngIf="isAdminRole()">No required skills are set yet. Add skills above to rank project managers.</span>
+                  <span *ngIf="!isAdminRole()">No required skills are set yet. Add skills above to rank collaborators.</span>
                 </p>
                 <div *ngIf="teamMatchResult.matches.length" class="team-match-table-wrap">
                   <table class="team-match-table">
                     <thead>
                       <tr>
                         <th>Name</th>
-                        <th>Role</th>
                         <th>Match</th>
                         <th>Skills covered</th>
                       </tr>
@@ -162,7 +218,6 @@
                           <div class="font-medium">{{ matchRowLabel(m) }}</div>
                           <div class="text-500 text-sm">{{ m.email }}</div>
                         </td>
-                        <td>{{ m.role.replaceAll('_', ' ') }}</td>
                         <td>
                           <span *ngIf="!teamMatchResult.requiredSkills.length" class="text-600">—</span>
                           <span *ngIf="teamMatchResult.requiredSkills.length">
@@ -179,7 +234,8 @@
                   </table>
                 </div>
                 <p *ngIf="!teamPanelLoading && teamMatchResult && !teamMatchResult.matches.length" class="text-600 text-sm">
-                  No project managers or collaborators found.
+                  <span *ngIf="isAdminRole()">No project managers found.</span>
+                  <span *ngIf="!isAdminRole()">No collaborators found.</span>
                 </p>
               </div>
             </div>
@@ -237,20 +293,44 @@
         <section class="project-detail-summary-card project-info-card project-detail-summary-card--rail">
           <div *ngIf="projectToolbarActions(project).length" class="project-actions-toolbar" aria-label="Project actions">
             <ng-container *ngFor="let action of projectToolbarActions(project)">
-              <button
-                type="button"
-                [class]="actionIconClass(action)"
-                [attr.aria-label]="actionLabel(project, action)"
-                (click)="handleProjectAction(action.action, project, $event)">
-                <img
-                  *ngIf="action.iconImg"
-                  [src]="action.iconImg"
-                  class="project-action-img-icon"
-                  alt=""
-                  width="28"
-                  height="28" />
-                <i *ngIf="!action.iconImg && action.icon" [class]="action.icon"></i>
-              </button>
+              <ng-container [ngSwitch]="action.action">
+                <button
+                  *ngSwitchCase="'add-task'"
+                  type="button"
+                  [class]="actionIconClass(action) + ' project-action-add-task'"
+                  [attr.aria-label]="actionLabel(project, action)"
+                  (click)="handleProjectAction(action.action, project, $event)">
+                  <span class="project-action-add-task-plus-wrap" aria-hidden="true">
+                    <svg
+                      class="project-action-add-task-svg"
+                      viewBox="0 0 24 24"
+                      width="36"
+                      height="36"
+                      xmlns="http://www.w3.org/2000/svg">
+                      <path stroke-width="1.5" d="M12 22C17.5 22 22 17.5 22 12C22 6.5 17.5 2 12 2C6.5 2 2 6.5 2 12C2 17.5 6.5 22 12 22Z" />
+                      <path stroke-width="1.5" d="M8 12H16" />
+                      <path stroke-width="1.5" d="M12 16V8" />
+                    </svg>
+                  </span>
+                  <span class="project-action-add-task-label">Create new task</span>
+
+                </button>
+                <button
+                  *ngSwitchDefault
+                  type="button"
+                  [class]="actionIconClass(action)"
+                  [attr.aria-label]="actionLabel(project, action)"
+                  (click)="handleProjectAction(action.action, project, $event)">
+                  <img
+                    *ngIf="action.iconImg"
+                    [src]="action.iconImg"
+                    class="project-action-img-icon"
+                    alt=""
+                    width="28"
+                    height="28" />
+                  <i *ngIf="!action.iconImg && action.icon" [class]="action.icon"></i>
+                </button>
+              </ng-container>
             </ng-container>
           </div>
 
@@ -268,13 +348,13 @@
               <span class="project-info-value">{{ teamMembersLabel(project) }}</span>
             </div>
             <div class="project-info-row">
-              <span class="project-info-label">Début du projet</span>
+              <span class="project-info-label">Project start</span>
               <span class="project-info-value">
                 {{ project.startDate ? (project.startDate | date: 'mediumDate') : '—' }}
               </span>
             </div>
             <div class="project-info-row">
-              <span class="project-info-label">Date limite</span>
+              <span class="project-info-label">Deadline</span>
               <span class="project-info-value">
                 {{ project.deadline ? (project.deadline | date: 'mediumDate') : '—' }}
               </span>
@@ -402,12 +482,12 @@
       </div>
 
       <div class="flex flex-column mb-2">
-        <label class="font-bold mb-2">Début du projet (optionnel)</label>
+        <label class="font-bold mb-2">Project start (optional)</label>
         <input pInputText type="date" [(ngModel)]="editableProject.startDate" class="w-full" />
       </div>
 
       <div class="flex flex-column mb-2">
-        <label class="font-bold mb-2">Date limite (optionnel)</label>
+        <label class="font-bold mb-2">Deadline (optional)</label>
         <input pInputText type="date" [(ngModel)]="editableProject.deadline" class="w-full" />
       </div>
     </ng-template>
@@ -428,11 +508,11 @@
     [modal]="true"
     [draggable]="false"
     [resizable]="false"
-    [style]="{ width: '400px' }"
+    [style]="{ width: '500px' }"
     (onHide)="closeTaskDialog()">
 
     <div class="flex flex-column gap-3">
-      <label class="font-bold mb-2">Name</label>
+      <label class="font-bold mb-2">Name *</label>
       <input
         pInputText
         [(ngModel)]="newTask.title"
@@ -457,11 +537,92 @@
         [(ngModel)]="newTask.deadline"
         placeholder="Deadline">
 
-      <label class="font-bold mb-2">Collaborator Email</label>
-      <input
-        pInputText
-        [(ngModel)]="newTask.collaboratorEmail"
-        placeholder="Email">
+      <ng-container *ngIf="(project.requiredSkills?.length ?? 0) > 0; else noProjectSkillsForTask">
+        <label class="font-bold mb-2">Task skills</label>
+        <p-multiSelect
+          [options]="project.requiredSkills!"
+          [(ngModel)]="newTask.skillIds"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="Pick skills for this task"
+          display="chip"
+          [filter]="true"
+          filterPlaceholder="Search skills"
+          styleClass="w-full"
+          (ngModelChange)="onNewTaskSkillsChange(project)">
+        </p-multiSelect>
+
+      </ng-container>
+      <ng-template #noProjectSkillsForTask>
+
+      </ng-template>
+
+      <label class="font-bold mb-2" for="newTaskCollaborator">Assigne to *</label>
+      <div class="new-task-assignee-row flex flex-column gap-2">
+        <div class="flex gap-2 align-items-start flex-wrap">
+          <p-autocomplete
+            class="new-task-assignee-autocomplete flex-1"
+            inputId="newTaskCollaborator"
+            [(ngModel)]="newTask.collaboratorEmail"
+            [suggestions]="collaboratorEmailSuggestions"
+            (completeMethod)="searchCollaborators($event)"
+            [dropdown]="true"
+            [completeOnFocus]="true"
+            [minQueryLength]="0"
+            placeholder="Search by email"
+            styleClass="w-full"
+            inputStyleClass="w-full" />
+          <button
+            *ngIf="isProjectManagerOfProject(project)"
+            type="button"
+            pButton
+            label="Assign to me"
+            styleClass="p-button-outlined p-button-sm whitespace-nowrap"
+            (click)="assignNewTaskToMe()">
+          </button>
+        </div>
+
+      </div>
+
+      <div class="assignee-suggestions-trigger" *ngIf="isProjectManagerOfProject(project)">
+        <button
+          type="button"
+          pButton
+          label="See suggested assignees list"
+          icon="pi pi-users"
+          styleClass="p-button-outlined p-button-sm w-full sm:w-auto"
+          [disabled]="assigneeCandidatesLoading"
+          (click)="openAssigneeSuggestionsPopup()">
+        </button>
+        <p *ngIf="assigneeCandidatesLoading" class="text-600 text-sm m-0">Loading suggestions…</p>
+        <p *ngIf="!assigneeCandidatesLoading && !assigneeCandidates.length" class="text-600 text-sm m-0">
+          No suggestions for the current skill filter. Open the list to confirm, or type an assignee email above.
+        </p>
+      </div>
+
+      <div class="new-task-attachment flex flex-column gap-1">
+        <div class="new-task-attachment-actions">
+          <input
+            #newTaskFileInput
+            type="file"
+            class="new-task-file-input-hidden"
+            (change)="onNewTaskFileSelected($event)" />
+          <button
+            type="button"
+            class="new-task-attachment-icon-btn"
+            title="Choose a file to attach"
+            aria-label="Choose a file to attach"
+            (click)="newTaskFileInput.click()">
+            <i class="pi pi-paperclip" aria-hidden="true"></i>
+          </button>
+          <span class="new-task-attachment-file-name text-600" *ngIf="newTaskAttachmentFile">
+            {{ newTaskAttachmentFile.name }}
+          </span>
+          <span class="new-task-attachment-placeholder text-600 text-sm" *ngIf="!newTaskAttachmentFile">
+            Click the icon to select a file
+          </span>
+        </div>
+      </div>
 
       <button
         pButton
@@ -470,6 +631,119 @@
         (click)="saveTask(project)">
       </button>
    
+    </div>
+  </p-dialog>
+
+  <p-dialog
+    header="Edit Task"
+    [visible]="editTaskDialogVisible"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [style]="{ width: '500px' }"
+    (onHide)="closeEditTaskDialog()">
+
+    <div class="flex flex-column gap-3">
+      <label class="font-bold mb-2">Name *</label>
+      <input
+        pInputText
+        [(ngModel)]="editableTask.title"
+        placeholder="Task name">
+
+      <label class="font-bold mb-2">Description</label>
+      <textarea
+        pInputTextarea
+        [(ngModel)]="editableTask.description"
+        rows="4"
+        placeholder="Description">
+      </textarea>
+
+      <label class="font-bold mb-2">Priority</label>
+      <select [(ngModel)]="editableTask.priority" class="p-inputtext">
+        <option [ngValue]="undefined">No priority</option>
+        <option *ngFor="let p of priorities" [ngValue]="p">{{ priorityLabel(p) }}</option>
+      </select>
+
+      <label class="font-bold mb-2">Deadline</label>
+      <input
+        type="datetime-local"
+        pInputText
+        [(ngModel)]="editableTask.deadline"
+        placeholder="Deadline">
+
+      <ng-container *ngIf="(project.requiredSkills?.length ?? 0) > 0">
+        <label class="font-bold mb-2">Task skills</label>
+        <p-multiSelect
+          [options]="project.requiredSkills!"
+          [(ngModel)]="editableTask.skillIds"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="Pick skills for this task"
+          display="chip"
+          [filter]="true"
+          filterPlaceholder="Search skills"
+          styleClass="w-full">
+        </p-multiSelect>
+      </ng-container>
+
+      <label class="font-bold mb-2" for="editTaskCollaborator">Assigne to *</label>
+      <div class="new-task-assignee-row flex flex-column gap-2">
+        <div class="flex gap-2 align-items-start flex-wrap">
+          <p-autocomplete
+            class="new-task-assignee-autocomplete flex-1"
+            inputId="editTaskCollaborator"
+            [(ngModel)]="editableTask.collaboratorEmail"
+            [suggestions]="collaboratorEmailSuggestions"
+            (completeMethod)="searchCollaborators($event)"
+            [dropdown]="true"
+            [completeOnFocus]="true"
+            [minQueryLength]="0"
+            placeholder="Search by email"
+            styleClass="w-full"
+            inputStyleClass="w-full" />
+          <button
+            type="button"
+            pButton
+            label="Assign to me"
+            styleClass="p-button-outlined p-button-sm whitespace-nowrap"
+            (click)="assignEditedTaskToMe()">
+          </button>
+        </div>
+      </div>
+
+      <button
+        pButton
+        [label]="isUpdatingTask ? 'Updating...' : 'Update Task'"
+        [disabled]="isUpdatingTask"
+        (click)="saveEditedTask(project)">
+      </button>
+    </div>
+  </p-dialog>
+
+  <p-dialog
+    header="Suggested assignees"
+    [(visible)]="assigneeSuggestionsPopupVisible"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [dismissableMask]="true"
+    [closable]="true"
+    appendTo="body"
+    styleClass="assignee-suggestions-popup-dialog"
+    [style]="{ width: 'min(22rem, 92vw)' }"
+    (onHide)="assigneeSuggestionsPopupVisible = false">
+    <div class="assignee-suggestions-popup-scroll">
+      <div *ngIf="assigneeCandidatesLoading" class="text-600 text-sm">Loading…</div>
+      <ul class="assignee-suggestion-list" *ngIf="!assigneeCandidatesLoading && assigneeCandidates.length">
+        <li *ngFor="let c of assigneeCandidates">
+          <button type="button" class="assignee-suggestion-btn" (click)="pickAssigneeFromPopup(c.email)">
+            {{ formatAssigneeRow(c) }}
+          </button>
+        </li>
+      </ul>
+      <p *ngIf="!assigneeCandidatesLoading && !assigneeCandidates.length" class="text-600 text-sm m-0">
+        No matching users. Adjust task skills or enter an email in the assignee field.
+      </p>
     </div>
   </p-dialog>
 </ng-container>

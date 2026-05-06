@@ -1,10 +1,7 @@
-import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { Signup } from './signup';
-
-@Component({ standalone: true, template: '' })
-class LoginRouteStub {}
+import { ApiService } from '../../services/api';
 
 describe('Signup', () => {
   let component: Signup;
@@ -14,13 +11,14 @@ describe('Signup', () => {
     await TestBed.configureTestingModule({
       imports: [Signup],
       providers: [
-        provideRouter([{ path: 'login', component: LoginRouteStub }]),
+        provideRouter([]),
+        { provide: ApiService, useValue: jasmine.createSpyObj('ApiService', ['signup']) },
       ],
     }).compileComponents();
 
     fixture = TestBed.createComponent(Signup);
     component = fixture.componentInstance;
-    await fixture.whenStable();
+    fixture.detectChanges();
   });
 
   it('should create', () => {

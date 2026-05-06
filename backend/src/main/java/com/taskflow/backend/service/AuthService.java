@@ -3,6 +3,7 @@ package com.taskflow.backend.service;
 import com.taskflow.backend.dto.auth.AdminCreateUserRequest;
 import com.taskflow.backend.dto.auth.AuthResponse;
 import com.taskflow.backend.dto.auth.LoginRequest;
+import com.taskflow.backend.dto.auth.SignupRequest;
 import com.taskflow.backend.entity.Skill;
 import com.taskflow.backend.entity.User;
 import com.taskflow.backend.entity.UserRole;
@@ -93,6 +94,54 @@ public class AuthService {
         }
         SkillService.ensureNotArchived(found);
         return new HashSet<>(found);
+    }
+
+    /**
+     * Self-service registration. Cannot create ADMIN users; emails need not receive mail (any unique string works for local testing).
+     */
+    public AuthResponse signup(SignupRequest request) {
+        UserRole role;
+        try {
+            role = request.getRoleAsEnum();
+        } catch (IllegalArgumentException e) {
+            throw new BadRequestException(e.getMessage());
+        }
+        if (role == UserRole.ADMIN) {
+            throw new BadRequestException("Self-registration cannot create administrator accounts.");
+        }
+
+        String email = normalizeEmail(request.getEmail());
+        if (email == null || email.isEmpty()) {
+            throw new BadRequestException("Email is required.");
+        }
+
+        String password = request.getPassword();
+        if (password == null || password.length() < 6) {
+            throw new BadRequestException("Password must be at least 6 characters.");
+        }
+
+        String firstName = request.getFirstName() == null ? "" : request.getFirstName().trim();
+        String lastName = request.getLastName() == null ? "" : request.getLastName().trim();
+        if (firstName.isEmpty() || lastName.isEmpty()) {
+            throw new BadRequestException("First name and last name are required.");
+        }
+
+        if (userRepository.findByEmail(email).isPresent()) {
+            throw new BadRequestException("Email already exists.");
+        }
+
+        User user = new User();
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
+        user.setEmail(email);
+        user.setPassword(passwordEncoder.encode(password));
+        user.setRole(role);
+        user.setActive(true);
+        user.setSkills(new HashSet<>());
+
+        User saved = userRepository.save(user);
+        String token = jwtService.generateToken(saved.getEmail(), saved.getRole().name());
+        return new AuthResponse(token, saved);
     }
 
     public AuthResponse login(LoginRequest request) {

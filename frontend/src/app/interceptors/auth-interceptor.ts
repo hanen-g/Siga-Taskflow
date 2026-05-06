@@ -7,8 +7,10 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
 
   const token = localStorage.getItem('token');
+  const isPublicAuthCall =
+    req.url.includes('/api/auth/login') || req.url.includes('/api/auth/signup');
 
-  if (token) {
+  if (token && !isPublicAuthCall) {
     req = req.clone({
       setHeaders: {
         Authorization: `Bearer ${token}`
@@ -21,9 +23,8 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
       // Only 401 = missing/invalid/expired credentials. 403 = forbidden action for an authenticated user
       // (e.g. role-based); clearing the session here logged collaborators out incorrectly.
       const isUnauthorized = err.status === 401;
-      const isLoginCall = req.url.includes('/api/auth/login');
 
-      if (isUnauthorized && !isLoginCall) {
+      if (isUnauthorized && !isPublicAuthCall) {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         setTimeout(() => {

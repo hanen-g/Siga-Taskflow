@@ -1,12 +1,21 @@
-
+<p-toast />
 
 <h2>{{ title }}</h2>
 
 @if (user) {
   <p>Welcome, {{ user.firstName }} {{ user.lastName }}</p>
 }
+
 <div class="dashboard">
   <main class="content">
-    <router-outlet></router-outlet>
+    @if (user?.role === 'PROJECT_MANAGER') {
+      <app-pm-reporting />
+    }
+    @if (user?.role === 'COLLABORATOR') {
+      <app-collaborator-reporting />
+    }
+    @if (user?.role === 'ADMIN') {
+      <app-admin-reporting />
+    }
   </main>
 </div>

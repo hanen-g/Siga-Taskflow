@@ -1,17 +1,27 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router } from '@angular/router';
-import { RouterOutlet } from '@angular/router';
-import { ApiService, UserProfile } from '../../services/api';
+import { UserProfile } from '../../services/api';
 import { WebsocketService } from '../../services/websocket.service';
 import { MessageService } from 'primeng/api';
+import { ToastModule } from 'primeng/toast';
 import { Notification } from '../../models/notification.model';
+import { CollaboratorReportingPage } from '../reporting/collaborator-reporting.component';
+import { PmReportingPage } from '../reporting/pm-reporting.component';
+import { AdminReportingPage } from '../reporting/admin-reporting.component';
 
 @Component({
   standalone: true,
-  imports: [CommonModule, RouterOutlet],
+  imports: [
+    CommonModule,
+    ToastModule,
+    CollaboratorReportingPage,
+    PmReportingPage,
+    AdminReportingPage
+  ],
   selector: 'app-dashboard',
   templateUrl: './dashboard.html',
+  styleUrls: ['./dashboard.css'],
   providers: [MessageService]
 })
 export class Dashboard implements OnInit {
@@ -19,7 +29,6 @@ export class Dashboard implements OnInit {
   title = 'Dashboard';
 
   constructor(
-    private api: ApiService,
     private router: Router,
     private ws: WebsocketService,
     private messageService: MessageService
@@ -34,6 +43,8 @@ export class Dashboard implements OnInit {
           this.title = 'Project Manager Dashboard';
         } else if (this.user?.role === 'COLLABORATOR') {
           this.title = 'Collaborator Dashboard';
+        } else if (this.user?.role === 'ADMIN') {
+          this.title = 'Admin Dashboard';
         }
       } catch (e) {
         console.error('Failed to parse user data:', e);

@@ -24,9 +24,10 @@ import { Priority, Task, TaskStatus } from '../../../../models/task.model';
 import { TaskService } from '../../../../services/task.service';
 import { WebsocketService } from '../../../../services/websocket.service';
 import { AppLoaderComponent } from '../../../../layout/app-loader';
-import { TaskDetailsPanelComponent } from '../task-details-panel';
+import { TaskDetailsPanelComponent } from '../../task-details-panel';
 
 type KanbanColumn = { status: TaskStatus; title: string; canDrop: boolean; colorClass: string };
+type ManagerKanbanFilter = 'assigned_to_me' | 'assigned_to_others';
 
 @Component({
   selector: 'app-task-kanban-board',
@@ -77,6 +78,7 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
   errorMessage = '';
   role: string | null = null;
   selectedTask: Task | null = null;
+  managerKanbanFilter: ManagerKanbanFilter = 'assigned_to_me';
 
   pauseDialogVisible = false;
   reviewDialogVisible = false;
@@ -97,6 +99,10 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
 
   get isCollaborator(): boolean {
     return this.role === 'COLLABORATOR';
+  }
+
+  get isManager(): boolean {
+    return this.role === 'PROJECT_MANAGER';
   }
 
   get isClient(): boolean {
@@ -149,6 +155,82 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
       if (pn) return pn;
     }
     return 'No description provided.';
+  }
+
+  private readStoredUserEmail(): string | null {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        const email = user?.email;
+        if (typeof email === 'string' && email.trim()) {
+          return email.trim();
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return null;
+  }
+
+  isCurrentUserAssignee(task: Task | null | undefined): boolean {
+    if (!task) {
+      return false;
+    }
+    const currentEmail = this.readStoredUserEmail();
+    if (!currentEmail) {
+      return false;
+    }
+    const assignees = new Set<string>([
+      ...(task.collaboratorEmails ?? []).map((e) => (e ?? '').trim().toLowerCase()),
+      ...(task.collaborators?.map((c) => (c?.email ?? '').trim().toLowerCase()) ?? []),
+      (task.collaboratorEmail ?? '').trim().toLowerCase()
+    ]);
+    return assignees.has(currentEmail.trim().toLowerCase());
+  }
+
+  isAssigneeExecutor(task: Task | null | undefined): boolean {
+    return (this.isCollaborator || this.isManager) && this.isCurrentUserAssignee(task);
+  }
+
+  get canManageSelectedTaskStatus(): boolean {
+    return this.isAssigneeExecutor(this.selectedTask);
+  }
+
+  isAssignedToCollaboratorsView(task: Task | null | undefined): boolean {
+    if (!task || this.isCurrentUserAssignee(task)) {
+      return false;
+    }
+    return this.hasAnyAssignee(task);
+  }
+
+  countManagerMyAssignedTasks(): number {
+    if (!this.isManager) {
+      return 0;
+    }
+    return this.tasks.filter((task) => this.isCurrentUserAssignee(task)).length;
+  }
+
+  countManagerCollaboratorTasks(): number {
+    if (!this.isManager) {
+      return 0;
+    }
+    return this.tasks.filter((task) => this.isAssignedToCollaboratorsView(task)).length;
+  }
+
+  setManagerFilter(filter: ManagerKanbanFilter): void {
+    if (!this.isManager || this.managerKanbanFilter === filter) {
+      return;
+    }
+    this.managerKanbanFilter = filter;
+    this.rebuildColumnTasks();
+    const visibleIds = new Set(
+      this.getFilteredTasksForBoard().map((task) => task.id).filter((id): id is number => id != null)
+    );
+    if (this.selectedTask?.id != null && !visibleIds.has(this.selectedTask.id)) {
+      this.selectedTask = null;
+    }
+    this.cdr.markForCheck();
   }
 
   detectRole(): void {
@@ -234,19 +316,22 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
   }
 
   canDragTask(task: Task): boolean {
-    return this.isCollaborator && this.draggableStatuses.includes(task.status);
+    return this.isAssigneeExecutor(task) && this.draggableStatuses.includes(task.status);
   }
 
   canDropInColumn(_column: KanbanColumn): boolean {
-    return this.isCollaborator;
+    return this.isCollaborator || this.isManager;
   }
 
   canEnterColumn = (drag: CdkDrag<Task>, drop: CdkDropList<Task[]>): boolean => {
-    if (!this.isCollaborator) {
+    if (!this.isCollaborator && !this.isManager) {
+      return false;
+    }
+    const source = drag.data;
+    if (!this.isCurrentUserAssignee(source)) {
       return false;
     }
     const targetStatus = this.statusFromListId(drop.id);
-    const source = drag.data;
     if (source?.status === TaskStatus.TODO) {
       return targetStatus === TaskStatus.IN_PROGRESS || targetStatus === TaskStatus.ON_HOLD;
     }
@@ -259,7 +344,7 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
 
   onTaskDrop(event: CdkDragDrop<Task[]>, targetStatus: TaskStatus): void {
     const task = event.item.data as Task;
-    if (!task || task.status === targetStatus || !this.isCollaborator) {
+    if (!task || task.status === targetStatus || !this.isAssigneeExecutor(task)) {
       return;
     }
 
@@ -319,6 +404,28 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
   cancelReviewDialog(): void {
     this.reviewDialogVisible = false;
     this.resetPendingDialogState();
+  }
+
+  get pauseDialogTitle(): string {
+    const title = this.pendingTask?.title?.trim();
+    return title ? `Put "${title}" on hold` : 'Put task on hold';
+  }
+
+  get reviewDialogTitle(): string {
+    const title = this.pendingTask?.title?.trim();
+    return title ? `Submit "${title}" for review` : 'Submit for review';
+  }
+
+  get pauseConfirmIntro(): string {
+    const title = this.pendingTask?.title?.trim();
+    const label = title ? `the task "${title}"` : 'this task';
+    return `Are you sure you want to put ${label} on hold?`;
+  }
+
+  get reviewConfirmIntro(): string {
+    const title = this.pendingTask?.title?.trim();
+    const label = title ? `the task "${title}"` : 'this task';
+    return `Are you sure you want to submit ${label} for review?`;
   }
 
   selectTask(task: Task): void {
@@ -419,6 +526,25 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
     this.reviewNote = '';
   }
 
+  private getFilteredTasksForBoard(): Task[] {
+    if (!this.isManager) {
+      return this.filteredTasks;
+    }
+    if (this.managerKanbanFilter === 'assigned_to_me') {
+      return this.filteredTasks.filter((task) => this.isCurrentUserAssignee(task));
+    }
+    return this.filteredTasks.filter((task) => this.isAssignedToCollaboratorsView(task));
+  }
+
+  private hasAnyAssignee(task: Task): boolean {
+    const raw = [
+      ...(task.collaboratorEmails ?? []),
+      ...(task.collaborators?.map((c) => c?.email) ?? []),
+      task.collaboratorEmail
+    ];
+    return raw.some((email) => typeof email === 'string' && email.trim().length > 0);
+  }
+
   private rebuildColumnTasks(): void {
     const next: Record<TaskStatus, Task[]> = {
       [TaskStatus.TODO]: [],
@@ -427,7 +553,7 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
       [TaskStatus.IN_REVIEW]: [],
       [TaskStatus.DONE]: []
     };
-    for (const task of this.filteredTasks) {
+    for (const task of this.getFilteredTasksForBoard()) {
       if (next[task.status]) {
         next[task.status].push(task);
       }

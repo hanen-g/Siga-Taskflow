@@ -246,11 +246,14 @@
           <div class="content">
             <span class="title">{{ selectedUser.active ? 'Deactivate account' : 'Reactivate account' }}</span>
             <p class="message">
-              {{
-                selectedUser.active
-                  ? 'Deactivating this user will revoke their access to TaskFlow. Their history will be archived for future audit needs. Proceed?'
-                  : 'Reactivating this user will restore their access to TaskFlow so they can sign in and continue working. Proceed?'
-              }}
+              <ng-container *ngIf="selectedUser.active">
+                Are you sure you want to deactivate the account for {{ accountLabelForConfirm(selectedUser) }}? This will revoke
+                their access to TaskFlow. Their history will be kept for audit purposes.
+              </ng-container>
+              <ng-container *ngIf="!selectedUser.active">
+                Are you sure you want to reactivate the account for {{ accountLabelForConfirm(selectedUser) }}? They will be able
+                to sign in and continue working in TaskFlow.
+              </ng-container>
             </p>
           </div>
           <div class="actions">

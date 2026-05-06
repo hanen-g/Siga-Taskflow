@@ -1,0 +1,110 @@
+<div class="reporting-page">
+  <div *ngIf="loading" class="loading">
+    <app-loader label="Loading your reporting dashboard..." />
+  </div>
+
+  <ng-container *ngIf="!loading && data">
+    <div class="kpi-grid">
+      <p-card header="Assigned to me">
+        <span class="kpi-num">{{ data.totalAssigned }}</span>
+      </p-card>
+      <p-card header="Completed">
+        <span class="kpi-num">{{ data.completed }}</span>
+      </p-card>
+      <p-card header="On hold">
+        <span class="kpi-num">{{ data.onHold }}</span>
+      </p-card>
+      <p-card header="Overdue">
+        <span class="kpi-num danger">{{ data.overdue }}</span>
+      </p-card>
+    </div>
+
+    <div class="chart-row">
+      <p-card header="My tasks by status">
+        <div class="chart-box">
+          <p-chart type="doughnut" [data]="donut" [options]="chartOptions" />
+        </div>
+      </p-card>
+      <p-card header="Tasks per project">
+        <div class="chart-box">
+          <p-chart type="bar" [data]="bar" [options]="barOpts" />
+        </div>
+      </p-card>
+    </div>
+
+    <p-card header="Performance summary">
+      <div class="perf-grid">
+        <div>
+          <label class="muted">Completion rate</label>
+          <p-progressBar [value]="data.completionRatePercent" [style]="{ height: '10px' }" />
+          <span class="small">{{ data.completionRatePercent | number : '1.0-1' }}%</span>
+        </div>
+        <div>
+          <label class="muted">Avg. days from first comment to latest comment on completed tasks</label>
+          <div class="kpi-lite">
+            {{ data.averageCompletionDays != null ? (data.averageCompletionDays | number : '1.0-1') : 'Not enough signal' }}
+          </div>
+          <small class="hint">Based on Discussion activity timestamps (approximation).</small>
+        </div>
+        <div>
+          <label class="muted">Returned for rework (signals from PM comments)</label>
+          <span class="kpi-lite">{{ data.rejectedByPmHeuristicCount }}</span>
+        </div>
+        <div>
+          <label class="muted">Waiting for approval (IN_REVIEW)</label>
+          <span class="kpi-lite">{{ data.inReviewWaitingCount }}</span>
+        </div>
+      </div>
+    </p-card>
+
+    <div class="tables-row">
+      <p-card header="My overdue tasks">
+        <p-table [value]="data.overdueTasks" [tableStyle]="{ 'min-width': '100%' }">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Task</th>
+              <th>Deadline</th>
+              <th>Project</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-row>
+            <tr>
+              <td>{{ row.taskTitle }}</td>
+              <td><span class="deadline-risk">{{ row.deadlineIso | date : 'medium' }}</span></td>
+              <td>{{ row.projectName }}</td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="3" class="muted">No overdue tasks.</td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </p-card>
+
+      <p-card header="Blocked (on hold)">
+        <p-table [value]="data.onHoldTasks" [tableStyle]="{ 'min-width': '100%' }">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Task</th>
+              <th>Reason</th>
+              <th>Project</th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-row>
+            <tr>
+              <td>{{ row.taskTitle }}</td>
+              <td>{{ row.holdReason }}</td>
+              <td>{{ row.projectName }}</td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="3" class="muted">No tasks on hold.</td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </p-card>
+    </div>
+  </ng-container>
+</div>

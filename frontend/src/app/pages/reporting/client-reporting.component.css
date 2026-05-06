@@ -1,0 +1,154 @@
+@import './reporting-shared.css';
+
+.wide {
+  max-width: 1200px;
+}
+
+.kpi-three {
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.kpi-num {
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.kpi-num.danger {
+  color: #dc2626;
+}
+
+.chart-row-two {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.chart-tall {
+  height: 280px;
+}
+
+.section-h {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 1.2rem;
+}
+
+.project-panels {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.panel-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.panel-title {
+  font-weight: 600;
+}
+
+.panel-progress {
+  margin-left: auto;
+  color: #475569;
+  font-weight: 600;
+}
+
+.panel-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  font-size: 0.9rem;
+  color: #64748b;
+}
+
+.sub-h {
+  margin: 0.5rem 0;
+  font-size: 0.95rem;
+}
+
+.task-grid {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.task-row {
+  display: grid;
+  grid-template-columns: 2fr 1.2fr 0.9fr 1fr;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+  border-top: 1px solid #f1f5f9;
+}
+
+.task-row.head {
+  background: #f8fafc;
+  font-weight: 600;
+  border-top: none;
+}
+
+.timeline-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.tl-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.tl-idx {
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.tl-title {
+  font-weight: 600;
+}
+
+.tl-sub {
+  font-size: 0.85rem;
+  color: #64748b;
+}
+
+.tl-due {
+  margin-left: auto;
+  font-size: 0.85rem;
+}
+
+.feed {
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.feed-row {
+  display: grid;
+  grid-template-columns: 180px 100px 1fr;
+  gap: 0.75rem;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.feed-time {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+@media (max-width: 720px) {
+  .task-row,
+  .task-row.head {
+    grid-template-columns: 1fr;
+  }
+  .feed-row {
+    grid-template-columns: 1fr;
+  }
+}

@@ -9,7 +9,8 @@
         </div>
       </ng-template>
 
-      <form (ngSubmit)="signup()" class="signup-form">
+      <!-- novalidate: PrimeNG fields don't reliably participate in native HTML constraint validation -->
+      <form (ngSubmit)="signup()" class="signup-form" novalidate>
         <!-- Error Message -->
         <p-message *ngIf="message" severity="error" styleClass="w-full mb-4">{{ message }}</p-message>
 
@@ -61,6 +62,7 @@
         <!-- Password Field -->
         <div class="field">
           <label for="password" class="block mb-2">Password</label>
+          <span class="block text-sm text-color-secondary mb-1">At least 6 characters.</span>
           <p-password 
             id="password"
             [(ngModel)]="password" 
@@ -92,9 +94,8 @@
           </p-select>
         </div>
 
-        <!-- Submit Button -->
-        <p-button 
-          type="submit" 
+        <p-button
+          type="submit"
           [label]="isLoading ? 'Creating Account...' : 'Sign Up'"
           [disabled]="isLoading"
           [loading]="isLoading"

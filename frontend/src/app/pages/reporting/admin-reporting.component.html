@@ -1,0 +1,130 @@
+<div class="reporting-page wide">
+  <div *ngIf="loading" class="loading">
+    <app-loader label="Loading admin reporting..." />
+  </div>
+
+  <ng-container *ngIf="!loading && data">
+    <div class="kpi-grid kpi-six">
+      <p-card header="Users"><span class="kpi-num">{{ data.totalUsers }}</span></p-card>
+      <p-card header="Projects"><span class="kpi-num">{{ data.totalProjects }}</span></p-card>
+      <p-card header="Tasks"><span class="kpi-num">{{ data.totalTasks }}</span></p-card>
+      <p-card header="Platform completion %">
+        <span class="kpi-num">{{ data.platformCompletionRatePercent | number : '1.0-1' }}%</span>
+      </p-card>
+      <p-card header="Blocked (ON_HOLD)"><span class="kpi-num">{{ data.blockedTasks }}</span></p-card>
+      <p-card header="Inactive accounts"><span class="kpi-num">{{ data.inactiveAccounts }}</span></p-card>
+    </div>
+
+    <div class="chart-grid-mixed">
+      <p-card header="Users by role">
+        <div class="chart-box">
+          <p-chart type="doughnut" [data]="usersRoleDonut" [options]="opts" />
+        </div>
+      </p-card>
+      <p-card header="Tasks per project">
+        <div class="chart-tall">
+          <p-chart type="bar" [data]="tasksPerProject" [options]="barOpts" />
+        </div>
+      </p-card>
+      <p-card header="Team completion by PM">
+        <div class="chart-tall">
+          <p-chart type="bar" [data]="pmBar" [options]="barOpts" />
+        </div>
+      </p-card>
+      <p-card header="Platform trend (30 days)">
+        <div class="chart-tall">
+          <p-chart type="line" [data]="trend" [options]="lineOpts" />
+        </div>
+      </p-card>
+      <p-card header="Task status (platform)">
+        <div class="chart-box">
+          <p-chart type="doughnut" [data]="platStatus" [options]="opts" />
+        </div>
+      </p-card>
+    </div>
+
+    <p-card header="System health" class="blk">
+      <div class="health-strip">
+        <div>Projects past deadline: <strong>{{ data.systemHealth.projectsPastDeadline }}</strong></div>
+        <div>Overdue tasks: <strong>{{ data.systemHealth.overdueTasks }}</strong></div>
+        <div>Long-running blockers proxy: <strong>{{ data.systemHealth.onHoldLongBlockers }}</strong></div>
+      </div>
+      <h3 class="section-h">Most common hold reasons</h3>
+      <p-table [value]="data.systemHealth.rankedHoldReasons" [rows]="10">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Reason</th>
+            <th>Occurrences</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-r>
+          <tr>
+            <td>{{ r.name }}</td>
+            <td>{{ r.count }}</td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </p-card>
+
+    <div class="top-row">
+      <p-card header="Top collaborators (score)">
+        <ul class="top-list">
+          <li *ngFor="let x of data.topCollaborators">{{ x.name }} — <strong>{{ x.score }}</strong></li>
+        </ul>
+      </p-card>
+      <p-card header="Top project managers (team completion %)">
+        <ul class="top-list">
+          <li *ngFor="let x of data.topProjectManagers">{{ x.name }} — <strong>{{ x.score }}%</strong></li>
+        </ul>
+      </p-card>
+    </div>
+
+    <p-card header="All projects overview" class="blk">
+      <p-table [value]="data.projectsOverview" [paginator]="true" [rows]="10">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Project</th>
+            <th>PM</th>
+            <th>Tasks</th>
+            <th>Completion %</th>
+            <th>Deadline</th>
+            <th>Risk</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-r>
+          <tr>
+            <td>{{ r.projectName }}</td>
+            <td>{{ r.managerName }}</td>
+            <td>{{ r.totalTasks }}</td>
+            <td>{{ r.completionRatePercent }}</td>
+            <td>{{ r.deadlineIso || '—' }}</td>
+            <td><p-tag [severity]="riskSeverity(r.riskLabel)" [value]="r.riskLabel" /></td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </p-card>
+
+    <p-card header="All users overview" class="blk">
+      <p-table [value]="data.usersOverview" [paginator]="true" [rows]="12">
+        <ng-template pTemplate="header">
+          <tr>
+            <th>Name</th>
+            <th>Role</th>
+            <th>Assigned tasks</th>
+            <th>Completion %</th>
+            <th>Status</th>
+          </tr>
+        </ng-template>
+        <ng-template pTemplate="body" let-r>
+          <tr>
+            <td>{{ r.name }}</td>
+            <td>{{ r.role }}</td>
+            <td>{{ r.assignedTasks }}</td>
+            <td>{{ r.completionRatePercent }}</td>
+            <td><p-tag [severity]="accountSeverity(r.accountStatus)" [value]="r.accountStatus" /></td>
+          </tr>
+        </ng-template>
+      </p-table>
+    </p-card>
+  </ng-container>
+</div>

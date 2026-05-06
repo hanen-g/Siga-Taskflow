@@ -6,6 +6,7 @@ import com.taskflow.backend.entity.User;
 import com.taskflow.backend.entity.UserRole;
 import com.taskflow.backend.repository.SkillRepository;
 import com.taskflow.backend.repository.UserRepository;
+import org.springframework.data.domain.PageRequest;
 import com.taskflow.backend.security.JwtService;
 import com.taskflow.backend.service.AccountEmailService;
 import com.taskflow.backend.service.AuthService;
@@ -21,6 +22,7 @@ import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -119,14 +121,16 @@ public class UserController {
     ) {
         String normalizedQuery = query.trim();
 
-        List<String> collaboratorEmails = userRepository
-                .findTop10ActiveByRoleAndEmail(UserRole.COLLABORATOR, normalizedQuery)
+        List<String> assigneeEmails = userRepository
+                .findActiveByRolesAndEmailPrefix(
+                        EnumSet.of(UserRole.COLLABORATOR, UserRole.PROJECT_MANAGER),
+                        normalizedQuery,
+                        PageRequest.of(0, 50))
                 .stream()
-                .limit(10)
                 .map(User::getEmail)
                 .toList();
 
-        return ResponseEntity.ok(collaboratorEmails);
+        return ResponseEntity.ok(assigneeEmails);
     }
 
     @PostMapping("/admin/users")
@@ -364,8 +368,7 @@ public class UserController {
             this.email = user.getEmail();
             this.firstName = user.getFirstName();
             this.lastName = user.getLastName();
-            // Be defensive: some historical records may have null role, which would otherwise crash the API.
-            this.role = user.getRole() == null ? "UNKNOWN" : user.getRole().name();
+            this.role = user.getRole().name();
             this.profilePicture = user.getProfilePicture();
         }
 
@@ -400,8 +403,7 @@ public class UserController {
             this.email = user.getEmail();
             this.firstName = user.getFirstName();
             this.lastName = user.getLastName();
-            // Be defensive: some historical records may have null role, which would otherwise crash the API.
-            this.role = user.getRole() == null ? "UNKNOWN" : user.getRole().name();
+            this.role = user.getRole().name();
             this.profilePicture = user.getProfilePicture();
             this.isActive = user.isActive();
             this.phoneNumber = user.getPhoneNumber();

@@ -12,13 +12,21 @@ import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { DialogModule } from 'primeng/dialog';
 import { ButtonModule } from 'primeng/button';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+
 import { ProjectService } from '../services/project.service';
+import { TaskService } from '../services/task.service';
+import { Task } from '../models/task.model';
+
+export type CalendarEventKind = 'start' | 'deadline' | 'task_deadline';
 
 export interface CalendarEventItem {
   trackId: string;
-  kind: 'start' | 'deadline';
+  kind: CalendarEventKind;
   projectId: number;
-  projectName: string;
+  headline: string;
+  subline?: string;
 }
 
 export interface CalendarCell {
@@ -44,6 +52,7 @@ export interface MonthView {
 })
 export class ProjectsCalendarDialog implements OnChanges {
   private projectService = inject(ProjectService);
+  private taskService = inject(TaskService);
   private cdr = inject(ChangeDetectorRef);
 
   @Input() visible = false;
@@ -52,16 +61,34 @@ export class ProjectsCalendarDialog implements OnChanges {
   loading = false;
   loadError: string | null = null;
   projects: Array<{ id: number; name: string; startDate?: string; deadline?: string }> = [];
+  tasks: Task[] = [];
 
   viewAnchor = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
   leftMonth: MonthView = { key: '', label: '', weeks: [] };
   rightMonth: MonthView = { key: '', label: '', weeks: [] };
 
-  readonly weekDayLabels = ['lun', 'mar', 'mer', 'jeu', 'ven', 'sam', 'dim'];
+  readonly weekDayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+  get calendarMonths(): MonthView[] {
+    return [this.leftMonth, this.rightMonth];
+  }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['visible'] && this.visible) {
-      this.loadProjects();
+      this.loadCalendarData();
+    }
+  }
+
+  eventKindLabel(ev: CalendarEventItem): string {
+    switch (ev.kind) {
+      case 'start':
+        return 'Start';
+      case 'deadline':
+        return 'Due';
+      case 'task_deadline':
+        return 'Task';
+      default:
+        return '';
     }
   }
 
@@ -84,8 +111,10 @@ export class ProjectsCalendarDialog implements OnChanges {
     return `${this.leftMonth.label} – ${this.rightMonth.label}`;
   }
 
-  get hasAnyProjectDates(): boolean {
-    return this.projects.some((p) => !!p.startDate || !!p.deadline);
+  get hasCalendarDates(): boolean {
+    const proj = this.projects.some((p) => !!p.startDate || !!p.deadline);
+    const taskDates = this.tasks.some((t) => this.taskDeadlineDateKey(t) != null && t.projectId != null);
+    return proj || taskDates;
   }
 
   shiftView(delta: number): void {
@@ -114,23 +143,65 @@ export class ProjectsCalendarDialog implements OnChanges {
     return `/dashboard/pm/projects/${projectId}`;
   }
 
-  private loadProjects(): void {
+  private loadCalendarData(): void {
     this.loading = true;
     this.loadError = null;
     this.cdr.markForCheck();
-    this.projectService.myProjects().subscribe({
-      next: (list) => {
-        this.projects = Array.isArray(list) ? list : [];
+
+    forkJoin({
+      projects: this.projectService.myProjects(),
+      tasks: this.tasksForRole$().pipe(catchError(() => of<Task[]>([])))
+    }).subscribe({
+      next: ({ projects, tasks }) => {
+        this.projects = Array.isArray(projects) ? projects : [];
+        this.tasks = Array.isArray(tasks) ? tasks : [];
         this.loading = false;
         this.rebuildCalendars();
         this.cdr.markForCheck();
       },
       error: () => {
         this.loading = false;
-        this.loadError = 'Impossible de charger les projets. Réessayez plus tard.';
+        this.loadError = 'Could not load the calendar. Please try again later.';
         this.cdr.markForCheck();
       }
     });
+  }
+
+  /** Tasks shown on the calendar by role (clients: none). */
+  private tasksForRole$() {
+    const role = this.readStoredRole();
+    if (role === 'ADMIN') {
+      return this.taskService.getAllTasks();
+    }
+    if (role === 'PROJECT_MANAGER') {
+      return this.taskService.getManagerTasks();
+    }
+    if (role === 'COLLABORATOR') {
+      return this.taskService.getMyTasks();
+    }
+    return of<Task[]>([]);
+  }
+
+  private readStoredRole(): string | null {
+    const userData = localStorage.getItem('user');
+    if (userData) {
+      try {
+        const user = JSON.parse(userData);
+        if (user?.role) return user.role;
+      } catch {
+        /* fallback */
+      }
+    }
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        return payload.role ?? null;
+      } catch {
+        return null;
+      }
+    }
+    return null;
   }
 
   private rebuildCalendars(): void {
@@ -146,7 +217,7 @@ export class ProjectsCalendarDialog implements OnChanges {
   }
 
   private monthYearLabel(d: Date): string {
-    return new Intl.DateTimeFormat('fr-FR', { month: 'long', year: 'numeric' }).format(d);
+    return new Intl.DateTimeFormat('en-US', { month: 'long', year: 'numeric' }).format(d);
   }
 
   private toDateKey(d: Date): string {
@@ -154,6 +225,50 @@ export class ProjectsCalendarDialog implements OnChanges {
     const mo = d.getMonth() + 1;
     const day = d.getDate();
     return `${y}-${String(mo).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  /**
+   * Calendar day key yyyy-MM-dd for a task deadline. Handles ISO strings (any offset), datetime-local echoes,
+   * Jackson numeric timestamps, or legacy `[y, mo, day, …]` tuples so events match grid cells reliably.
+   */
+  private taskDeadlineDateKey(task: Task): string | null {
+    return this.normalizeDeadlineToCalendarKey(task.deadline as unknown);
+  }
+
+  private normalizeDeadlineToCalendarKey(raw: unknown): string | null {
+    if (raw == null || raw === '') return null;
+
+    if (typeof raw === 'string') {
+      const trimmed = raw.trim();
+      const head = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (head) {
+        const y = head[1];
+        const mo = head[2];
+        const day = head[3];
+        return `${y}-${mo}-${day}`;
+      }
+      const parsed = Date.parse(trimmed);
+      if (!Number.isNaN(parsed)) return this.toDateKey(new Date(parsed));
+      return null;
+    }
+
+    if (typeof raw === 'number' && Number.isFinite(raw)) {
+      const d = new Date(raw);
+      if (!Number.isNaN(d.getTime())) return this.toDateKey(d);
+      return null;
+    }
+
+    if (Array.isArray(raw) && raw.length >= 3) {
+      const y = Number(raw[0]);
+      const moIndex = Number(raw[1]);
+      const day = Number(raw[2]);
+      if (Number.isNaN(y) || Number.isNaN(moIndex) || Number.isNaN(day)) return null;
+      const monthJs = moIndex >= 1 && moIndex <= 12 ? moIndex - 1 : NaN;
+      if (Number.isNaN(monthJs)) return null;
+      return this.toDateKey(new Date(y, monthJs, day));
+    }
+
+    return null;
   }
 
   private buildMonth(year: number, monthIndex: number): MonthView {
@@ -213,21 +328,41 @@ export class ProjectsCalendarDialog implements OnChanges {
     for (const p of this.projects) {
       if (p.startDate === key) {
         out.push({
-          trackId: `s-${p.id}-${key}`,
+          trackId: `ps-${p.id}-${key}`,
           kind: 'start',
           projectId: p.id,
-          projectName: p.name
+          headline: p.name
         });
       }
       if (p.deadline === key) {
         out.push({
-          trackId: `d-${p.id}-${key}`,
+          trackId: `pd-${p.id}-${key}`,
           kind: 'deadline',
           projectId: p.id,
-          projectName: p.name
+          headline: p.name
         });
       }
     }
+
+    for (const t of this.tasks) {
+      const dk = this.taskDeadlineDateKey(t);
+      if (!t?.id || t.projectId == null || dk == null || dk !== key) {
+        continue;
+      }
+      out.push({
+        trackId: `t-${t.id}-${key}`,
+        kind: 'task_deadline',
+        projectId: t.projectId,
+        headline: t.title,
+        subline: t.projectName
+      });
+    }
+
+    out.sort((a, b) => {
+      const order = { start: 0, deadline: 1, task_deadline: 2 } as const;
+      return order[a.kind] - order[b.kind] || a.headline.localeCompare(b.headline, 'en');
+    });
+
     return out;
   }
 }

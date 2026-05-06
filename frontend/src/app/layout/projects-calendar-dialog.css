@@ -48,6 +48,10 @@
   background: #c2410c;
 }
 
+.pcal-dot--task {
+  background: #4f46e5;
+}
+
 .pcal-months {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -160,6 +164,11 @@
   border-color: color-mix(in srgb, #c2410c 35%, transparent);
 }
 
+.pcal-event--task-deadline {
+  background: color-mix(in srgb, #4f46e5 14%, transparent);
+  border-color: color-mix(in srgb, #4f46e5 38%, transparent);
+}
+
 .pcal-event:hover {
   filter: brightness(0.95);
 }
@@ -170,6 +179,19 @@
   font-weight: 600;
   opacity: 0.85;
   display: block;
+}
+
+.pcal-event-title {
+  display: block;
+  margin-top: 0.08rem;
+}
+
+.pcal-event-sub {
+  display: block;
+  font-size: 0.65rem;
+  color: var(--text-color-secondary);
+  margin-top: 0.1rem;
+  line-height: 1.15;
 }
 
 .pcal-loading,

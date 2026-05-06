@@ -1,4 +1,18 @@
-import { Component, Input, Output, EventEmitter, OnInit, OnDestroy, OnChanges, ChangeDetectionStrategy, ChangeDetectorRef, ViewChild } from '@angular/core';
+import {
+  Component,
+  ElementRef,
+  HostListener,
+  Input,
+  Output,
+  EventEmitter,
+  OnInit,
+  OnDestroy,
+  OnChanges,
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  SimpleChanges,
+  ViewChild
+} from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
@@ -12,13 +26,13 @@ import { MessageService } from 'primeng/api';
 import { DialogModule } from 'primeng/dialog';
 import { TextareaModule } from 'primeng/textarea';
 
-import { Task, TaskStatus, Priority } from '../../../models/task.model';
-import { Comment } from '../../../models/comment.model';
-import { CommentService } from '../../../services/comment.service';
-import { WebsocketService } from '../../../services/websocket.service';
-import { UserService } from '../../../services/user.service';
-import { TaskService } from '../../../services/task.service';
-import { TaskReportService } from '../../../services/task-report.service';
+import { Task, TaskStatus, Priority } from '../../models/task.model';
+import { Comment } from '../../models/comment.model';
+import { CommentService } from '../../services/comment.service';
+import { WebsocketService } from '../../services/websocket.service';
+import { UserService } from '../../services/user.service';
+import { TaskService } from '../../services/task.service';
+import { TaskReportService } from '../../services/task-report.service';
 
 @Component({
   selector: 'app-task-details-panel',
@@ -326,8 +340,11 @@ export class TaskDetailsPanelComponent implements OnInit, OnChanges, OnDestroy {
 
   private commentSubscription: Subscription | null = null;
   private subscriptions: Subscription[] = [];
+  /** Deferred so the same click that opened the panel does not close it when it bubbles to document. */
+  private allowOutsideCloseClick = false;
 
   constructor(
+    private el: ElementRef<HTMLElement>,
     private commentService: CommentService,
     private ws: WebsocketService,
     private userService: UserService,
@@ -347,7 +364,15 @@ export class TaskDetailsPanelComponent implements OnInit, OnChanges, OnDestroy {
     }
   }
 
-  ngOnChanges() {
+  ngOnChanges(changes: SimpleChanges) {
+    if ('task' in changes && this.task) {
+      this.allowOutsideCloseClick = false;
+      setTimeout(() => {
+        this.allowOutsideCloseClick = true;
+        this.cdr.markForCheck();
+      }, 0);
+    }
+
     if (this.task) {
       // Unsubscribe existing comment subscription before subscribing to new one
       if (this.commentSubscription) {
@@ -363,6 +388,32 @@ export class TaskDetailsPanelComponent implements OnInit, OnChanges, OnDestroy {
         this.commentSubscription = null;
       }
     }
+  }
+
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent): void {
+    if (!this.task || !this.allowOutsideCloseClick) {
+      return;
+    }
+    if (this.reportDialogVisible) {
+      return;
+    }
+    const target = event.target as Node | null;
+    if (!target) {
+      return;
+    }
+    const elTarget = target as HTMLElement;
+    if (elTarget.closest?.('.p-dialog-mask, .p-component-overlay')) {
+      return;
+    }
+    if (elTarget.closest?.('.task-card')) {
+      return;
+    }
+    if (this.el.nativeElement.contains(target)) {
+      return;
+    }
+    this.close.emit();
+    this.cdr.markForCheck();
   }
 
   loadComments() {

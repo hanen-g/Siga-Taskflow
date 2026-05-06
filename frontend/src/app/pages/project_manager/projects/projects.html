@@ -2,6 +2,10 @@
   <p-toast />
   <p-confirmdialog />
 
+  <ng-container *ngIf="isClient">
+    <app-client-reporting />
+  </ng-container>
+
   <div class="workspace-header">
     <div>
       <h1 class="workspace-title">{{ pageTitle }}</h1>
@@ -392,7 +396,7 @@
 
   <div *ngIf="projects.length && !filteredProjects(projects).length" class="empty-state">
     <i class="pi pi-search text-300 text-6xl mb-3"></i>
-    <span class="text-600 text-xl font-medium">Aucun projet ne correspond à votre recherche.</span>
+    <span class="text-600 text-xl font-medium">No projects match your search.</span>
   </div>
   </ng-container>
   </div>
@@ -429,7 +433,7 @@
     </div>
 
     <div class="flex flex-column mb-2">
-      <label class="font-bold mb-2">Début du projet (optionnel)</label>
+      <label class="font-bold mb-2">Project start (optional)</label>
       <input
         pInputText
         type="date"
@@ -438,7 +442,7 @@
     </div>
 
     <div class="flex flex-column mb-2">
-      <label class="font-bold mb-2">Date limite (optionnel)</label>
+      <label class="font-bold mb-2">Deadline (optional)</label>
       <input
         pInputText
         type="date"
@@ -500,12 +504,24 @@
         Aucun chef de projet ne possède aucune de ces compétences.
       </p>
     </div>
+
+    <div *ngIf="!isEditMode" class="flex flex-column mb-2">
+      <label class="font-bold mb-2">Attachment (optional)</label>
+      <input
+        type="file"
+        class="w-full"
+        (change)="onCreateProjectFileSelected($event)" />
+      <small *ngIf="createProjectAttachmentFile" class="text-600 mt-1 block">{{ createProjectAttachmentFile.name }}</small>
+    </div>
   </ng-template>
 
   <ng-template pTemplate="footer">
-    <button pButton 
-            [label]="isEditMode ? 'Update' : 'Create'" 
-            (click)="isEditMode ? updateProject() : createProject()">
+    <button
+      pButton
+      [label]="isEditMode ? 'Update' : 'Create'"
+      [loading]="saveInProgress"
+      [disabled]="saveInProgress"
+      (click)="isEditMode ? updateProject() : createProject()">
     </button>
   </ng-template>
 </p-dialog>

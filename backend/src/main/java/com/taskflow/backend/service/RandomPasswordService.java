@@ -10,7 +10,7 @@ import java.security.SecureRandom;
 @Service
 public class RandomPasswordService {
 
-    private static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@%^&*-_=+";
+    private static final String ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz123456789";
     private static final int DEFAULT_LENGTH = 8;
 
     private final SecureRandom random = new SecureRandom();

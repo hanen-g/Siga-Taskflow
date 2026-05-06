@@ -1,5 +1,6 @@
 package com.taskflow.backend.service;
 
+import com.taskflow.backend.dto.project.AssigneeCandidateResponse;
 import com.taskflow.backend.dto.project.ProjectLifecycleRequest;
 import com.taskflow.backend.dto.project.ProjectResponse;
 import com.taskflow.backend.dto.skill.ProjectSkillMatchResponse;
@@ -8,6 +9,7 @@ import com.taskflow.backend.dto.skill.UserSkillMatchResponse;
 import com.taskflow.backend.entity.Project;
 import com.taskflow.backend.entity.Skill;
 import com.taskflow.backend.entity.Task;
+import com.taskflow.backend.entity.TaskStatus;
 import com.taskflow.backend.entity.User;
 import com.taskflow.backend.entity.UserRole;
 import com.taskflow.backend.exception.BadRequestException;
@@ -15,6 +17,7 @@ import com.taskflow.backend.exception.ResourceNotFoundException;
 import com.taskflow.backend.exception.UnauthorizedException;
 import com.taskflow.backend.repository.ProjectRepository;
 import com.taskflow.backend.repository.SkillRepository;
+import com.taskflow.backend.repository.TaskRepository;
 import com.taskflow.backend.repository.UserRepository;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
@@ -25,8 +28,11 @@ import com.taskflow.backend.dto.websocket.ProjectMessage;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -37,17 +43,26 @@ public class ProjectService {
     private final SimpMessagingTemplate messagingTemplate;
     private final UploadedFileService uploadedFileService;
     private final SkillRepository skillRepository;
+    private final TaskRepository taskRepository;
     private final UserRepository userRepository;
+
+    private static final List<TaskStatus> ACTIVE_ASSIGNEE_STATUSES = List.of(
+            TaskStatus.IN_PROGRESS,
+            TaskStatus.ON_HOLD,
+            TaskStatus.IN_REVIEW
+    );
 
     public ProjectService(ProjectRepository projectRepository,
                           SimpMessagingTemplate messagingTemplate,
                           UploadedFileService uploadedFileService,
                           SkillRepository skillRepository,
+                          TaskRepository taskRepository,
                           UserRepository userRepository) {
         this.projectRepository = projectRepository;
         this.messagingTemplate = messagingTemplate;
         this.uploadedFileService = uploadedFileService;
         this.skillRepository = skillRepository;
+        this.taskRepository = taskRepository;
         this.userRepository = userRepository;
     }
 
@@ -181,6 +196,71 @@ public class ProjectService {
         if (!userCanViewProject(project, user)) {
             throw new UnauthorizedException("You cannot access this project");
         }
+    }
+
+    /**
+     * Suggest assignees (collaborators and project managers) with optional filtering by task skills
+     * (must be a subset of the project's required skills) and each user's active assigned workload.
+     */
+    @Transactional(readOnly = true)
+    public List<AssigneeCandidateResponse> getAssigneeCandidates(Long projectId, List<Long> skillIds, User user) {
+        Project project = projectRepository.findDetailedById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project", projectId));
+        if (!userCanViewProject(project, user)) {
+            throw new UnauthorizedException("You cannot access this project");
+        }
+       if (user.getRole() != UserRole.ADMIN && !isActorManagerOfThisProject(project, user)) {
+            throw new UnauthorizedException("Only the project manager or an administrator can load assignee suggestions");
+        }
+
+        List<Long> wanted = skillIds == null
+                ? List.of()
+                : skillIds.stream().filter(Objects::nonNull).distinct().toList();
+        if (!wanted.isEmpty()) {
+            Set<Long> allowed = project.getRequiredSkills() == null
+                    ? Set.of()
+                    : project.getRequiredSkills().stream()
+                    .map(Skill::getId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            if (allowed.isEmpty()) {
+                throw new BadRequestException("This project has no required skills; clear task skills or configure the project first.");
+            }
+            for (Long id : wanted) {
+                if (!allowed.contains(id)) {
+                    throw new BadRequestException("Task skills must be a subset of this project's required skills.");
+                }
+            }
+        }
+
+        Set<UserRole> roles = EnumSet.of(UserRole.COLLABORATOR, UserRole.PROJECT_MANAGER);
+        List<User> candidates = userRepository.findActiveByRolesWithSkills(roles);
+        List<AssigneeCandidateResponse> out = new ArrayList<>();
+        for (User u : candidates) {
+            if (!u.isActive()) {
+                continue;
+            }
+            Set<Long> userSkillIds = u.getSkills() == null
+                    ? Set.of()
+                    : u.getSkills().stream().map(Skill::getId).filter(Objects::nonNull).collect(Collectors.toSet());
+            int matched = (int) wanted.stream().filter(userSkillIds::contains).count();
+            if (!wanted.isEmpty() && matched < wanted.size()) {
+                continue;
+            }
+            long workload = taskRepository.countByCollaboratorIdAndStatusIn(u.getId(), ACTIVE_ASSIGNEE_STATUSES);
+            out.add(new AssigneeCandidateResponse(
+                    u.getEmail(),
+                    u.getFirstName(),
+                    u.getLastName(),
+                    u.getRole() != null ? u.getRole().name() : "",
+                    workload,
+                    matched
+            ));
+        }
+        out.sort(Comparator
+                .comparingLong(AssigneeCandidateResponse::getActiveTaskCount)
+                .thenComparing(AssigneeCandidateResponse::getEmail, String.CASE_INSENSITIVE_ORDER));
+        return out;
     }
 
     public List<Project> getProjectsForManager(User manager) {
@@ -377,6 +457,10 @@ public class ProjectService {
         if (!userCanViewProject(project, user)) {
             throw new UnauthorizedException("You cannot access this project");
         }
+        UserRole actorRole = user.getRole();
+        if (actorRole != UserRole.ADMIN && actorRole != UserRole.PROJECT_MANAGER) {
+            throw new UnauthorizedException("You cannot access team skill matches for this project");
+        }
         Set<Skill> requiredRaw = project.getRequiredSkills() == null
                 ? Set.of()
                 : new HashSet<>(project.getRequiredSkills());
@@ -388,8 +472,10 @@ public class ProjectService {
                 .sorted(Comparator.comparing(SkillResponse::getName, String.CASE_INSENSITIVE_ORDER))
                 .toList();
         int reqCount = requiredDtos.size();
-        Set<UserRole> roles = Set.of(UserRole.PROJECT_MANAGER, UserRole.COLLABORATOR);
-        List<User> candidates = userRepository.findActiveByRolesWithSkills(roles);
+        Set<UserRole> candidateRoles = actorRole == UserRole.ADMIN
+                ? Set.of(UserRole.PROJECT_MANAGER)
+                : Set.of(UserRole.COLLABORATOR);
+        List<User> candidates = userRepository.findActiveByRolesWithSkills(candidateRoles);
         List<UserSkillMatchResponse> rows = new ArrayList<>();
         for (User u : candidates) {
             Set<Long> userSkillIds = (u.getSkills() == null || u.getSkills().isEmpty())
@@ -425,6 +511,19 @@ public class ProjectService {
                 )
         );
         return new ProjectSkillMatchResponse(requiredDtos, rows);
+    }
+
+    private boolean isActorManagerOfThisProject(Project project, User user) {
+        if (project.getManager() == null) {
+            return false;
+        }
+        User mgr = project.getManager();
+        if (user.getId() != null && mgr.getId() != null && Objects.equals(mgr.getId(), user.getId())) {
+            return true;
+        }
+        String ue = user.getEmail();
+        String me = mgr.getEmail();
+        return ue != null && me != null && ue.trim().equalsIgnoreCase(me.trim());
     }
 
     private Set<Skill> resolveRequiredSkills(Set<Skill> incomingSkills) {

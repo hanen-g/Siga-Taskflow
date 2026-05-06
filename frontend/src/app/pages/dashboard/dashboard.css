@@ -1,0 +1,9 @@
+.dashboard .content ::ng-deep .reporting-page {
+  padding-left: 0;
+  padding-right: 0;
+  max-width: none;
+}
+
+.dashboard .content {
+  padding-top: 0.5rem;
+}

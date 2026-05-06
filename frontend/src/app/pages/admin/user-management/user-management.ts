@@ -349,6 +349,15 @@ export class UserManagementPage implements OnInit, OnDestroy {
     this.statusDialogVisible = true;
   }
 
+  /** Display name for status confirmation copy (quotes included when using a proper name). */
+  accountLabelForConfirm(user: AdminUser): string {
+    const parts = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+    if (parts) {
+      return `“${parts}”`;
+    }
+    return user.email ? `“${user.email}”` : 'this user';
+  }
+
   confirmToggleStatus(): void {
     if (!this.selectedUser) {
       return;

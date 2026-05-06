@@ -1,8 +1,9 @@
 <p-dialog
-  [header]="'Calendrier des projets'"
+  [header]="'Projects & tasks calendar'"
   [visible]="visible"
   (visibleChange)="onDialogVisibleChange($event)"
   [modal]="true"
+  [appendTo]="'body'"
   [draggable]="false"
   [resizable]="false"
   [style]="{ width: 'min(96vw, 1100px)' }"
@@ -12,7 +13,7 @@
   <ng-template pTemplate="content">
     <div class="pcal-wrap">
       @if (loading) {
-        <div class="pcal-loading">Chargement des projets…</div>
+        <div class="pcal-loading">Loading calendar…</div>
       } @else if (loadError) {
         <div class="pcal-error">{{ loadError }}</div>
       } @else {
@@ -23,7 +24,7 @@
             icon="pi pi-chevron-left"
             class="p-button-text p-button-secondary"
             (click)="shiftView(-1)"
-            [attr.aria-label]="'Mois précédents'"></button>
+            [attr.aria-label]="'Previous months'"></button>
           <span class="pcal-title">{{ rangeTitle }}</span>
           <button
             pButton
@@ -31,101 +32,70 @@
             icon="pi pi-chevron-right"
             class="p-button-text p-button-secondary"
             (click)="shiftView(1)"
-            [attr.aria-label]="'Mois suivants'"></button>
+            [attr.aria-label]="'Next months'"></button>
         </div>
 
         <div class="pcal-legend">
           <span class="pcal-legend-item"
-            ><span class="pcal-dot pcal-dot--start" aria-hidden="true"></span> Début de projet</span
+            ><span class="pcal-dot pcal-dot--start" aria-hidden="true"></span> Project start</span
           >
           <span class="pcal-legend-item"
-            ><span class="pcal-dot pcal-dot--deadline" aria-hidden="true"></span> Date limite</span
+            ><span class="pcal-dot pcal-dot--deadline" aria-hidden="true"></span> Project deadline</span
+          >
+          <span class="pcal-legend-item"
+            ><span class="pcal-dot pcal-dot--task" aria-hidden="true"></span> Task deadline</span
           >
         </div>
 
-        @if (!hasAnyProjectDates) {
-          <p class="pcal-empty m-0">Aucun début ni date limite n’est renseigné sur vos projets visibles.</p>
+        @if (!hasCalendarDates) {
+          <p class="pcal-empty m-0">
+            No dates to show yet: project start/deadline or task deadlines.
+          </p>
         } @else {
           <div class="pcal-months">
-            <div class="pcal-month">
-              <div class="pcal-month-name">{{ leftMonth.label }}</div>
-              <div class="pcal-weekdays">
-                @for (d of weekDayLabels; track d) {
-                  <span>{{ d }}</span>
-                }
+            @for (month of calendarMonths; track month.key) {
+              <div class="pcal-month">
+                <div class="pcal-month-name">{{ month.label }}</div>
+                <div class="pcal-weekdays">
+                  @for (d of weekDayLabels; track d) {
+                    <span>{{ d }}</span>
+                  }
+                </div>
+                <div class="pcal-weeks">
+                  @for (row of month.weeks; track $index) {
+                    <div class="pcal-row">
+                      @for (cell of row; track cell.dateKey + '-' + $index) {
+                        <div
+                          class="pcal-cell"
+                          [class.pcal-cell--muted]="cell && !cell.inMonth"
+                          [class.pcal-cell--today]="cell?.isToday">
+                          @if (cell) {
+                            <div class="pcal-day-num">{{ cell.day }}</div>
+                            <div class="pcal-events">
+                              @for (ev of cell.events; track ev.trackId) {
+                                <a
+                                  class="pcal-event"
+                                  [class.pcal-event--start]="ev.kind === 'start'"
+                                  [class.pcal-event--deadline]="ev.kind === 'deadline'"
+                                  [class.pcal-event--task-deadline]="ev.kind === 'task_deadline'"
+                                  [routerLink]="projectDetailPath(ev.projectId)"
+                                  (click)="close()">
+                                  <span class="pcal-event-label">{{ eventKindLabel(ev) }}</span>
+                                  <span class="pcal-event-title">{{ ev.headline }}</span>
+                                  @if (ev.subline) {
+                                    <span class="pcal-event-sub">{{ ev.subline }}</span>
+                                  }
+                                </a>
+                              }
+                            </div>
+                          }
+                        </div>
+                      }
+                    </div>
+                  }
+                </div>
               </div>
-              <div class="pcal-weeks">
-                @for (row of leftMonth.weeks; track $index) {
-                  <div class="pcal-row">
-                    @for (cell of row; track cell.dateKey + '-' + $index) {
-                      <div
-                        class="pcal-cell"
-                        [class.pcal-cell--muted]="cell && !cell.inMonth"
-                        [class.pcal-cell--today]="cell?.isToday">
-                        @if (cell) {
-                          <div class="pcal-day-num">{{ cell.day }}</div>
-                          <div class="pcal-events">
-                            @for (ev of cell.events; track ev.trackId) {
-                              <a
-                                class="pcal-event"
-                                [class.pcal-event--start]="ev.kind === 'start'"
-                                [class.pcal-event--deadline]="ev.kind === 'deadline'"
-                                [routerLink]="projectDetailPath(ev.projectId)"
-                                (click)="close()">
-                                <span class="pcal-event-label">{{
-                                  ev.kind === 'start' ? 'Début' : 'Échéance'
-                                }}</span>
-                                {{ ev.projectName }}
-                              </a>
-                            }
-                          </div>
-                        }
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            </div>
-
-            <div class="pcal-month">
-              <div class="pcal-month-name">{{ rightMonth.label }}</div>
-              <div class="pcal-weekdays">
-                @for (d of weekDayLabels; track d) {
-                  <span>{{ d }}</span>
-                }
-              </div>
-              <div class="pcal-weeks">
-                @for (row of rightMonth.weeks; track $index) {
-                  <div class="pcal-row">
-                    @for (cell of row; track cell.dateKey + '-' + $index) {
-                      <div
-                        class="pcal-cell"
-                        [class.pcal-cell--muted]="cell && !cell.inMonth"
-                        [class.pcal-cell--today]="cell?.isToday">
-                        @if (cell) {
-                          <div class="pcal-day-num">{{ cell.day }}</div>
-                          <div class="pcal-events">
-                            @for (ev of cell.events; track ev.trackId) {
-                              <a
-                                class="pcal-event"
-                                [class.pcal-event--start]="ev.kind === 'start'"
-                                [class.pcal-event--deadline]="ev.kind === 'deadline'"
-                                [routerLink]="projectDetailPath(ev.projectId)"
-                                (click)="close()">
-                                <span class="pcal-event-label">{{
-                                  ev.kind === 'start' ? 'Début' : 'Échéance'
-                                }}</span>
-                                {{ ev.projectName }}
-                              </a>
-                            }
-                          </div>
-                        }
-                      </div>
-                    }
-                  </div>
-                }
-              </div>
-            </div>
+            }
           </div>
         }
       }

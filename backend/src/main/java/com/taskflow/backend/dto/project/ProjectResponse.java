@@ -10,7 +10,9 @@ import lombok.Setter;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -59,9 +61,14 @@ public class ProjectResponse {
         }
 
         if (project.getTasks() != null) {
+            // findDetailedById join-fetches tasks + collaborators + skills; SQL can repeat the same
+            // task row, which Hibernate may reflect as duplicate Task references in the list.
+            HashSet<Long> seenTaskIds = new HashSet<>();
             response.tasks = project.getTasks()
                     .stream()
+                    .filter(Objects::nonNull)
                     .filter(taskFilter)
+                    .filter(t -> t.getId() != null && seenTaskIds.add(t.getId()))
                     .map(TaskResponse::fromTask)
                     .collect(Collectors.toList());
         }

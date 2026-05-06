@@ -1,3 +1,4 @@
+import { Skill } from './skill.model';
 import { User } from './user.model';
 
 export enum TaskStatus {
@@ -22,10 +23,13 @@ export interface Task {
   status: TaskStatus;
   priority?: Priority;
   deadline?: string;
-  projectId: number;
+  projectId?: number;
   collaboratorEmail?: string;
   collaboratorEmails?: string[];
   collaborators?: User[];
   projectName?: string;
   holdReason?: string | null;
+  /** Subset of project required skills for this task (create/update). */
+  skillIds?: number[];
+  skills?: Skill[];
 }
