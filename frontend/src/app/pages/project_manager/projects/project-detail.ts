@@ -28,8 +28,6 @@ import { MultiSelectModule } from 'primeng/multiselect';
 import { AutoCompleteModule } from 'primeng/autocomplete';
 import type { AutoCompleteCompleteEvent } from 'primeng/autocomplete';
 import { UserService } from '../../../services/user.service';
-import { TaskKanbanBoardComponent } from '../../tasks/components/task-kanban-board/task-kanban-board.component';
-
 type ProjectAction =
   | 'edit'
   | 'add-task'
@@ -69,8 +67,7 @@ interface ProjectActionItem {
     TextareaModule,
     FolderFileUploadComponent,
     MultiSelectModule,
-    AutoCompleteModule,
-    TaskKanbanBoardComponent
+    AutoCompleteModule
   ],
   providers: [MessageService, ConfirmationService]
 })
@@ -334,9 +331,25 @@ export class ProjectDetailPage implements OnInit {
         return 'Completed';
       case 'TODO':
         return 'To Do';
+      case 'ON_HOLD':
+        return 'On Hold';
+      case 'IN_REVIEW':
+        return 'In Review';
       default:
         return status ?? 'Unknown';
     }
+  }
+
+  /** CSS modifier for `.task-card-status` (list view badges). */
+  taskStatusBadgeClass(status?: string): Record<string, boolean> {
+    const s = String(status ?? '').toUpperCase();
+    return {
+      'is-todo': s === 'TODO',
+      'is-progress': s === 'IN_PROGRESS',
+      'is-hold': s === 'ON_HOLD',
+      'is-review': s === 'IN_REVIEW',
+      'is-done': s === 'DONE'
+    };
   }
 
   taskAssignee(task: Task | undefined): string {
@@ -502,17 +515,23 @@ export class ProjectDetailPage implements OnInit {
     return filtered.sort((a, b) => this.taskDisplayOrder(a.status) - this.taskDisplayOrder(b.status));
   }
 
-  /** In progress first, then pending, completed last (same idea as tasks list page). */
+  /** Rough workflow order for vertical list (active work first, done last). */
   private taskDisplayOrder(status: TaskStatus | string | undefined): number {
     const s = String(status ?? '').toUpperCase();
     if (s === TaskStatus.IN_PROGRESS) {
       return 0;
     }
-    if (s === TaskStatus.TODO) {
+    if (s === TaskStatus.IN_REVIEW) {
       return 1;
     }
-    if (s === TaskStatus.DONE) {
+    if (s === TaskStatus.ON_HOLD) {
       return 2;
+    }
+    if (s === TaskStatus.TODO) {
+      return 3;
+    }
+    if (s === TaskStatus.DONE) {
+      return 4;
     }
     return 9;
   }

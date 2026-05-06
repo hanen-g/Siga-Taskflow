@@ -1,6 +1,4 @@
-<div
-  class="workspace-page project-detail-page p-4 min-h-screen"
-  [class.project-detail-page--tasks-wide]="activeTab === 'tasks'">
+<div class="workspace-page project-detail-page p-4 min-h-screen">
   <p-toast />
   <p-confirmdialog />
   <div class="project-detail-header">
@@ -87,11 +85,65 @@
         </div>
 
         <ng-container *ngIf="activeTab === 'tasks'; else teamOrFiles">
-          <app-task-kanban-board
-            *ngIf="project.id != null"
-            class="project-detail-kanban"
-            [projectId]="project.id"
-            [filterText]="searchText" />
+          <div class="project-detail-task-panel">
+            <p *ngIf="!(project.tasks?.length)" class="project-detail-empty-panel">
+              No tasks yet for this project.
+            </p>
+            <p
+              *ngIf="project.tasks?.length && !filteredTasks(project).length"
+              class="project-detail-empty-panel">
+              No tasks match your search.
+            </p>
+            <div *ngIf="filteredTasks(project).length" class="project-detail-task-list">
+              <article *ngFor="let task of filteredTasks(project)" class="task-card">
+                <div class="task-card-body">
+                  <div class="task-card-title-row">
+                    <i class="pi pi-list task-card-icon" aria-hidden="true"></i>
+                    <h3 class="task-card-title">{{ task.title }}</h3>
+                  </div>
+                  <p *ngIf="task.description && task.description.trim()" class="task-card-description">{{ task.description }}</p>
+                  <div *ngIf="task.skills?.length" class="task-card-skills">
+                    <span *ngFor="let s of task.skills" class="task-skill-chip">{{ s.name }}</span>
+                  </div>
+                  <p class="task-card-assignee">
+                    <strong>Assignee:</strong> {{ taskAssignee(task) }}
+                  </p>
+                  <p class="task-card-assignee">
+                    <strong>Priority:</strong>
+                    {{ task.priority ? priorityLabel(task.priority) : '—' }}
+                  </p>
+                  <p *ngIf="task.deadline" class="task-card-assignee">
+                    <strong>Deadline:</strong> {{ task.deadline | date: 'short' }}
+                  </p>
+                </div>
+                <div class="task-card-side">
+                  <span class="task-card-status" [ngClass]="taskStatusBadgeClass(task.status)">
+                    {{ statusLabel(task.status) }}
+                  </span>
+                  <input
+                    type="file"
+                    class="task-card-file-input"
+                    [id]="'task-upload-' + task.id"
+                    (change)="onTaskFileInputChange($event, task, project)" />
+                  <button
+                    *ngIf="canUploadTaskFile(task, project)"
+                    type="button"
+                    pButton
+                    styleClass="p-button-outlined p-button-sm task-card-upload-btn"
+                    [label]="isUploadingTaskFile(task.id) ? 'Uploading…' : 'Attach file'"
+                    [disabled]="isUploadingTaskFile(task.id)"
+                    (click)="openTaskFilePicker(task.id)"></button>
+                  <button
+                    *ngIf="canEditTask(project)"
+                    type="button"
+                    pButton
+                    styleClass="p-button-sm task-card-edit-btn"
+                    label="Edit"
+                    (click)="openEditTaskDialog(task, project)"></button>
+                </div>
+              </article>
+            </div>
+          </div>
         </ng-container>
 
         <ng-template #teamOrFiles>
