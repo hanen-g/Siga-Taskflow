@@ -1,17 +1,19 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { forkJoin } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Subject, forkJoin } from 'rxjs';
+import { map, takeUntil } from 'rxjs/operators';
 import { MessageService } from 'primeng/api';
+import { AvatarModule } from 'primeng/avatar';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
-import { TableModule } from 'primeng/table';
 import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
 import { UserService, AdminUser } from '../../../services/user.service';
+import { UserDirectoryRefreshService } from '../../../services/user-directory-refresh.service';
+import { ProfilePictureCacheService } from '../../../services/profile-picture-cache.service';
 
 type ClientGender = 'FEMALE' | 'MALE' | 'OTHER' | '';
 
@@ -22,18 +24,21 @@ type ClientGender = 'FEMALE' | 'MALE' | 'OTHER' | '';
     CommonModule,
     FormsModule,
     InputTextModule,
+    AvatarModule,
     ButtonModule,
     MessageModule,
     ToastModule,
     TextareaModule,
-    TableModule,
     DialogModule
   ],
   templateUrl: './create-client.html',
   styleUrls: ['./create-client.css'],
   providers: [MessageService]
 })
-export class CreateClientPage implements OnInit {
+export class CreateClientPage implements OnInit, OnDestroy {
+  private readonly clientsPageSize = 8;
+  private readonly destroy$ = new Subject<void>();
+
   form = {
     firstName: '',
     lastName: '',
@@ -50,12 +55,42 @@ export class CreateClientPage implements OnInit {
   tableLoading = false;
   createError: string | null = null;
 
-  /** Active + anciens comptes (désactivés) fusionnés, tri création récente */
+  /** List filter (name, email, phone, company) */
+  clientSearchQuery = '';
+  /** Local pagination for “Load more” */
+  clientsVisibleCount = this.clientsPageSize;
+
+  /** Active + former (deactivated) accounts merged, newest first */
   clients: AdminUser[] = [];
 
   private readonly statusSavingIds = new Set<number>();
 
-  /** Ligne sélectionnée — détails dans la boîte de dialogue */
+  /** Clients matching the search field */
+  get filteredClients(): AdminUser[] {
+    const q = this.clientSearchQuery.trim().toLowerCase();
+    if (!q) return this.clients;
+    return this.clients.filter((c) => {
+      const hay = [c.firstName, c.lastName, c.email, c.phoneNumber ?? '', c.company ?? '']
+        .join(' ')
+        .toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  /** Slice shown in the right column */
+  get displayedClients(): AdminUser[] {
+    return this.filteredClients.slice(0, this.clientsVisibleCount);
+  }
+
+  get showLoadMore(): boolean {
+    return this.filteredClients.length > this.clientsVisibleCount;
+  }
+
+  get hasNoSearchResults(): boolean {
+    return !this.tableLoading && this.clients.length > 0 && this.filteredClients.length === 0;
+  }
+
+  /** Selected row — details in dialog */
   selectedClient: AdminUser | null = null;
   detailDialogVisible = false;
 
@@ -69,7 +104,6 @@ export class CreateClientPage implements OnInit {
     phoneNumber: '',
     dateOfBirth: '' as string,
     gender: '' as ClientGender,
-    recruitmentDate: '' as string,
     company: '',
     fiscalMatricule: '',
     address: ''
@@ -77,11 +111,44 @@ export class CreateClientPage implements OnInit {
 
   constructor(
     private userService: UserService,
-    private messageService: MessageService
+    private messageService: MessageService,
+    private userDirectoryRefresh: UserDirectoryRefreshService,
+    private profilePictureCache: ProfilePictureCacheService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
     this.loadClients();
+    this.userDirectoryRefresh.directoryShouldRefresh$
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => {
+        this.profilePictureCache.revokeAll();
+        this.loadClients();
+      });
+    this.profilePictureCache.imageReady.pipe(takeUntil(this.destroy$)).subscribe(() => this.cdr.markForCheck());
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
+    this.profilePictureCache.revokeAll();
+  }
+
+  getClientProfilePictureSrc(profilePicture?: string | null): string | undefined {
+    return this.profilePictureCache.getDisplayUrl(profilePicture);
+  }
+
+  /**
+   * PrimeNG Avatar shows {@code label} before {@code image}; if label is always set, the photo never appears.
+   */
+  getClientAvatarLabel(c: AdminUser): string | undefined {
+    return this.getClientProfilePictureSrc(c.profilePicture) ? undefined : this.getClientInitials(c);
+  }
+
+  getClientInitials(c: AdminUser): string {
+    const first = c.firstName?.charAt(0) ?? '';
+    const last = c.lastName?.charAt(0) ?? '';
+    return `${first}${last}`.toUpperCase() || 'U';
   }
 
   loadClients(): void {
@@ -106,6 +173,7 @@ export class CreateClientPage implements OnInit {
         next: (list) => {
           this.clients = list;
           this.tableLoading = false;
+          this.clientsVisibleCount = this.clientsPageSize;
         },
         error: () => {
           this.tableLoading = false;
@@ -129,7 +197,15 @@ export class CreateClientPage implements OnInit {
     };
   }
 
-  /** Affichage du détail lecture seule. */
+  onClientSearchChange(): void {
+    this.clientsVisibleCount = this.clientsPageSize;
+  }
+
+  loadMoreClients(): void {
+    this.clientsVisibleCount += this.clientsPageSize;
+  }
+
+  /** Plain read-only detail display */
   formatAddressPlain(blob: string | null | undefined): string {
     const t = (blob ?? '').trim();
     return t ? t.replace(/\s+$/, '') : '—';
@@ -138,11 +214,11 @@ export class CreateClientPage implements OnInit {
   genderLabel(code: string | null | undefined): string {
     switch (code) {
       case 'FEMALE':
-        return 'Femme';
+        return 'Female';
       case 'MALE':
-        return 'Homme';
+        return 'Male';
       case 'OTHER':
-        return 'Autre';
+        return 'Other';
       default:
         return '—';
     }
@@ -171,6 +247,11 @@ export class CreateClientPage implements OnInit {
     this.detailDialogVisible = true;
   }
 
+  openCardOnSpacebar(ev: Event, c: AdminUser): void {
+    ev.preventDefault();
+    this.openClientDetail(c);
+  }
+
   onDetailHide(): void {
     this.detailEditing = false;
     this.detailEditError = null;
@@ -188,7 +269,6 @@ export class CreateClientPage implements OnInit {
       phoneNumber: d.phoneNumber ?? '',
       dateOfBirth: this.apiDateToInput(d.dateOfBirth),
       gender: (d.gender as ClientGender) || '',
-      recruitmentDate: this.apiDateToInput(d.recruitmentDate),
       company: d.company ?? '',
       fiscalMatricule: d.fiscalMatricule ?? '',
       address: d.address ?? ''
@@ -215,35 +295,31 @@ export class CreateClientPage implements OnInit {
     this.detailEditError = null;
 
     if (!f.firstName?.trim() || !f.lastName?.trim() || !f.email?.trim()) {
-      this.detailEditError = 'Renseignez le prénom, le nom et l’e-mail.';
+      this.detailEditError = 'Enter first name, last name, and email.';
       return;
     }
     if (!f.phoneNumber?.trim()) {
-      this.detailEditError = 'Renseignez le numéro de téléphone.';
+      this.detailEditError = 'Enter the phone number.';
       return;
     }
     if (!f.dateOfBirth?.trim()) {
-      this.detailEditError = 'Renseignez la date de naissance.';
+      this.detailEditError = 'Enter the date of birth.';
       return;
     }
     if (!f.gender?.trim()) {
-      this.detailEditError = 'Sélectionnez le genre.';
-      return;
-    }
-    if (!f.recruitmentDate?.trim()) {
-      this.detailEditError = 'Renseignez la date de recrutement.';
+      this.detailEditError = 'Select a gender.';
       return;
     }
     if (!f.company?.trim()) {
-      this.detailEditError = 'Renseignez la société.';
+      this.detailEditError = 'Enter the company name.';
       return;
     }
     if (!f.fiscalMatricule?.trim()) {
-      this.detailEditError = 'Renseignez le matricule fiscal.';
+      this.detailEditError = 'Enter the tax ID.';
       return;
     }
     if (!f.address?.trim()) {
-      this.detailEditError = 'Renseignez l’adresse.';
+      this.detailEditError = 'Enter the address.';
       return;
     }
 
@@ -258,7 +334,6 @@ export class CreateClientPage implements OnInit {
         address: f.address.trim(),
         dateOfBirth: f.dateOfBirth.trim(),
         gender: f.gender.trim(),
-        recruitmentDate: f.recruitmentDate.trim(),
         company: f.company.trim(),
         fiscalMatricule: f.fiscalMatricule.trim()
       })
@@ -275,15 +350,15 @@ export class CreateClientPage implements OnInit {
           this.detailEditing = false;
           this.messageService.add({
             severity: 'success',
-            summary: 'Profil mis à jour',
-            detail: 'Les informations du client ont été enregistrées.',
+            summary: 'Profile updated',
+            detail: 'The client details were saved.',
             life: 2200
           });
         },
         error: (err) => {
           this.detailSaveLoading = false;
           const msg = err?.error?.message;
-          this.detailEditError = typeof msg === 'string' ? msg : 'Impossible d’enregistrer le profil.';
+          this.detailEditError = typeof msg === 'string' ? msg : 'Could not save the profile.';
         }
       });
   }
@@ -291,10 +366,10 @@ export class CreateClientPage implements OnInit {
   clientDetailHeader(): string {
     const c = this.selectedClient;
     if (!c) {
-      return 'Détails du client';
+      return 'Client details';
     }
     const name = `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim();
-    return name || 'Détails du client';
+    return name || 'Client details';
   }
 
   onClientStatusToggle(c: AdminUser, nextActive: boolean): void {
@@ -312,8 +387,8 @@ export class CreateClientPage implements OnInit {
         this.statusSavingIds.delete(id);
         this.messageService.add({
           severity: 'success',
-          summary: 'Statut mis à jour',
-          detail: updated.active ? 'Le compte est actif.' : 'Le compte est désactivé.',
+          summary: 'Status updated',
+          detail: updated.active ? 'The account is active.' : 'The account is inactive.',
           life: 2000
         });
       },
@@ -322,8 +397,8 @@ export class CreateClientPage implements OnInit {
         this.statusSavingIds.delete(id);
         this.messageService.add({
           severity: 'error',
-          summary: 'Échec',
-          detail: 'Impossible de modifier le statut du compte.',
+          summary: 'Failed',
+          detail: 'Could not update account status.',
           life: 3500
         });
       }
@@ -334,35 +409,31 @@ export class CreateClientPage implements OnInit {
     this.createError = null;
 
     if (!this.form.firstName?.trim() || !this.form.lastName?.trim() || !this.form.email?.trim()) {
-      this.createError = 'Renseignez le prénom, le nom et l’e-mail.';
+      this.createError = 'Enter first name, last name, and email.';
       return;
     }
     if (!this.form.phoneNumber?.trim()) {
-      this.createError = 'Renseignez le numéro de téléphone.';
+      this.createError = 'Enter the phone number.';
       return;
     }
     if (!this.form.dateOfBirth?.trim()) {
-      this.createError = 'Renseignez la date de naissance.';
+      this.createError = 'Enter the date of birth.';
       return;
     }
     if (!this.form.gender?.trim()) {
-      this.createError = 'Sélectionnez le genre.';
-      return;
-    }
-    if (!this.form.recruitmentDate?.trim()) {
-      this.createError = 'Renseignez la date de recrutement.';
+      this.createError = 'Select a gender.';
       return;
     }
     if (!this.form.company?.trim()) {
-      this.createError = 'Renseignez la société.';
+      this.createError = 'Enter the company name.';
       return;
     }
     if (!this.form.fiscalMatricule?.trim()) {
-      this.createError = 'Renseignez le matricule fiscal.';
+      this.createError = 'Enter the tax ID.';
       return;
     }
     if (!this.form.address?.trim()) {
-      this.createError = 'Renseignez l’adresse.';
+      this.createError = 'Enter the address.';
       return;
     }
 
@@ -379,7 +450,6 @@ export class CreateClientPage implements OnInit {
         dateOfBirth: this.form.dateOfBirth.trim(),
         active: false,
         gender: this.form.gender.trim(),
-        recruitmentDate: this.form.recruitmentDate.trim(),
         company: this.form.company.trim(),
         fiscalMatricule: this.form.fiscalMatricule.trim()
       })
@@ -388,8 +458,8 @@ export class CreateClientPage implements OnInit {
           this.createLoading = false;
           this.messageService.add({
             severity: 'success',
-            summary: 'Client créé',
-            detail: res?.message ?? 'Compte client enregistré.',
+            summary: 'Client created',
+            detail: res?.message ?? 'Client account saved.',
             life: 2000
           });
           this.resetForm();
@@ -398,7 +468,7 @@ export class CreateClientPage implements OnInit {
         error: (err) => {
           this.createLoading = false;
           const msg = err?.error?.message;
-          this.createError = typeof msg === 'string' ? msg : 'Impossible de créer le compte client.';
+          this.createError = typeof msg === 'string' ? msg : 'Could not create the client account.';
         }
       });
   }

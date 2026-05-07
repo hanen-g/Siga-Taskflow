@@ -13,6 +13,10 @@ export interface Project {
   managerFirstName?: string;
   managerLastName?: string;
   managerEmail?: string;
+  /** Members with role CLIENT (from API), display names for project summary. */
+  clientNames?: string[];
+  /** Linked CLIENT user ids (admin / staffing). */
+  clientIds?: number[];
   file?: string;
   archived?: boolean;
   /** Admin-controlled: work paused on this project */

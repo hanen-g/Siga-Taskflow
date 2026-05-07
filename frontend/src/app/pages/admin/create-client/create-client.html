@@ -1,164 +1,244 @@
 <div class="create-client-page">
   <p-toast />
 
+  <div class="create-client-main">
   <header class="page-title-banner">
-    <h1>Gestion des comptes clients</h1>
-    <p>Saisie en haut, liste des comptes enregistrés en bas.</p>
+    <h1>Client management</h1>
   </header>
 
-  <section class="sheet-section form-sheet" aria-labelledby="new-client-heading">
-    <div class="sheet-inner">
-      <h2 id="new-client-heading" class="sheet-heading">Création d’un nouveau compte client</h2>
+  <div class="client-workbench">
+    <section class="form-panel card-panel" aria-labelledby="new-client-heading">
+      <div class="panel-body">
+        <h2 id="new-client-heading" class="panel-title">Create a new client account</h2>
 
-      <p-message *ngIf="createError" severity="error" styleClass="w-full msg">{{ createError }}</p-message>
+        <p-message *ngIf="createError" severity="error" styleClass="w-full msg">{{ createError }}</p-message>
 
-      <div class="labeled-form">
-        <div class="lf-row lf-row-balanced">
-          <div class="lf-label">Prénom</div>
-          <div class="lf-cell">
-            <input pInputText [(ngModel)]="form.firstName" [disabled]="createLoading" class="lf-input w-full" />
-          </div>
-          <div class="lf-label">Nom</div>
-          <div class="lf-cell">
-            <input pInputText [(ngModel)]="form.lastName" [disabled]="createLoading" class="lf-input w-full" />
-          </div>
-          <div class="lf-label">E-mail</div>
-          <div class="lf-cell">
+        <div class="stack-form">
+          <div class="stack-field">
+            <label class="stack-label" for="new-client-firstName">First name</label>
             <input
               pInputText
+              id="new-client-firstName"
+              [(ngModel)]="form.firstName"
+              [disabled]="createLoading"
+              class="stack-input w-full"
+            />
+          </div>
+          <div class="stack-field">
+            <label class="stack-label" for="new-client-lastName">Last name</label>
+            <input
+              pInputText
+              id="new-client-lastName"
+              [(ngModel)]="form.lastName"
+              [disabled]="createLoading"
+              class="stack-input w-full"
+            />
+          </div>
+          <div class="stack-field">
+            <label class="stack-label" for="new-client-email">Email</label>
+            <input
+              pInputText
+              id="new-client-email"
               type="email"
               [(ngModel)]="form.email"
               [disabled]="createLoading"
-              class="lf-input w-full"
+              class="stack-input w-full"
               autocomplete="off"
             />
           </div>
-        </div>
-
-        <div class="lf-row lf-row-balanced">
-          <div class="lf-label">Téléphone</div>
-          <div class="lf-cell">
-            <input pInputText type="tel" [(ngModel)]="form.phoneNumber" [disabled]="createLoading" class="lf-input w-full" />
+          <div class="stack-field">
+            <label class="stack-label" for="new-client-phone">Phone</label>
+            <input
+              pInputText
+              id="new-client-phone"
+              type="tel"
+              [(ngModel)]="form.phoneNumber"
+              [disabled]="createLoading"
+              class="stack-input w-full"
+            />
           </div>
-          <div class="lf-label">Naissance</div>
-          <div class="lf-cell">
-            <input type="date" [(ngModel)]="form.dateOfBirth" [disabled]="createLoading" class="lf-input native-date w-full" />
+          <div class="stack-field">
+            <label class="stack-label" for="new-client-dob">Date of birth</label>
+            <div class="date-input-shell">
+              <input
+                id="new-client-dob"
+                type="date"
+                [(ngModel)]="form.dateOfBirth"
+                [disabled]="createLoading"
+                class="stack-input stack-input-date w-full date-input-native"
+              />
+              <i class="pi pi-calendar date-input-trail" aria-hidden="true"></i>
+            </div>
           </div>
-          <div class="lf-label">Genre</div>
-          <div class="lf-cell">
-            <select [(ngModel)]="form.gender" [disabled]="createLoading" class="lf-select w-full">
-              <option value="">— Choisir —</option>
-              <option value="FEMALE">Femme</option>
-              <option value="MALE">Homme</option>
-              <option value="OTHER">Autre</option>
+          <div class="stack-field">
+            <label class="stack-label" for="new-client-gender">Gender</label>
+            <select id="new-client-gender" [(ngModel)]="form.gender" [disabled]="createLoading" class="stack-select w-full">
+              <option value="">— Choose —</option>
+              <option value="FEMALE">Female</option>
+              <option value="MALE">Male</option>
+              <option value="OTHER">Other</option>
             </select>
           </div>
-        </div>
-
-        <div class="lf-row lf-row-balanced">
-          <div class="lf-label">Recrutement</div>
-          <div class="lf-cell">
-            <input type="date" [(ngModel)]="form.recruitmentDate" [disabled]="createLoading" class="lf-input native-date w-full" />
-          </div>
-          <div class="lf-label">Société</div>
-          <div class="lf-cell">
-            <input pInputText [(ngModel)]="form.company" [disabled]="createLoading" class="lf-input w-full" />
-          </div>
-          <div class="lf-label">Matricule fiscal</div>
-          <div class="lf-cell">
-            <input pInputText [(ngModel)]="form.fiscalMatricule" [disabled]="createLoading" class="lf-input w-full" />
-          </div>
-        </div>
-
-        <div class="lf-row lf-row-full">
-          <div class="lf-label">Adresse</div>
-          <div class="lf-cell lf-cell-multiline">
+          <div class="stack-field">
+            <label class="stack-label" for="new-client-address">Address</label>
             <textarea
               pTextarea
+              id="new-client-address"
               rows="3"
               [(ngModel)]="form.address"
               [disabled]="createLoading"
-              class="lf-input lf-textarea w-full"
-              placeholder="Rue, complément, code postal, ville, pays…"
+              class="stack-textarea w-full"
+              placeholder="Street, line 2, postal code, city, country…"
             ></textarea>
           </div>
+          <div class="stack-field stack-field-split">
+            <div class="stack-field stack-field-grow">
+              <label class="stack-label" for="new-client-company">Company</label>
+              <input pInputText id="new-client-company" [(ngModel)]="form.company" [disabled]="createLoading" class="stack-input w-full" />
+            </div>
+            <div class="stack-field stack-field-grow">
+              <label class="stack-label" for="new-client-fiscal">Tax ID</label>
+              <input
+                pInputText
+                id="new-client-fiscal"
+                [(ngModel)]="form.fiscalMatricule"
+                [disabled]="createLoading"
+                class="stack-input w-full mono-field"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions-bottom">
+          <button
+            pButton
+            type="button"
+            label="Save client and send welcome email"
+            [loading]="createLoading"
+            [disabled]="createLoading"
+            (click)="submit()"
+            class="submit-btn submit-btn-full"
+          ></button>
         </div>
       </div>
+    </section>
 
-      <div class="form-submit-row">
-        <button
-          pButton
-          type="button"
-          label="Enregistrer le client et envoyer l’e-mail"
-          [loading]="createLoading"
-          [disabled]="createLoading"
-          (click)="submit()"
-          class="submit-btn"
-        ></button>
+    <aside class="clients-sidebar card-panel" aria-labelledby="clients-list-heading">
+      <div class="panel-body sidebar-body">
+        <h2 id="clients-list-heading" class="panel-title sidebar-title">Registered clients</h2>
+
+        @if (tableLoading) {
+          <div class="clients-loading">
+            <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+            <span>Loading…</span>
+          </div>
+        } @else if (clients.length === 0) {
+          <p class="clients-empty">
+            No clients yet. Complete the form and save to add your first contact.
+          </p>
+        } @else {
+          <div class="clients-search-row">
+            <i class="pi pi-search clients-search-icon" aria-hidden="true"></i>
+            <input
+              type="search"
+              class="clients-search-input"
+              placeholder="Search clients…"
+              [(ngModel)]="clientSearchQuery"
+              (ngModelChange)="onClientSearchChange()"
+              autocomplete="off"
+              aria-label="Search clients"
+            />
+          </div>
+
+          @if (hasNoSearchResults) {
+            <p class="clients-no-results">No results for this search.</p>
+          } @else {
+            <div class="clients-cards">
+              @for (c of displayedClients; track c.id) {
+                <div
+                  class="client-card"
+                  role="button"
+                  tabindex="0"
+                  [class.client-card-inactive]="!c.active"
+                  (click)="openClientDetail(c)"
+                  (keyup.enter)="openClientDetail(c)"
+                  (keyup.space)="openCardOnSpacebar($event, c)"
+                  [attr.aria-label]="'Client profile ' + c.firstName + ' ' + c.lastName"
+                >
+                  <div class="client-card-avatar-wrap" aria-hidden="true">
+                    <p-avatar
+                      [image]="getClientProfilePictureSrc(c.profilePicture)"
+                      [label]="getClientAvatarLabel(c)"
+                      shape="circle"
+                      styleClass="client-card-p-avatar"
+                    ></p-avatar>
+                  </div>
+                  <div class="client-card-body">
+                    <div class="client-card-top">
+                      <span class="client-card-name">{{ c.firstName }} {{ c.lastName }}</span>
+                      <div class="client-card-status" (click)="$event.stopPropagation()">
+                        <label class="card-status-toggle">
+                          <input
+                            type="checkbox"
+                            class="card-status-input"
+                            [checked]="c.active"
+                            [disabled]="isSavingStatus(c.id)"
+                            (change)="onClientStatusToggle(c, $any($event.target).checked)"
+                            [attr.aria-label]="
+                              c.active ? 'Deactivate account ' + c.email : 'Activate account ' + c.email
+                            "
+                          />
+                          @if (isSavingStatus(c.id)) {
+                            <span class="status-saving card-status-saving" aria-busy="true"
+                              ><i class="pi pi-spinner pi-spin" aria-hidden="true"></i
+                            ></span>
+                          }
+                          <span class="card-status-pill" [class.is-inactive]="!c.active">
+                            {{ c.active ? '✓ Active' : 'Inactive' }}
+                          </span>
+                        </label>
+                      </div>
+                    </div>
+                    <div class="client-card-meta">
+                      <div class="meta-row">
+                        <i class="pi pi-envelope meta-icon" aria-hidden="true"></i>
+                        <span>{{ c.email }}</span>
+                      </div>
+                      <div class="meta-row">
+                        <i class="pi pi-phone meta-icon" aria-hidden="true"></i>
+                        <span>{{ c.phoneNumber || '—' }}</span>
+                      </div>
+                      <div class="meta-row">
+                        <i class="pi pi-building meta-icon" aria-hidden="true"></i>
+                        <span>{{ c.company?.trim() || '—' }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              }
+            </div>
+            @if (showLoadMore) {
+              <button
+                pButton
+                type="button"
+                label="Load more"
+                class="load-more-btn p-button-secondary"
+                [outlined]="true"
+                (click)="loadMoreClients()"
+              ></button>
+            }
+          }
+        }
       </div>
-    </div>
-  </section>
+    </aside>
+  </div>
+  </div>
 
-  <section class="sheet-section table-sheet" aria-labelledby="clients-table-heading">
-    <div class="sheet-inner sheet-inner-flush">
-      <h2 id="clients-table-heading" class="sheet-heading table-sheet-title">Clients enregistrés</h2>
-
-      <p-table
-        [value]="clients"
-        [loading]="tableLoading"
-        [tableStyle]="{ width: '100%' }"
-        styleClass="clients-data-table clients-table-compact"
-        responsiveLayout="scroll"
-      >
-        <ng-template pTemplate="header">
-          <tr>
-            <th>Nom</th>
-            <th>E-mail</th>
-            <th>Société</th>
-            <th>Statut</th>
-          </tr>
-        </ng-template>
-        <ng-template pTemplate="body" let-c>
-          <tr
-            class="client-row-clickable"
-            [class.client-row-inactive]="!c.active"
-            tabindex="0"
-            (click)="openClientDetail(c)"
-            (keyup.enter)="openClientDetail(c)"
-          >
-            <td class="nowrap-strong">{{ c.firstName }} {{ c.lastName }}</td>
-            <td>{{ c.email }}</td>
-            <td>{{ c.company || '—' }}</td>
-            <td class="status-cell" (click)="$event.stopPropagation()">
-              <label class="table-status">
-                <input
-                  type="checkbox"
-                  class="table-status-input"
-                  [checked]="c.active"
-                  [disabled]="isSavingStatus(c.id)"
-                  (change)="onClientStatusToggle(c, $any($event.target).checked)"
-                  [attr.aria-label]="
-                    c.active ? 'Désactiver le compte ' + c.email : 'Activer le compte ' + c.email
-                  "
-                />
-                @if (isSavingStatus(c.id)) {
-                  <span class="status-saving" aria-busy="true"><i class="pi pi-spinner pi-spin" aria-hidden="true"></i></span>
-                }
-                <span class="status-pill" [class.inactive]="!c.active">{{ c.active ? 'Actif' : 'Désactivé' }}</span>
-              </label>
-            </td>
-          </tr>
-        </ng-template>
-        <ng-template pTemplate="emptymessage">
-          <tr>
-            <td colspan="4" class="empty-table-msg">
-              Aucun client pour le moment. Créez un compte avec le formulaire ci-dessus.
-            </td>
-          </tr>
-        </ng-template>
-      </p-table>
-    </div>
-  </section>
+  <footer class="client-page-footer">
+    <a href="#" class="footer-soft-link" (click)="$event.preventDefault()">Support</a>
+    <span class="footer-dot" aria-hidden="true"></span>
+    <a href="#" class="footer-soft-link" (click)="$event.preventDefault()">Legal notices</a>
+  </footer>
 
   <p-dialog
     [(visible)]="detailDialogVisible"
@@ -171,29 +251,39 @@
     (onHide)="onDetailHide()"
   >
     <div *ngIf="selectedClient as d" class="client-detail-body" [class.client-detail-muted]="!d.active">
+      <div *ngIf="!detailEditing" class="client-detail-header-row">
+        <p-avatar
+          [image]="getClientProfilePictureSrc(d.profilePicture)"
+          [label]="getClientAvatarLabel(d)"
+          shape="circle"
+          styleClass="client-detail-p-avatar"
+        ></p-avatar>
+        <div class="client-detail-header-text">
+          <div class="client-detail-header-name">{{ d.firstName }} {{ d.lastName }}</div>
+          <div class="client-detail-header-email">{{ d.email }}</div>
+        </div>
+      </div>
       <ng-container *ngIf="!detailEditing">
         <dl class="detail-grid">
-          <dt>Prénom</dt>
+          <dt>First name</dt>
           <dd>{{ d.firstName || '—' }}</dd>
-          <dt>Nom</dt>
+          <dt>Last name</dt>
           <dd>{{ d.lastName || '—' }}</dd>
-          <dt>E-mail</dt>
+          <dt>Email</dt>
           <dd><a class="detail-mail" href="mailto:{{ d.email }}">{{ d.email }}</a></dd>
-          <dt>Téléphone</dt>
+          <dt>Phone</dt>
           <dd>{{ d.phoneNumber || '—' }}</dd>
-          <dt>Date de naissance</dt>
+          <dt>Date of birth</dt>
           <dd>{{ formatDate(d.dateOfBirth) }}</dd>
-          <dt>Genre</dt>
+          <dt>Gender</dt>
           <dd>{{ genderLabel(d.gender) }}</dd>
-          <dt>Date de recrutement</dt>
-          <dd>{{ formatDate(d.recruitmentDate) }}</dd>
-          <dt>Société</dt>
+          <dt>Company</dt>
           <dd>{{ d.company || '—' }}</dd>
-          <dt>Matricule fiscal</dt>
+          <dt>Tax ID</dt>
           <dd class="mono-cell">{{ d.fiscalMatricule || '—' }}</dd>
-          <dt>Adresse</dt>
+          <dt>Address</dt>
           <dd class="detail-address">{{ formatAddressPlain(d.address) }}</dd>
-          <dt>Créé le</dt>
+          <dt>Created</dt>
           <dd>{{ d.createdAt ? formatDate(d.createdAt) : '—' }}</dd>
         </dl>
       </ng-container>
@@ -202,7 +292,7 @@
         <p-message *ngIf="detailEditError" severity="error" styleClass="w-full msg detail-edit-msg">{{ detailEditError }}</p-message>
 
         <div class="long-field">
-          <label class="long-label" for="edit-client-firstName">Prénom</label>
+          <label class="long-label" for="edit-client-firstName">First name</label>
           <input
             pInputText
             id="edit-client-firstName"
@@ -212,7 +302,7 @@
           />
         </div>
         <div class="long-field">
-          <label class="long-label" for="edit-client-lastName">Nom</label>
+          <label class="long-label" for="edit-client-lastName">Last name</label>
           <input
             pInputText
             id="edit-client-lastName"
@@ -222,7 +312,7 @@
           />
         </div>
         <div class="long-field">
-          <label class="long-label" for="edit-client-email">E-mail</label>
+          <label class="long-label" for="edit-client-email">Email</label>
           <input
             pInputText
             id="edit-client-email"
@@ -234,7 +324,7 @@
           />
         </div>
         <div class="long-field">
-          <label class="long-label" for="edit-client-phone">Téléphone</label>
+          <label class="long-label" for="edit-client-phone">Phone</label>
           <input
             pInputText
             id="edit-client-phone"
@@ -245,7 +335,7 @@
           />
         </div>
         <div class="long-field">
-          <label class="long-label" for="edit-client-dob">Date de naissance</label>
+          <label class="long-label" for="edit-client-dob">Date of birth</label>
           <input
             id="edit-client-dob"
             type="date"
@@ -255,26 +345,16 @@
           />
         </div>
         <div class="long-field">
-          <label class="long-label" for="edit-client-gender">Genre</label>
+          <label class="long-label" for="edit-client-gender">Gender</label>
           <select id="edit-client-gender" [(ngModel)]="detailEditForm.gender" [disabled]="detailSaveLoading" class="long-select w-full">
-            <option value="">— Choisir —</option>
-            <option value="FEMALE">Femme</option>
-            <option value="MALE">Homme</option>
-            <option value="OTHER">Autre</option>
+            <option value="">— Choose —</option>
+            <option value="FEMALE">Female</option>
+            <option value="MALE">Male</option>
+            <option value="OTHER">Other</option>
           </select>
         </div>
         <div class="long-field">
-          <label class="long-label" for="edit-client-recruitment">Date de recrutement</label>
-          <input
-            id="edit-client-recruitment"
-            type="date"
-            [(ngModel)]="detailEditForm.recruitmentDate"
-            [disabled]="detailSaveLoading"
-            class="long-input long-input-date w-full"
-          />
-        </div>
-        <div class="long-field">
-          <label class="long-label" for="edit-client-company">Société</label>
+          <label class="long-label" for="edit-client-company">Company</label>
           <input
             pInputText
             id="edit-client-company"
@@ -284,7 +364,7 @@
           />
         </div>
         <div class="long-field">
-          <label class="long-label" for="edit-client-fiscal">Matricule fiscal</label>
+          <label class="long-label" for="edit-client-fiscal">Tax ID</label>
           <input
             pInputText
             id="edit-client-fiscal"
@@ -294,7 +374,7 @@
           />
         </div>
         <div class="long-field">
-          <label class="long-label" for="edit-client-address">Adresse</label>
+          <label class="long-label" for="edit-client-address">Address</label>
           <textarea
             pTextarea
             id="edit-client-address"
@@ -302,13 +382,13 @@
             [(ngModel)]="detailEditForm.address"
             [disabled]="detailSaveLoading"
             class="long-textarea w-full"
-            placeholder="Rue, complément, code postal, ville, pays…"
+            placeholder="Street, line 2, postal code, city, country…"
           ></textarea>
         </div>
       </div>
 
       <div class="detail-status-block">
-        <span class="detail-status-label">Statut du compte</span>
+        <span class="detail-status-label">Account status</span>
         <label class="table-status dialog-status">
           <input
             type="checkbox"
@@ -317,12 +397,12 @@
             [disabled]="isSavingStatus(d.id) || detailEditing"
             (click)="$event.stopPropagation()"
             (change)="onClientStatusToggle(d, $any($event.target).checked)"
-            [attr.aria-label]="d.active ? 'Désactiver le compte ' + d.email : 'Activer le compte ' + d.email"
+            [attr.aria-label]="d.active ? 'Deactivate account ' + d.email : 'Activate account ' + d.email"
           />
           @if (isSavingStatus(d.id)) {
             <span class="status-saving" aria-busy="true"><i class="pi pi-spinner pi-spin" aria-hidden="true"></i></span>
           }
-          <span class="status-pill" [class.inactive]="!d.active">{{ d.active ? 'Actif' : 'Désactivé' }}</span>
+          <span class="status-pill" [class.inactive]="!d.active">{{ d.active ? 'Active' : 'Inactive' }}</span>
         </label>
       </div>
     </div>
@@ -331,7 +411,7 @@
         <button
           pButton
           type="button"
-          label="Annuler"
+          label="Cancel"
           class="p-button-text"
           [disabled]="detailSaveLoading"
           (click)="cancelDetailEdit()"
@@ -339,14 +419,14 @@
         <button
           pButton
           type="button"
-          label="Enregistrer"
+          label="Save"
           [loading]="detailSaveLoading"
           [disabled]="detailSaveLoading"
           (click)="saveDetailProfile()"
         ></button>
       } @else {
-        <button pButton type="button" label="Modifier le profil" class="p-button-outlined" (click)="startDetailEdit()"></button>
-        <button pButton type="button" label="Fermer" class="p-button-text" (click)="detailDialogVisible = false"></button>
+        <button pButton type="button" label="Edit profile" class="p-button-outlined" (click)="startDetailEdit()"></button>
+        <button pButton type="button" label="Close" class="p-button-text" (click)="detailDialogVisible = false"></button>
       }
     </ng-template>
   </p-dialog>

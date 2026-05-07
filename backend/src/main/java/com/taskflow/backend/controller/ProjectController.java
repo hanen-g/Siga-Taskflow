@@ -18,7 +18,9 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 @RestController
 @RequestMapping("/api/projects")
@@ -52,11 +54,28 @@ public class ProjectController {
             return ResponseEntity.badRequest().body(java.util.Map.of("message", "The assigned user must be a project manager."));
         }
         project.setManager(manager);
-        if (project.getMembers() == null) {
-            project.setMembers(new HashSet<>(Set.of(manager)));
-        } else {
-            project.getMembers().add(manager);
+        // Never trust client-supplied members from JSON; only manager + validated client ids.
+        Set<User> members = new HashSet<>(Set.of(manager));
+        if (project.getClientIds() != null) {
+            for (Long clientId : new LinkedHashSet<>(project.getClientIds())) {
+                if (clientId == null) {
+                    continue;
+                }
+                User clientUser = userRepository.findById(clientId).orElse(null);
+                if (clientUser == null) {
+                    return ResponseEntity.badRequest().body(Map.of("message", "Client account not found for id " + clientId + "."));
+                }
+                if (clientUser.getRole() != UserRole.CLIENT) {
+                    return ResponseEntity.badRequest().body(Map.of("message", "Only users with the CLIENT role may be linked this way (id " + clientId + ")."));
+                }
+                if (!clientUser.isActive()) {
+                    return ResponseEntity.badRequest().body(Map.of("message", "Client account id " + clientId + " is inactive; activate it first or remove it from the selection."));
+                }
+                members.add(clientUser);
+            }
         }
+        project.setMembers(members);
+        project.setClientIds(null);
         return ResponseEntity.ok(projectService.createProject(project));
     }
 
@@ -133,11 +152,12 @@ public class ProjectController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('PROJECT_MANAGER', 'ADMIN')")
-    public Project updateProject(
+    public ProjectResponse updateProject(
             @PathVariable Long id,
             @RequestBody Project projectDetails,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        return projectService.updateProject(id, projectDetails, userDetails.getUser());
+        Project updated = projectService.updateProject(id, projectDetails, userDetails.getUser());
+        return ProjectResponse.fromProject(updated);
     }
 
     /**

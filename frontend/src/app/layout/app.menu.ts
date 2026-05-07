@@ -114,12 +114,6 @@ export class AppMenu {
                     items: [
                         { label: 'My projects', icon: 'pi pi-folder', routerLink: ['/dashboard/client'] }
                     ]
-                },
-                {
-                    label: 'Account',
-                    items: [
-                        { label: 'My profile', icon: 'pi pi-user', routerLink: ['/dashboard/profile'] }
-                    ]
                 }
             ];
         }

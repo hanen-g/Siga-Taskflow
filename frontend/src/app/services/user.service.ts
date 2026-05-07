@@ -41,6 +41,14 @@ export interface ProjectManagerOption {
   skillIds?: number[];
 }
 
+/** Active collaborator accounts for task assignment (directory). */
+export interface CollaboratorDirectoryEntry {
+  id: number;
+  email: string;
+  firstName: string | null;
+  lastName: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class UserService {
   private readonly apiUrl = 'http://localhost:8080/api/user';
@@ -59,6 +67,11 @@ export class UserService {
   searchCollaboratorEmails(query: string): Observable<string[]> {
     const params = new HttpParams().set('q', query.trim());
     return this.http.get<string[]>(`${this.apiUrl}/collaborators`, { params });
+  }
+
+  /** All active collaborators (project manager task assignment UI). */
+  getCollaboratorDirectory(): Observable<CollaboratorDirectoryEntry[]> {
+    return this.http.get<CollaboratorDirectoryEntry[]>(`${this.apiUrl}/collaborators/directory`);
   }
 
   getAdminUsers(search: string, role: EmployeeRole, status: EmployeeStatusFilter): Observable<AdminUser[]> {
@@ -107,7 +120,7 @@ export class UserService {
     dateOfBirth?: string;
     active?: boolean;
     gender?: string;
-    /** ISO yyyy-MM-dd — date de recrutement / mise en relation */
+    /** ISO yyyy-MM-dd — onboarding / relationship start date */
     recruitmentDate?: string;
     company?: string;
     fiscalMatricule?: string;

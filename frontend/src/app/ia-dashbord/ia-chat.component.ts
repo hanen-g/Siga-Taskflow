@@ -11,17 +11,17 @@ import { AdminService } from './admin.service';
       <h2>IA Chat</h2>
 
       <div class="input-section">
-        <textarea 
-          [(ngModel)]="prompt" 
-          placeholder="Enter your stats or prompt..."
+        <textarea
+          [(ngModel)]="prompt"
+          placeholder="Enter your stats or question…"
           [disabled]="loading">
         </textarea>
         <br><br>
 
-        <button 
+        <button
           (click)="analyze()"
           [disabled]="!prompt || loading">
-          {{ loading ? 'Analyzing...' : 'Analyze' }}
+          {{ loading ? 'Analyzing…' : 'Analyze' }}
         </button>
       </div>
 
@@ -33,7 +33,7 @@ import { AdminService } from './admin.service';
 
       @if (response) {
         <div class="response-section">
-          <strong>AI response:</strong><br>
+          <strong>AI reply:</strong><br>
           <p>{{ getResponseText() }}</p>
         </div>
       }
@@ -51,11 +51,11 @@ import { AdminService } from './admin.service';
       max-width: 800px;
       margin: 0 auto;
     }
-    
+
     .input-section {
       margin: 20px 0;
     }
-    
+
     textarea {
       width: 100%;
       min-height: 150px;
@@ -64,7 +64,7 @@ import { AdminService } from './admin.service';
       border-radius: 4px;
       font-family: Arial, sans-serif;
     }
-    
+
     button {
       background-color: #0d47a1;
       color: white;
@@ -74,12 +74,12 @@ import { AdminService } from './admin.service';
       cursor: pointer;
       font-size: 14px;
     }
-    
+
     button:disabled {
       background-color: #999;
       cursor: not-allowed;
     }
-    
+
     .response-section {
       margin-top: 20px;
       padding: 15px;
@@ -89,7 +89,7 @@ import { AdminService } from './admin.service';
       white-space: pre-wrap;
       word-break: break-word;
     }
-    
+
     .error-message {
       margin-top: 20px;
       padding: 15px;
@@ -121,7 +121,7 @@ export class IAChatComponent {
 
   getResponseText(): string {
     if (!this.response) return '';
-    
+
     if (typeof this.response === 'object') {
       if (this.response.response) return this.response.response;
       if (this.response.data) return this.response.data;
@@ -130,7 +130,7 @@ export class IAChatComponent {
       if (this.response.analysis) return this.response.analysis;
       return JSON.stringify(this.response, null, 2);
     }
-    
+
     return this.response.toString();
   }
 
@@ -154,11 +154,11 @@ export class IAChatComponent {
           console.log('Response received:', res);
           this.response = res;
           this.loading = false;
-          this.debugInfo = `Type: ${typeof res}, Keys: ${Object.keys(res).join(', ')}`;
+          this.debugInfo = `Type: ${typeof res}, keys: ${Object.keys(res).join(', ')}`;
         },
         error: (err) => {
-          console.error('Error while analyzing:', err);
-          
+          console.error('Analyze error:', err);
+
           if (err.status === 0) {
             this.error = 'Could not reach the server (check that the backend is running)';
           } else if (err.error?.message) {
@@ -168,7 +168,7 @@ export class IAChatComponent {
           } else {
             this.error = `HTTP error ${err.status}: ${err.statusText || 'Server error'}`;
           }
-          
+
           this.debugInfo = `Full error: ${JSON.stringify(err)}`;
           this.loading = false;
         }

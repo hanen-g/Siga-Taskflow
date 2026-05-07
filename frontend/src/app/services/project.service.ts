@@ -37,6 +37,8 @@ export class ProjectService {
     deadline?: string;
     manager: { id: number };
     requiredSkills?: Array<{ id: number }>;
+    /** Existing client user ids to add as project members (portal access). */
+    clientIds?: number[];
   }): Observable<any> {
     return this.http.post<any>(this.apiUrl, project);
   }
@@ -63,12 +65,8 @@ export class ProjectService {
     return this.http.post<void>(`${this.proposalsUrl}/${proposalId}/discard`, {});
   }
 
-  updateProject(id: number, project: any): Observable<string> {
-    // The backend update currently returns a 200 response with a body Angular
-    // cannot parse as JSON, so we accept it as plain text.
-    return this.http.put(`${this.apiUrl}/${id}`, project, {
-      responseType: 'text'
-    });
+  updateProject(id: number, project: Record<string, unknown>): Observable<unknown> {
+    return this.http.put<unknown>(`${this.apiUrl}/${id}`, project);
   }
 
   archiveProject(id: number, archived: boolean): Observable<any> {
