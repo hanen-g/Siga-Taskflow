@@ -2,76 +2,203 @@
   <p-toast />
   <p-confirmdialog />
 
-  <div class="header-block">
-    <h1 class="proposals-page-title">
-      <img
-        src="assets/images/proposed-subjects-icon.png"
-        alt=""
-        class="proposals-page-title-icon"
-        width="40"
-        height="40"
-        loading="lazy"
-        decoding="async" />
-      <span>Proposed project ideas</span>
-    </h1>
-    <p>Review submissions from project managers and collaborators. Approve to create a project, or discard.</p>
+  <div class="page-header">
+    <div class="header-text">
+      <h1 class="proposals-page-title">
+        <span class="title-icon" aria-hidden="true">
+          <i class="pi pi-lightbulb"></i>
+        </span>
+        <span>Proposed project ideas</span>
+      </h1>
+      
+    </div>
+
+    <div class="header-filters">
+      <button
+        type="button"
+        class="filter-button"
+        [class.is-active]="dateRangeActive"
+        (click)="dateRangePopover.toggle($event)"
+      >
+        <i class="pi pi-calendar"></i>
+        <span class="filter-label">Date Range</span>
+        <span *ngIf="dateRangeActive" class="filter-dot" aria-hidden="true"></span>
+        <i class="pi pi-chevron-down filter-chevron"></i>
+      </button>
+
+      <button
+        type="button"
+        class="filter-button"
+        [class.is-active]="selectedProposerIds.length > 0"
+        (click)="proposerPopover.toggle($event)"
+      >
+        <i class="pi pi-user"></i>
+        <span class="filter-label">Proposer</span>
+        <span *ngIf="selectedProposerIds.length" class="filter-count">{{ selectedProposerIds.length }}</span>
+        <i class="pi pi-chevron-down filter-chevron"></i>
+      </button>
+    </div>
   </div>
+
+  <p-popover #dateRangePopover styleClass="proposals-popover">
+    <div class="popover-panel">
+      <div class="popover-title">Filter by proposed date</div>
+      <div class="popover-grid">
+        <label class="popover-field">
+          <span>From</span>
+          <input
+            type="date"
+            class="popover-date"
+            [ngModel]="dateFrom"
+            (ngModelChange)="onDateFromChange($event)"
+          />
+        </label>
+        <label class="popover-field">
+          <span>To</span>
+          <input
+            type="date"
+            class="popover-date"
+            [ngModel]="dateTo"
+            (ngModelChange)="onDateToChange($event)"
+          />
+        </label>
+      </div>
+      <div class="popover-actions">
+        <button
+          pButton
+          type="button"
+          class="p-button-text p-button-sm"
+          label="Clear"
+          [disabled]="!dateRangeActive"
+          (click)="clearDateRange()"
+        ></button>
+        <button
+          pButton
+          type="button"
+          class="p-button-sm"
+          label="Done"
+          (click)="dateRangePopover.hide()"
+        ></button>
+      </div>
+    </div>
+  </p-popover>
+
+  <p-popover #proposerPopover styleClass="proposals-popover">
+    <div class="popover-panel proposer-panel">
+      <div class="popover-title">Filter by proposer</div>
+      <div *ngIf="!proposerOptions.length" class="popover-empty">No proposers yet.</div>
+      <ul *ngIf="proposerOptions.length" class="proposer-list">
+        <li *ngFor="let option of proposerOptions">
+          <label class="proposer-option">
+            <input
+              type="checkbox"
+              [checked]="isProposerSelected(option.id)"
+              (change)="toggleProposer(option.id)"
+            />
+            <span class="proposer-avatar" [attr.data-role]="option.role">{{ option.initials }}</span>
+            <span class="proposer-meta">
+              <span class="proposer-name">{{ option.label }}</span>
+              <span class="proposer-role">{{ formatRole(option.role) }}</span>
+            </span>
+          </label>
+        </li>
+      </ul>
+      <div class="popover-actions">
+        <button
+          pButton
+          type="button"
+          class="p-button-text p-button-sm"
+          label="Clear"
+          [disabled]="!selectedProposerIds.length"
+          (click)="clearProposerFilter()"
+        ></button>
+        <button
+          pButton
+          type="button"
+          class="p-button-sm"
+          label="Done"
+          (click)="proposerPopover.hide()"
+        ></button>
+      </div>
+    </div>
+  </p-popover>
 
   <div *ngIf="error" class="err">{{ error }}</div>
 
-  <p-table
-    *ngIf="!error"
-    [value]="proposals"
-    [tableStyle]="{ 'min-width': '100%' }"
-    styleClass="proposals-table"
-  >
-    <ng-template pTemplate="header">
-      <tr>
-        <th>Idea</th>
-        <th>Proposed by</th>
-        <th>Deadline</th>
-        <th>Assign PM (collaborator ideas)</th>
-        <th>Actions</th>
-      </tr>
-    </ng-template>
-    <ng-template pTemplate="body" let-p>
-      <tr>
-        <td>
-          <div class="idea-name">{{ p.name }}</div>
-          <div class="idea-desc" *ngIf="p.description">{{ p.description }}</div>
-        </td>
-        <td>{{ proposerLabel(p) }}</td>
-        <td>{{ p.deadline || '—' }}</td>
-        <td>
-          <p-select
-            *ngIf="needsManagerPick(p)"
-            [options]="pmSelectOptions"
-            [(ngModel)]="managerIdByProposal[p.id]"
-            optionLabel="label"
-            optionValue="value"
-            placeholder="Select PM"
-            [showClear]="false"
-            appendTo="body"
-            styleClass="w-full"
-          />
-          <span *ngIf="!needsManagerPick(p)" class="muted">Same as proposer (PM)</span>
-        </td>
-        <td>
-          <button pButton type="button" class="p-button-sm p-button-success" label="Approve" (click)="approve(p)"></button>
+  <ng-container *ngIf="!error">
+    <div *ngIf="loading" class="proposals-grid">
+      <div *ngFor="let _ of [1, 2, 3, 4, 5, 6]" class="proposal-card is-skeleton">
+        <p-skeleton width="60%" height="1.1rem"></p-skeleton>
+        <p-skeleton width="40%" height="0.9rem" styleClass="mt-2"></p-skeleton>
+        <p-skeleton width="80%" height="0.8rem" styleClass="mt-3"></p-skeleton>
+        <p-skeleton width="70%" height="0.8rem" styleClass="mt-2"></p-skeleton>
+        <div class="card-actions skeleton-actions">
+          <p-skeleton width="6rem" height="2rem"></p-skeleton>
+          <p-skeleton width="2.5rem" height="2rem"></p-skeleton>
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="!loading && filteredProposals.length" class="proposals-grid">
+      <article *ngFor="let p of filteredProposals; trackBy: trackById" class="proposal-card">
+        <header class="card-head">
+          <h3 class="card-title">{{ p.name }}</h3>
+          <p class="card-subtitle" *ngIf="p.description">{{ p.description }}</p>
+        </header>
+
+        <div class="card-client" *ngIf="p.clientContact">
+          <span class="client-label">Client contact:</span>
+          <span class="client-name">{{ p.clientContact }}</span>
+        </div>
+
+        <div class="card-meta">
+          <i class="pi pi-calendar meta-icon" aria-hidden="true"></i>
+          <span class="meta-text">Proposed: {{ formatDate(p.createdAt) }}, by</span>
+          <ng-container [ngSwitch]="isProjectManager(p)">
+            
+            <span *ngSwitchDefault class="proposer-chip">
+              <span class="proposer-chip-avatar" [attr.data-role]="p.proposerRole">{{ proposerInitials(p) }}</span>
+              <span class="proposer-chip-name">{{ proposerName(p) }}</span>
+            </span>
+          </ng-container>
+        </div>
+
+        <div class="card-actions">
           <button
-            pButton
             type="button"
-            class="p-button-sm p-button-outlined p-button-danger ml-2"
-            label="Discard"
+            class="discard-button"
             (click)="discard({ id: p.id, name: p.name, nativeEvent: $event })"
-          ></button>
-        </td>
-      </tr>
-    </ng-template>
-    <ng-template pTemplate="emptymessage">
-      <tr>
-        <td colspan="5" class="empty">No pending proposals.</td>
-      </tr>
-    </ng-template>
-  </p-table>
+          >
+            <i class="pi pi-trash"></i>
+            <span>Discard</span>
+          </button>
+          <button
+            type="button"
+            class="approve-button"
+            (click)="startCreateFromProposal(p)">
+            
+            <i class="pi pi-check"></i>
+          </button>
+        </div>
+      </article>
+    </div>
+
+    <div *ngIf="!loading && !filteredProposals.length" class="empty-state">
+      <div class="empty-illustration" aria-hidden="true">
+        <i class="pi pi-inbox"></i>
+      </div>
+      <h3 class="empty-title">
+        {{ proposals.length ? 'No proposals match the current filters' : 'No proposed project ideas right now' }}
+      </h3>
+      
+      <button
+        *ngIf="proposals.length && (dateRangeActive || selectedProposerIds.length)"
+        pButton
+        type="button"
+        class="p-button-text"
+        label="Reset filters"
+        (click)="resetFilters()"
+      ></button>
+    </div>
+  </ng-container>
 </div>

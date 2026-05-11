@@ -1,9 +1,12 @@
 package com.taskflow.backend.controller;
 
 import com.taskflow.backend.dto.auth.AdminCreateUserRequest;
+import com.taskflow.backend.dto.project.ClientOptionResponse;
+import com.taskflow.backend.entity.Client;
 import com.taskflow.backend.entity.Skill;
 import com.taskflow.backend.entity.User;
 import com.taskflow.backend.entity.UserRole;
+import com.taskflow.backend.repository.ClientRepository;
 import com.taskflow.backend.repository.SkillRepository;
 import com.taskflow.backend.repository.UserRepository;
 import org.springframework.data.domain.PageRequest;
@@ -28,6 +31,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @RestController
@@ -41,6 +45,7 @@ public class UserController {
     private final AuthService authService;
     private final AccountEmailService accountEmailService;
     private final SkillRepository skillRepository;
+    private final ClientRepository clientRepository;
 
     public UserController(
             UserRepository userRepository,
@@ -48,7 +53,8 @@ public class UserController {
             PasswordEncoder passwordEncoder,
             AuthService authService,
             AccountEmailService accountEmailService,
-            SkillRepository skillRepository
+            SkillRepository skillRepository,
+            ClientRepository clientRepository
     ) {
         this.userRepository = userRepository;
         this.jwtService = jwtService;
@@ -56,19 +62,19 @@ public class UserController {
         this.authService = authService;
         this.accountEmailService = accountEmailService;
         this.skillRepository = skillRepository;
+        this.clientRepository = clientRepository;
     }
 
     @GetMapping("/admin/project-managers")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<List<ProjectManagerOption>> getProjectManagersForAdmin() {
-        List<User> fetched = userRepository.findByRoleAndActiveIncludingNullWithSkillsFetched(
-                UserRole.PROJECT_MANAGER);
         /*
          * JOIN FETCH on a collection duplicates the same User in the JDBC result; without merging,
          * each row can carry an incomplete skills bag and skillIds sent to the client look wrong/empty.
          */
-        List<User> managers = mergeDuplicateUsersMergingSkills(fetched);
-        List<ProjectManagerOption> out = managers.stream()
+        List<ProjectManagerOption> out = mergeDuplicateUsersMergingSkills(
+                        userRepository.findByRoleAndActiveIncludingNullWithSkillsFetched(UserRole.PROJECT_MANAGER))
+                .stream()
                 .map(u -> {
                     List<Long> skillIds = u.getSkills() == null
                             ? List.of()
@@ -115,6 +121,34 @@ public class UserController {
         target.getSkills().addAll(source.getSkills());
     }
 
+    @GetMapping("/admin/clients")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<ClientOptionResponse>> getClientsForAdmin() {
+        List<User> users = userRepository.findByRoleAndActiveIncludingNull(UserRole.CLIENT);
+        Map<Long, Client> profiles = clientProfileMapForUsers(users);
+        List<ClientOptionResponse> out = users.stream()
+                .sorted(Comparator
+                        .comparing((User u) -> {
+                            Client cp = profiles.get(u.getId());
+                            String company = cp == null || cp.getCompanyName() == null ? "" : cp.getCompanyName();
+                            return company.toLowerCase(Locale.ROOT);
+                        })
+                        .thenComparing(u -> ((u.getFirstName() == null ? "" : u.getFirstName())
+                                + " " + (u.getLastName() == null ? "" : u.getLastName())).toLowerCase(Locale.ROOT)))
+                .map(u -> {
+                    Client cp = profiles.get(u.getId());
+                    return new ClientOptionResponse(
+                            u.getId(),
+                            u.getFirstName(),
+                            u.getLastName(),
+                            u.getEmail(),
+                            cp == null ? null : cp.getCompanyName()
+                    );
+                })
+                .toList();
+        return ResponseEntity.ok(out);
+    }
+
     @GetMapping("/collaborators")
     public ResponseEntity<List<String>> getCollaboratorEmails(
             @RequestParam(name = "q", defaultValue = "") String query
@@ -140,7 +174,7 @@ public class UserController {
             AuthService.ProvisioningResult result = authService.createUserByAdmin(request);
             User user = result.user();
             String plainPassword = result.temporaryPassword();
-            boolean emailSent = false;
+            boolean emailSent;
             String emailMessage;
             try {
                 emailSent = accountEmailService.sendWelcomeWithCredentials(
@@ -153,10 +187,11 @@ public class UserController {
                         ? "A welcome email with sign-in details was sent."
                         : "Account created. Outgoing mail is not configured: set MAIL_HOST (e.g. smtp.gmail.com) and MAIL_PASSWORD, or share credentials manually. When mail is disabled, the same details are written to the server log.";
             } catch (Exception e) {
+                emailSent = false;
                 emailMessage = "Account created, but the welcome email could not be sent. Share credentials manually or check mail configuration.";
             }
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(new AdminUserCreatedResponse(new AdminUserResponse(user), emailSent, emailMessage));
+                    .body(new AdminUserCreatedResponse(adminUserResponse(user), emailSent, emailMessage));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
         } catch (DataIntegrityViolationException e) {
@@ -191,10 +226,13 @@ public class UserController {
             users = activeOnly ? userRepository.findByRoleAndActiveIncludingNull(roleEnum) : userRepository.findByRoleAndIsActive(roleEnum, false);
         }
 
+        Map<Long, Client> clientProfiles = clientProfileMapForUsers(users);
+
         List<AdminUserResponse> result = users.stream()
-                .filter(user -> searchValue.isBlank() || userMatchesSearch(user, searchValue))
+                .filter(user -> searchValue.isBlank()
+                        || userMatchesSearch(user, searchValue, clientProfiles.get(user.getId())))
                 .sorted(Comparator.comparing((User u) -> (u.getFirstName() + " " + u.getLastName()).toLowerCase(Locale.ROOT)))
-                .map(AdminUserResponse::new)
+                .map(user -> new AdminUserResponse(user, clientProfiles.get(user.getId())))
                 .toList();
 
         return ResponseEntity.ok(result);
@@ -209,64 +247,73 @@ public class UserController {
         User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
 
         try {
-        if (request.getFirstName() != null) {
-            user.setFirstName(request.getFirstName().trim());
-        }
-        if (request.getLastName() != null) {
-            user.setLastName(request.getLastName().trim());
-        }
-        if (request.getEmail() != null) {
-            String newEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
-            userRepository.findByEmail(newEmail).ifPresent(existing -> {
-                if (!existing.getId().equals(user.getId())) {
-                    throw new RuntimeException("Email already exists");
+            UserRole roleBefore = user.getRole();
+
+            if (request.getRole() != null) {
+                UserRole newRole = UserRole.valueOf(request.getRole().toUpperCase(Locale.ROOT));
+                if (roleBefore == UserRole.CLIENT && newRole != UserRole.CLIENT) {
+                    clientRepository.deleteByUser_Id(user.getId());
                 }
-            });
-            user.setEmail(newEmail);
-        }
-        if (request.getRole() != null) {
-            user.setRole(UserRole.valueOf(request.getRole().toUpperCase(Locale.ROOT)));
-        }
-        if (request.getSkillIds() != null) {
-            user.setSkills(resolveSkillsForRole(user.getRole(), request.getSkillIds()));
-        } else if (user.getRole() != UserRole.PROJECT_MANAGER && user.getRole() != UserRole.COLLABORATOR) {
-            user.setSkills(new HashSet<>());
-        }
-        if (request.getPhoneNumber() != null) {
-            user.setPhoneNumber(request.getPhoneNumber().trim().isEmpty() ? null : request.getPhoneNumber().trim());
-        }
-        if (request.getAddress() != null) {
-            user.setAddress(request.getAddress().trim().isEmpty() ? null : request.getAddress().trim());
-        }
-        if (request.getDateOfBirth() != null) {
-            user.setDateOfBirth(request.getDateOfBirth());
-        }
-        if (request.getGender() != null) {
-            String trimmed = request.getGender().trim();
-            if (trimmed.isEmpty()) {
-                user.setGender(null);
-            } else {
-                String u = trimmed.toUpperCase(Locale.ROOT);
-                if (u.equals("FEMALE") || u.equals("MALE") || u.equals("OTHER")) {
-                    user.setGender(u);
+                user.setRole(newRole);
+            }
+            if (request.getFirstName() != null) {
+                user.setFirstName(request.getFirstName().trim());
+            }
+            if (request.getLastName() != null) {
+                user.setLastName(request.getLastName().trim());
+            }
+            if (request.getEmail() != null) {
+                String newEmail = request.getEmail().trim().toLowerCase(Locale.ROOT);
+                userRepository.findByEmail(newEmail).ifPresent(existing -> {
+                    if (!existing.getId().equals(user.getId())) {
+                        throw new RuntimeException("Email already exists");
+                    }
+                });
+                user.setEmail(newEmail);
+            }
+            if (request.getSkillIds() != null) {
+                user.setSkills(resolveSkillsForRole(user.getRole(), request.getSkillIds()));
+            } else if (user.getRole() != UserRole.PROJECT_MANAGER && user.getRole() != UserRole.COLLABORATOR) {
+                user.setSkills(new HashSet<>());
+            }
+            if (request.getGender() != null) {
+                String trimmed = request.getGender().trim();
+                if (trimmed.isEmpty()) {
+                    user.setGender(null);
                 } else {
-                    throw new IllegalArgumentException("gender must be FEMALE, MALE, or OTHER");
+                    String u = trimmed.toUpperCase(Locale.ROOT);
+                    if (u.equals("FEMALE") || u.equals("MALE") || u.equals("OTHER")) {
+                        user.setGender(u);
+                    } else {
+                        throw new IllegalArgumentException("gender must be FEMALE, MALE, or OTHER");
+                    }
                 }
             }
-        }
-        if (request.getRecruitmentDate() != null) {
-            user.setRecruitmentDate(request.getRecruitmentDate());
-        }
-        if (request.getCompany() != null) {
-            user.setCompany(request.getCompany().trim().isEmpty() ? null : request.getCompany().trim());
-        }
-        if (request.getFiscalMatricule() != null) {
-            user.setFiscalMatricule(
-                    request.getFiscalMatricule().trim().isEmpty() ? null : request.getFiscalMatricule().trim());
-        }
 
-        userRepository.save(user);
-        return ResponseEntity.ok(new AdminUserResponse(user));
+            userRepository.save(user);
+
+            if (user.getRole() == UserRole.CLIENT) {
+                Client cp = clientRepository.findByUser_Id(user.getId()).orElseGet(() -> {
+                    Client created = new Client();
+                    created.setUser(user);
+                    return created;
+                });
+                if (request.getPhoneNumber() != null) {
+                    cp.setPhoneNumber(trimToNull(request.getPhoneNumber()));
+                }
+                if (request.getAddress() != null) {
+                    cp.setAddress(trimToNull(request.getAddress()));
+                }
+                if (request.getCompany() != null) {
+                    cp.setCompanyName(trimToNull(request.getCompany()));
+                }
+                if (request.getFiscalMatricule() != null) {
+                    cp.setFiscalMatricule(trimToNull(request.getFiscalMatricule()));
+                }
+                clientRepository.save(cp);
+            }
+
+            return ResponseEntity.ok(adminUserResponse(user));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
         }
@@ -281,7 +328,7 @@ public class UserController {
         User user = userRepository.findById(id).orElseThrow(() -> new RuntimeException("User not found"));
         user.setActive(request.isActive());
         userRepository.save(user);
-        return ResponseEntity.ok(new AdminUserResponse(user));
+        return ResponseEntity.ok(adminUserResponse(user));
     }
 
     @GetMapping("/me")
@@ -398,7 +445,7 @@ public class UserController {
         private String createdAt;
         private List<SkillOption> skills;
 
-        public AdminUserResponse(User user) {
+        public AdminUserResponse(User user, Client clientProfile) {
             this.id = user.getId();
             this.email = user.getEmail();
             this.firstName = user.getFirstName();
@@ -406,16 +453,22 @@ public class UserController {
             this.role = user.getRole().name();
             this.profilePicture = user.getProfilePicture();
             this.isActive = user.isActive();
-            this.phoneNumber = user.getPhoneNumber();
-            this.address = user.getAddress();
-            this.dateOfBirth = user.getDateOfBirth();
+            if (user.getRole() == UserRole.CLIENT && clientProfile != null) {
+                this.phoneNumber = clientProfile.getPhoneNumber();
+                this.address = clientProfile.getAddress();
+                this.company = clientProfile.getCompanyName();
+                this.fiscalMatricule = clientProfile.getFiscalMatricule();
+            } else {
+                this.phoneNumber = null;
+                this.address = null;
+                this.company = null;
+                this.fiscalMatricule = null;
+            }
+
             this.gender = user.getGender();
-            this.recruitmentDate = user.getRecruitmentDate();
-            this.company = user.getCompany();
-            this.fiscalMatricule = user.getFiscalMatricule();
             this.createdAt = user.getCreatedAt() == null
                     ? null
-                    : user.getCreatedAt().atOffset(ZoneOffset.UTC).toString();
+                    : user.getCreatedAt().toString();
             this.skills = user.getSkills() == null
                     ? List.of()
                     : user.getSkills().stream()
@@ -623,16 +676,54 @@ public class UserController {
         public void setActive(boolean active) { this.active = active; }
     }
 
-    private boolean userMatchesSearch(User user, String searchValue) {
+    private AdminUserResponse adminUserResponse(User user) {
+        Client cp = null;
+        if (user.getRole() == UserRole.CLIENT) {
+            cp = clientRepository.findByUser_Id(user.getId()).orElse(null);
+        }
+        return new AdminUserResponse(user, cp);
+    }
+
+    private Map<Long, Client> clientProfileMapForUsers(List<User> users) {
+        List<Long> clientIds = users.stream()
+                .filter(u -> u.getRole() == UserRole.CLIENT)
+                .map(User::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (clientIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Client> map = new LinkedHashMap<>();
+        for (Client cp : clientRepository.findAllByUser_IdIn(clientIds)) {
+            map.put(cp.getUser().getId(), cp);
+        }
+        return map;
+    }
+
+    private boolean userMatchesSearch(User user, String searchValue, Client clientProfile) {
         String fullName = ((user.getFirstName() == null ? "" : user.getFirstName()) + " " + (user.getLastName() == null ? "" : user.getLastName()))
                 .toLowerCase(Locale.ROOT);
         String email = user.getEmail() == null ? "" : user.getEmail().toLowerCase(Locale.ROOT);
-        String phone = user.getPhoneNumber() == null ? "" : user.getPhoneNumber().toLowerCase(Locale.ROOT);
-        String addr = user.getAddress() == null ? "" : user.getAddress().toLowerCase(Locale.ROOT);
-        String company = user.getCompany() == null ? "" : user.getCompany().toLowerCase(Locale.ROOT);
-        String fiscal = user.getFiscalMatricule() == null ? "" : user.getFiscalMatricule().toLowerCase(Locale.ROOT);
+        String phone = "";
+        String addr = "";
+        String company = "";
+        String fiscal = "";
+        if (user.getRole() == UserRole.CLIENT && clientProfile != null) {
+            phone = clientProfile.getPhoneNumber() == null ? "" : clientProfile.getPhoneNumber().toLowerCase(Locale.ROOT);
+            addr = clientProfile.getAddress() == null ? "" : clientProfile.getAddress().toLowerCase(Locale.ROOT);
+            company = clientProfile.getCompanyName() == null ? "" : clientProfile.getCompanyName().toLowerCase(Locale.ROOT);
+            fiscal = clientProfile.getFiscalMatricule() == null ? "" : clientProfile.getFiscalMatricule().toLowerCase(Locale.ROOT);
+        }
         return fullName.contains(searchValue) || email.contains(searchValue) || phone.contains(searchValue)
                 || addr.contains(searchValue) || company.contains(searchValue) || fiscal.contains(searchValue);
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
     }
 
     private Set<Skill> resolveSkillsForRole(UserRole role, List<Long> skillIds) {
@@ -667,3 +758,4 @@ public class UserController {
         return msg;
     }
 }
+

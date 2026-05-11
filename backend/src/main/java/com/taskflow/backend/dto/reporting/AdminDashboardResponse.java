@@ -10,6 +10,7 @@ public record AdminDashboardResponse(
         long blockedTasks,
         long inactiveAccounts,
         ChartSeriesResponse usersByRole,
+        ChartSeriesResponse projectsByStatus,
         ChartSeriesResponse tasksPerProject,
         ChartSeriesResponse projectManagerTeamCompletionPercent,
         ChartSeriesResponse platformCompletionTrend30Days,

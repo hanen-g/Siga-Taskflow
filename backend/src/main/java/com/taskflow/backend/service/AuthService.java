@@ -4,10 +4,12 @@ import com.taskflow.backend.dto.auth.AdminCreateUserRequest;
 import com.taskflow.backend.dto.auth.AuthResponse;
 import com.taskflow.backend.dto.auth.LoginRequest;
 import com.taskflow.backend.dto.auth.SignupRequest;
+import com.taskflow.backend.entity.Client;
 import com.taskflow.backend.entity.Skill;
 import com.taskflow.backend.entity.User;
 import com.taskflow.backend.entity.UserRole;
 import com.taskflow.backend.exception.BadRequestException;
+import com.taskflow.backend.repository.ClientRepository;
 import com.taskflow.backend.repository.SkillRepository;
 import com.taskflow.backend.repository.UserRepository;
 import com.taskflow.backend.security.JwtService;
@@ -26,19 +28,22 @@ public class AuthService {
     private final JwtService jwtService;
     private final RandomPasswordService randomPasswordService;
     private final SkillRepository skillRepository;
+    private final ClientRepository clientRepository;
 
     public AuthService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             RandomPasswordService randomPasswordService,
-            SkillRepository skillRepository
+            SkillRepository skillRepository,
+            ClientRepository clientRepository
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.randomPasswordService = randomPasswordService;
         this.skillRepository = skillRepository;
+        this.clientRepository = clientRepository;
     }
 
     public record ProvisioningResult(User user, String temporaryPassword) {}
@@ -67,17 +72,22 @@ public class AuthService {
         user.setPassword(passwordEncoder.encode(temporaryPassword));
         UserRole role = request.getRoleAsEnum();
         user.setRole(role);
-        user.setPhoneNumber(trimToNull(request.getPhoneNumber()));
-        user.setAddress(trimToNull(request.getAddress()));
-        user.setDateOfBirth(request.getDateOfBirth());
         user.setActive(request.getActive() == null || request.getActive());
         user.setGender(normalizeGenderCode(trimToNull(request.getGender())));
-        user.setCompany(trimToNull(request.getCompany()));
-        user.setFiscalMatricule(trimToNull(request.getFiscalMatricule()));
-        user.setRecruitmentDate(request.getRecruitmentDate());
         user.setSkills(resolveSkillsForRole(role, request.getSkillIds()));
 
-        return new ProvisioningResult(userRepository.save(user), temporaryPassword);
+        User saved = userRepository.save(user);
+        if (role == UserRole.CLIENT) {
+            Client cp = new Client();
+            cp.setUser(saved);
+            cp.setCompanyName(trimToNull(request.getCompany()));
+            cp.setFiscalMatricule(trimToNull(request.getFiscalMatricule()));
+            cp.setPhoneNumber(trimToNull(request.getPhoneNumber()));
+            cp.setAddress(trimToNull(request.getAddress()));
+            clientRepository.save(cp);
+        }
+
+        return new ProvisioningResult(saved, temporaryPassword);
     }
 
     private HashSet<Skill> resolveSkillsForRole(UserRole role, List<Long> skillIds) {

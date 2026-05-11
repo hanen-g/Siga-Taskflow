@@ -1,4 +1,6 @@
-<div class="workspace-page project-detail-page p-4 min-h-screen">
+<div
+  class="workspace-page project-detail-page p-4 min-h-screen"
+  [class.project-detail-page--wide-kanban]="isAdminRole() && activeTab === 'tasks'">
   <p-toast />
   <p-confirmdialog />
   <div class="project-detail-header">
@@ -34,16 +36,40 @@
           </p>
         </div>
 
-        <p-tag *ngIf="project.archived" severity="warn" value="Archived" />
-        <p-tag *ngIf="project.paused" class="ml-1" severity="secondary" value="Paused" />
-        <p-tag *ngIf="project.delivered" class="ml-1" severity="success" value="Delivered" />
+        <div class="project-detail-badges">
+          <p-tag *ngIf="project.archived" severity="warn" value="Archived" />
+          <p-tag *ngIf="project.paused" severity="secondary" value="Paused" />
+          <p-tag *ngIf="project.delivered" severity="success" value="Delivered" />
+          <span
+            *ngIf="deadlineBadgeLabel(project) as deadlineBadge"
+            class="project-deadline-badge"
+            [class.is-overdue]="deadlineBadgeTone(project) === 'overdue'"
+            [class.is-today]="deadlineBadgeTone(project) === 'today'"
+            [class.is-soon]="deadlineBadgeTone(project) === 'soon'"
+            [class.is-upcoming]="deadlineBadgeTone(project) === 'upcoming'">
+            <i class="pi pi-clock" aria-hidden="true"></i>
+            {{ deadlineBadge }}
+          </span>
+        </div>
       </div>
 
-      <div class="project-detail-progress">
-        <div class="project-detail-progress-bar">
-          <span class="project-detail-progress-fill" [style.width.%]="completionPercent(project)"></span>
+      <div class="project-detail-progress-row">
+        <div class="project-detail-progress">
+          <div class="project-detail-progress-bar">
+            <span class="project-detail-progress-fill" [style.width.%]="completionPercent(project)"></span>
+          </div>
+          <div class="project-detail-progress-label">{{ completionPercent(project) }}% completed</div>
         </div>
-        <div class="project-detail-progress-label">{{ completionPercent(project) }}% completed</div>
+        <div class="workspace-search project-detail-hero-search">
+          <div class="search-input-wrapper">
+            <i class="pi pi-search search-icon"></i>
+            <input
+              type="text"
+              [(ngModel)]="searchText"
+              placeholder="Search"
+              class="search-input" />
+          </div>
+        </div>
       </div>
     </section>
 
@@ -54,38 +80,26 @@
             type="button"
             class="project-detail-tab"
             [class.is-active]="activeTab === 'tasks'"
-            (click)="switchTab('tasks', project)">
+            (click)="switchTab('tasks')">
             Tasks
           </button>
           <button
             type="button"
             class="project-detail-tab"
             [class.is-active]="activeTab === 'files'"
-            (click)="switchTab('files', project)">
+            (click)="switchTab('files')">
             Files
           </button>
-          <button
-            *ngIf="canViewTeamSkillsTab()"
-            type="button"
-            class="project-detail-tab"
-            [class.is-active]="activeTab === 'team'"
-            (click)="switchTab('team', project)">
-            Team &amp; skills
-          </button>
-          <div class="workspace-search">
-            <div class="search-input-wrapper">
-              <i class="pi pi-search search-icon"></i>
-              <input
-                type="text"
-                [(ngModel)]="searchText"
-                placeholder="Search"
-                class="search-input" />
-            </div>
-          </div>
         </div>
 
-        <ng-container *ngIf="activeTab === 'tasks'; else teamOrFiles">
-          <div class="project-detail-task-panel">
+        <ng-container *ngIf="activeTab === 'tasks'">
+          <div *ngIf="isAdminRole() && project.id" class="project-detail-admin-kanban">
+            <app-task-kanban-board
+              [projectId]="project.id"
+              [filterText]="searchText"
+              [tallEmbed]="true" />
+          </div>
+          <div *ngIf="!isAdminRole()" class="project-detail-task-panel">
             <p *ngIf="!(project.tasks?.length)" class="project-detail-empty-panel">
               No tasks yet for this project.
             </p>
@@ -117,139 +131,56 @@
                   </p>
                 </div>
                 <div class="task-card-side">
-                  <span class="task-card-status" [ngClass]="taskStatusBadgeClass(task.status)">
-                    {{ statusLabel(task.status) }}
-                  </span>
                   <input
                     type="file"
                     class="task-card-file-input"
                     [id]="'task-upload-' + task.id"
                     (change)="onTaskFileInputChange($event, task, project)" />
-                  <button
-                    *ngIf="canUploadTaskFile(task, project)"
-                    type="button"
-                    pButton
-                    styleClass="p-button-outlined p-button-sm task-card-upload-btn"
-                    [label]="isUploadingTaskFile(task.id) ? 'Uploading…' : 'Attach file'"
-                    [disabled]="isUploadingTaskFile(task.id)"
-                    (click)="openTaskFilePicker(task.id)"></button>
-                  <button
-                    *ngIf="canEditTask(project)"
-                    type="button"
-                    pButton
-                    styleClass="p-button-sm task-card-edit-btn"
-                    label="Edit"
-                    (click)="openEditTaskDialog(task, project)"></button>
+                  <div class="task-card-actions">
+                    <button
+                      *ngIf="canUploadTaskFile(task, project)"
+                      type="button"
+                      pButton
+                      styleClass="p-button-outlined p-button-sm p-button-icon-only task-card-icon-btn task-card-upload-btn"
+                      [icon]="isUploadingTaskFile(task.id) ? 'pi pi-spin pi-spinner' : 'pi pi-paperclip'"
+                      pTooltip="Attach file"
+                      tooltipPosition="top"
+                      [attr.aria-label]="isUploadingTaskFile(task.id) ? 'Uploading file' : 'Attach file'"
+                      [disabled]="isUploadingTaskFile(task.id)"
+                      (click)="openTaskFilePicker(task.id)"></button>
+                    <button
+                      *ngIf="canEditTask(project)"
+                      type="button"
+                      pButton
+                      styleClass="p-button-sm p-button-icon-only task-card-icon-btn task-card-edit-btn"
+                      icon="pi pi-pencil"
+                      pTooltip="Edit task"
+                      tooltipPosition="top"
+                      aria-label="Edit task"
+                      (click)="openEditTaskDialog(task, project)"></button>
+                    <button
+                      *ngIf="canMarkTaskDone(task, project)"
+                      type="button"
+                      pButton
+                      styleClass="p-button-success p-button-sm p-button-icon-only task-card-icon-btn"
+                      icon="pi pi-check"
+                      pTooltip="Mark as done"
+                      tooltipPosition="top"
+                      aria-label="Mark as done"
+                      (click)="markTaskDone(task, project)"></button>
+                  </div>
+                  <span class="task-card-status" [ngClass]="taskStatusBadgeClass(task.status)">
+                    {{ statusLabel(task.status) }}
+                  </span>
                 </div>
               </article>
             </div>
           </div>
         </ng-container>
 
-        <ng-template #teamOrFiles>
-          <ng-container *ngIf="activeTab === 'team' && canViewTeamSkillsTab(); else filesPanel">
-            <div class="team-skills-panel">
-              <p *ngIf="isAdminRole()" class="text-600 mb-3">
-                Define which skills this project needs to see project managers ranked by how well their profile skills match.
-                Managers maintain their skills on the profile page.
-              </p>
-              <p *ngIf="!isAdminRole()" class="text-600 mb-3">
-                Required skills describe what collaborators should cover; you’ll see collaborators ranked by how well their profile skills match.
-                Collaborators maintain their skills on the profile page.
-              </p>
-
-              <div *ngIf="skillsCatalogLoading" class="py-3 text-600">
-                <i class="pi pi-spinner pi-spin mr-2"></i> Loading skills…
-              </div>
-
-              <div *ngIf="!skillsCatalogLoading && canEditProjectSkills(project)" class="mb-4 surface-card p-3">
-                <label class="block font-bold mb-2">Required skills for this project</label>
-                <p-multiselect
-                  [options]="allSkills"
-                  optionLabel="name"
-                  optionValue="id"
-                  placeholder="Select required skills"
-                  [(ngModel)]="selectedRequiredSkillIds"
-                  [filter]="true"
-                  [showToggleAll]="true"
-                  display="chip"
-                  [maxSelectedLabels]="6"
-                  styleClass="w-full"
-                  [appendTo]="'body'">
-                </p-multiselect>
-                <div class="mt-2">
-                  <button
-                    pButton
-                    type="button"
-                    label="Save required skills"
-                    [loading]="savingRequiredSkills"
-                    [disabled]="savingRequiredSkills"
-                    (click)="saveProjectRequiredSkills(project)">
-                  </button>
-                </div>
-              </div>
-
-              <div *ngIf="!skillsCatalogLoading && !canEditProjectSkills(project)" class="mb-3 text-600 text-sm">
-                Only the assigned project manager or an administrator can change required skills. You can still review the best-fit list below.
-              </div>
-
-              <div *ngIf="teamPanelLoading" class="py-3">
-                <app-loader label="Loading team matches…" />
-              </div>
-
-              <div *ngIf="!teamPanelLoading && teamMatchResult" class="team-match-block">
-                <h3 class="project-detail-section-title mb-2">{{ teamMatchesSectionTitle() }}</h3>
-                <p *ngIf="!teamMatchResult.requiredSkills.length" class="text-600 text-sm mb-2">
-                  <span *ngIf="isAdminRole()">No required skills are set yet. Add skills above to rank project managers.</span>
-                  <span *ngIf="!isAdminRole()">No required skills are set yet. Add skills above to rank collaborators.</span>
-                </p>
-                <div *ngIf="teamMatchResult.matches.length" class="team-match-table-wrap">
-                  <table class="team-match-table">
-                    <thead>
-                      <tr>
-                        <th>Name</th>
-                        <th>Match</th>
-                        <th>Skills covered</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr *ngFor="let m of teamMatchResult.matches" [class.row-full-match]="m.fullMatch">
-                        <td>
-                          <div class="font-medium">{{ matchRowLabel(m) }}</div>
-                          <div class="text-500 text-sm">{{ m.email }}</div>
-                        </td>
-                        <td>
-                          <span *ngIf="!teamMatchResult.requiredSkills.length" class="text-600">—</span>
-                          <span *ngIf="teamMatchResult.requiredSkills.length">
-                            {{ m.matchedCount }} / {{ m.requiredCount }}
-                            <i *ngIf="m.fullMatch" class="pi pi-check-circle text-green-600 ml-1" title="Full match"></i>
-                          </span>
-                        </td>
-                        <td>
-                          <span *ngFor="let s of m.matchedSkills" class="skill-chip mr-1 mb-1 inline-block">{{ s.name }}</span>
-                          <span *ngIf="!m.matchedSkills.length" class="text-500">—</span>
-                        </td>
-                      </tr>
-                    </tbody>
-                  </table>
-                </div>
-                <p *ngIf="!teamPanelLoading && teamMatchResult && !teamMatchResult.matches.length" class="text-600 text-sm">
-                  <span *ngIf="isAdminRole()">No project managers found.</span>
-                  <span *ngIf="!isAdminRole()">No collaborators found.</span>
-                </p>
-              </div>
-            </div>
-          </ng-container>
-        </ng-template>
-
-        <ng-template #filesPanel>
+        <ng-container *ngIf="activeTab === 'files'">
           <div class="project-detail-files-panel">
             <ng-container *ngIf="sortedProjectFiles(project).length; else noFilesYet">
-            <div class="project-detail-tools">
-              <div class="workspace-search">
-                
-              </div>
-            </div>
             <div *ngIf="filteredProjectFiles(project).length" class="project-detail-file-list">
               <article
                 *ngFor="let file of filteredProjectFiles(project)"
@@ -286,7 +217,7 @@
               <div class="project-detail-empty-panel">No files uploaded to this project yet.</div>
             </ng-template>
           </div>
-        </ng-template>
+        </ng-container>
       </section>
 
       <aside class="project-detail-sidebar" aria-label="Project summary">
@@ -299,6 +230,8 @@
                   type="button"
                   [class]="actionIconClass(action) + ' project-action-add-task'"
                   [attr.aria-label]="actionLabel(project, action)"
+                  [attr.title]="actionLabel(project, action)"
+                  [disabled]="action.disabled"
                   (click)="handleProjectAction(action.action, project, $event)">
                   <span class="project-action-add-task-plus-wrap" aria-hidden="true">
                     <svg
@@ -320,6 +253,8 @@
                   type="button"
                   [class]="actionIconClass(action)"
                   [attr.aria-label]="actionLabel(project, action)"
+                  [attr.title]="actionLabel(project, action)"
+                  [disabled]="action.disabled"
                   (click)="handleProjectAction(action.action, project, $event)">
                   <img
                     *ngIf="action.iconImg"
@@ -682,7 +617,8 @@
           display="chip"
           [filter]="true"
           filterPlaceholder="Search skills"
-          styleClass="w-full">
+          styleClass="w-full"
+          (ngModelChange)="onEditTaskSkillsChange(project)">
         </p-multiSelect>
       </ng-container>
 
@@ -709,6 +645,17 @@
             (click)="assignEditedTaskToMe()">
           </button>
         </div>
+      </div>
+      <div class="assignee-suggestions-trigger" *ngIf="isProjectManagerOfProject(project)">
+        <button
+          type="button"
+          pButton
+          label="See suggested assignees list"
+          icon="pi pi-users"
+          styleClass="p-button-outlined p-button-sm w-full sm:w-auto"
+          [disabled]="assigneeCandidatesLoading"
+          (click)="openAssigneeSuggestionsPopup('edit')">
+        </button>
       </div>
 
       <button

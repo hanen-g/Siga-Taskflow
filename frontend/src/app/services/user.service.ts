@@ -7,6 +7,10 @@ export type EmployeeRole = 'ALL' | 'PROJECT_MANAGER' | 'COLLABORATOR' | 'CLIENT'
 export type CreateUserRole = 'PROJECT_MANAGER' | 'COLLABORATOR' | 'CLIENT' | 'ADMIN';
 export type EmployeeStatusFilter = 'active' | 'former';
 
+/**
+ * Admin list/detail row from GET/PUT `/admin/users` — matches persisted `users` columns plus,
+ * when `role === 'CLIENT'`, contact fields loaded from the linked `clients` row (not `users` columns).
+ */
 export interface AdminUser {
   id: number;
   email: string;
@@ -15,15 +19,19 @@ export interface AdminUser {
   role: Exclude<EmployeeRole, 'ALL'> | 'ADMIN';
   profilePicture?: string;
   active: boolean;
-  phoneNumber?: string | null;
-  address?: string | null;
   dateOfBirth?: string | null;
   gender?: string | null;
   recruitmentDate?: string | null;
-  company?: string | null;
-  fiscalMatricule?: string | null;
   createdAt?: string;
   skills?: Skill[];
+  /** `clients.phone_number` — only for CLIENT */
+  phoneNumber?: string | null;
+  /** `clients.address` */
+  address?: string | null;
+  /** `clients.company_name` */
+  company?: string | null;
+  /** `clients.fiscal_matricule` */
+  fiscalMatricule?: string | null;
 }
 
 export interface AdminUserCreatedResponse {
@@ -41,6 +49,15 @@ export interface ProjectManagerOption {
   skillIds?: number[];
 }
 
+export interface ClientAccountOption {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  /** Optional company name from the linked client profile. */
+  company: string | null;
+}
+
 @Injectable({ providedIn: 'root' })
 export class UserService {
   private readonly apiUrl = 'http://localhost:8080/api/user';
@@ -51,9 +68,9 @@ export class UserService {
     return this.http.get<ProjectManagerOption[]>(`${this.apiUrl}/admin/project-managers`);
   }
 
-  /** Active client accounts for admin project assignment dropdowns (same shape as project managers). */
-  getClientsForAdmin(): Observable<ProjectManagerOption[]> {
-    return this.http.get<ProjectManagerOption[]>(`${this.apiUrl}/admin/clients`);
+  /** Active client accounts for admin project assignment dropdowns. */
+  getClientsForAdmin(): Observable<ClientAccountOption[]> {
+    return this.http.get<ClientAccountOption[]>(`${this.apiUrl}/admin/clients`);
   }
 
   searchCollaboratorEmails(query: string): Observable<string[]> {

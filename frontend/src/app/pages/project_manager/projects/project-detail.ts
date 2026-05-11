@@ -1,6 +1,6 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Observable, of } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { FormsModule } from '@angular/forms';
@@ -22,12 +22,11 @@ import { Priority, Task, TaskStatus } from '../../../models/task.model';
 import { TaskService } from '../../../services/task.service';
 import { UploadedFile } from '../../../models/uploaded-file.model';
 import { FileAccessService } from '../../../services/file-access.service';
-import { SkillService } from '../../../services/skill.service';
-import { Skill, ProjectSkillMatchResult, UserSkillMatch } from '../../../models/skill.model';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { AutoCompleteModule } from 'primeng/autocomplete';
 import type { AutoCompleteCompleteEvent } from 'primeng/autocomplete';
 import { UserService } from '../../../services/user.service';
+import { TaskKanbanBoardComponent } from '../../tasks/components/task-kanban-board/task-kanban-board.component';
 type ProjectAction =
   | 'edit'
   | 'add-task'
@@ -45,6 +44,8 @@ interface ProjectActionItem {
   iconImg?: string;
   label: string;
   tone: 'danger' | 'neutral' | 'success' | 'warning';
+  disabled?: boolean;
+  disabledReason?: string;
 }
 
 @Component({
@@ -67,7 +68,8 @@ interface ProjectActionItem {
     TextareaModule,
     FolderFileUploadComponent,
     MultiSelectModule,
-    AutoCompleteModule
+    AutoCompleteModule,
+    TaskKanbanBoardComponent
   ],
   providers: [MessageService, ConfirmationService]
 })
@@ -79,14 +81,8 @@ export class ProjectDetailPage implements OnInit {
   error: string | null = null;
   uploadingAttachment = false;
   uploadingTaskFileIds = new Set<number>();
-  activeTab: 'tasks' | 'files' | 'team' = 'tasks';
+  activeTab: 'tasks' | 'files' = 'tasks';
 
-  allSkills: Skill[] = [];
-  selectedRequiredSkillIds: number[] = [];
-  teamMatchResult: ProjectSkillMatchResult | null = null;
-  teamPanelLoading = false;
-  savingRequiredSkills = false;
-  skillsCatalogLoading = false;
   searchText = '';
   displayDialog = false;
   taskDialogVisible = false;
@@ -109,6 +105,7 @@ export class ProjectDetailPage implements OnInit {
   assigneeCandidates: AssigneeCandidate[] = [];
   assigneeCandidatesLoading = false;
   assigneeSuggestionsPopupVisible = false;
+  assigneeSuggestionTarget: 'new' | 'edit' = 'new';
   private assigneeLoadSeq = 0;
 
   backLink = '/dashboard/pm/projects';
@@ -131,11 +128,14 @@ export class ProjectDetailPage implements OnInit {
       if (project.delivered) {
         actions.push({ action: 'reopen-delivery', icon: 'pi pi-replay', label: 'Reopen (not delivered)', tone: 'neutral' });
       } else {
+        const readyForDelivery = this.isReadyForDelivery(project);
         actions.push({
           action: 'deliver',
           iconImg: 'assets/images/delivery-hero.png',
           label: 'Mark as delivered',
-          tone: 'success'
+          tone: 'success',
+          disabled: !readyForDelivery,
+          disabledReason: 'Complete all project tasks before delivery'
         });
       }
       actions.push({
@@ -188,6 +188,73 @@ export class ProjectDetailPage implements OnInit {
     return Math.round((completed / tasks.length) * 100);
   }
 
+  deadlineDaysLeft(project: Project | null): number | null {
+    const deadline = this.projectDateAtLocalMidnight(project?.deadline);
+    if (!deadline) {
+      return null;
+    }
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return Math.round((deadline.getTime() - today.getTime()) / 86_400_000);
+  }
+
+  deadlineBadgeLabel(project: Project | null): string | null {
+    const daysLeft = this.deadlineDaysLeft(project);
+    if (daysLeft == null) {
+      return null;
+    }
+    if (daysLeft === 0) {
+      return 'Due today';
+    }
+    if (daysLeft === 1) {
+      return '1 day left';
+    }
+    if (daysLeft > 1) {
+      return `${daysLeft} days left`;
+    }
+    const overdueDays = Math.abs(daysLeft);
+    return overdueDays === 1 ? '1 day overdue' : `${overdueDays} days overdue`;
+  }
+
+  deadlineBadgeTone(project: Project | null): 'overdue' | 'today' | 'soon' | 'upcoming' {
+    const daysLeft = this.deadlineDaysLeft(project);
+    if (daysLeft == null || daysLeft > 7) {
+      return 'upcoming';
+    }
+    if (daysLeft < 0) {
+      return 'overdue';
+    }
+    if (daysLeft === 0) {
+      return 'today';
+    }
+    return 'soon';
+  }
+
+  private projectDateAtLocalMidnight(raw: unknown): Date | null {
+    if (raw == null || raw === '') {
+      return null;
+    }
+    if (typeof raw === 'string') {
+      const head = raw.length >= 10 ? raw.slice(0, 10) : raw;
+      const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(head);
+      if (match) {
+        return new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+      }
+      const parsed = new Date(raw);
+      if (!Number.isNaN(parsed.getTime())) {
+        parsed.setHours(0, 0, 0, 0);
+        return parsed;
+      }
+    }
+    if (Array.isArray(raw) && raw.length >= 3) {
+      const [year, month, day] = raw.map(Number);
+      if (Number.isFinite(year) && Number.isFinite(month) && Number.isFinite(day)) {
+        return new Date(year, month - 1, day);
+      }
+    }
+    return null;
+  }
+
   createdOnLabel(project: Project | null): string {
     if (!project?.createdAt) {
       return 'Not available';
@@ -221,13 +288,11 @@ export class ProjectDetailPage implements OnInit {
 
   constructor(
     private route: ActivatedRoute,
-    private router: Router,
     private projectService: ProjectService,
     private taskService: TaskService,
     private fileAccess: FileAccessService,
     private messageService: MessageService,
     private confirmationService: ConfirmationService,
-    private skillService: SkillService,
     private userService: UserService
   ) {}
 
@@ -366,131 +431,13 @@ export class ProjectDetailPage implements OnInit {
       .filter((id, index, ids) => ids.indexOf(id) === index);
   }
 
-  switchTab(tab: 'tasks' | 'files' | 'team', project: Project | null): void {
-    if (tab === 'team' && !this.canViewTeamSkillsTab()) {
-      tab = 'tasks';
-    }
+  switchTab(tab: 'tasks' | 'files'): void {
     this.activeTab = tab;
     this.searchText = '';
-    if (tab === 'team' && project?.id) {
-      this.refreshTeamPanel(project);
-    }
-  }
-
-  canEditProjectSkills(project: Project | null): boolean {
-    if (!project) {
-      return false;
-    }
-    const role = this.currentUserRole();
-    const uid = this.readStoredUser()?.id;
-    if (role === 'ADMIN') {
-      return true;
-    }
-    if (role === 'PROJECT_MANAGER' && project.managerId != null && uid != null) {
-      return project.managerId === uid;
-    }
-    return false;
-  }
-
-  /** Tab and API: collaborators and clients never see skill matching. */
-  canViewTeamSkillsTab(): boolean {
-    const role = this.currentUserRole();
-    return role === 'ADMIN' || role === 'PROJECT_MANAGER';
   }
 
   isAdminRole(): boolean {
     return this.currentUserRole() === 'ADMIN';
-  }
-
-  /** Section title for the match table (admins → PM fits, PMs → collaborator fits). */
-  teamMatchesSectionTitle(): string {
-    return this.isAdminRole() ? 'Best-fit project managers' : 'Best-fit collaborators';
-  }
-
-  saveProjectRequiredSkills(project: Project | null): void {
-    if (!project?.id || !this.canEditProjectSkills(project)) {
-      return;
-    }
-    this.savingRequiredSkills = true;
-    this.projectService.setProjectRequiredSkills(project.id, this.selectedRequiredSkillIds).subscribe({
-      next: () => {
-        this.savingRequiredSkills = false;
-        this.loadProject(project.id);
-        this.reloadTeamMatches();
-        this.messageService.add({
-          severity: 'success',
-          summary: 'Saved',
-          detail: 'Required skills were updated.'
-        });
-      },
-      error: (err) => {
-        this.savingRequiredSkills = false;
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: err.error?.error ?? err.error?.message ?? 'Could not save required skills.'
-        });
-      }
-    });
-  }
-
-  private refreshTeamPanel(project: Project): void {
-    if (!this.projectId || !this.canViewTeamSkillsTab()) {
-      return;
-    }
-    this.selectedRequiredSkillIds = (project.requiredSkills ?? []).map((s) => s.id);
-    this.loadSkillsCatalogIfNeeded(() => this.reloadTeamMatches());
-  }
-
-  private reloadTeamMatches(): void {
-    if (!this.projectId || !this.canViewTeamSkillsTab()) {
-      return;
-    }
-    this.teamPanelLoading = true;
-    this.projectService.getProjectSkillMatches(this.projectId).subscribe({
-      next: (res) => {
-        this.teamMatchResult = res;
-        this.teamPanelLoading = false;
-      },
-      error: () => {
-        this.teamMatchResult = null;
-        this.teamPanelLoading = false;
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: 'Could not load team matches.'
-        });
-      }
-    });
-  }
-
-  private loadSkillsCatalogIfNeeded(done: () => void): void {
-    if (this.allSkills.length > 0) {
-      done();
-      return;
-    }
-    this.skillsCatalogLoading = true;
-    this.skillService.getAllSkills().subscribe({
-      next: (skills) => {
-        this.allSkills = skills;
-        this.skillsCatalogLoading = false;
-        done();
-      },
-      error: () => {
-        this.skillsCatalogLoading = false;
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: 'Could not load skills catalog.'
-        });
-        done();
-      }
-    });
-  }
-
-  matchRowLabel(m: UserSkillMatch): string {
-    const parts = [m.firstName, m.lastName].filter(Boolean);
-    return parts.length ? parts.join(' ') : m.email ?? 'User';
   }
 
   filteredTasks(project: Project | null): Task[] {
@@ -559,7 +506,18 @@ export class ProjectDetailPage implements OnInit {
     if (action.action === 'archive' && project) {
       return project.archived ? 'Unarchive project' : action.label;
     }
+    if (action.disabled && action.disabledReason) {
+      return `${action.label} - ${action.disabledReason}`;
+    }
     return action.label;
+  }
+
+  private isReadyForDelivery(project: Project): boolean {
+    if (typeof project.readyForDelivery === 'boolean') {
+      return project.readyForDelivery;
+    }
+    const tasks = project.tasks ?? [];
+    return tasks.length > 0 && tasks.every((task) => task.status === TaskStatus.DONE);
   }
 
   /**
@@ -591,6 +549,10 @@ export class ProjectDetailPage implements OnInit {
         return;
       }
     } else if (this.currentUserRole() !== 'ADMIN') {
+      return;
+    }
+    const actionItem = this.projectToolbarActions(project).find((item) => item.action === action);
+    if (actionItem?.disabled) {
       return;
     }
 
@@ -709,8 +671,39 @@ export class ProjectDetailPage implements OnInit {
     });
   }
 
+  loadEditAssigneeSuggestions(project: Project | null): void {
+    if (!project?.id || !this.isProjectManagerOfProject(project)) {
+      this.assigneeCandidates = [];
+      this.assigneeCandidatesLoading = false;
+      return;
+    }
+    const seq = ++this.assigneeLoadSeq;
+    this.assigneeCandidatesLoading = true;
+    const ids = [...(this.editableTask.skillIds ?? [])].filter((id): id is number => id != null);
+    this.projectService.getAssigneeCandidates(project.id, ids).subscribe({
+      next: (rows) => {
+        if (seq !== this.assigneeLoadSeq) {
+          return;
+        }
+        this.assigneeCandidates = rows;
+        this.assigneeCandidatesLoading = false;
+      },
+      error: () => {
+        if (seq !== this.assigneeLoadSeq) {
+          return;
+        }
+        this.assigneeCandidates = [];
+        this.assigneeCandidatesLoading = false;
+      }
+    });
+  }
+
   onNewTaskSkillsChange(project: Project | null): void {
     this.loadAssigneeSuggestions(project);
+  }
+
+  onEditTaskSkillsChange(project: Project | null): void {
+    this.loadEditAssigneeSuggestions(project);
   }
 
   pickAssignee(email: string): void {
@@ -720,12 +713,17 @@ export class ProjectDetailPage implements OnInit {
     }
   }
 
-  openAssigneeSuggestionsPopup(): void {
+  openAssigneeSuggestionsPopup(target: 'new' | 'edit' = 'new'): void {
+    this.assigneeSuggestionTarget = target;
     this.assigneeSuggestionsPopupVisible = true;
   }
 
   pickAssigneeFromPopup(email: string): void {
-    this.pickAssignee(email);
+    if (this.assigneeSuggestionTarget === 'edit') {
+      this.editableTask.collaboratorEmail = email?.trim() ?? '';
+    } else {
+      this.pickAssignee(email);
+    }
     this.assigneeSuggestionsPopupVisible = false;
   }
 
@@ -874,6 +872,7 @@ export class ProjectDetailPage implements OnInit {
     };
     this.collaboratorEmailSuggestions = [];
     this.editTaskDialogVisible = true;
+    this.loadEditAssigneeSuggestions(project);
   }
 
   closeEditTaskDialog(): void {
@@ -935,6 +934,39 @@ export class ProjectDetailPage implements OnInit {
       return;
     }
     this.editableTask.collaboratorEmail = email;
+  }
+
+  canMarkTaskDone(task: Task | undefined, project: Project | null): boolean {
+    return (
+      !!task?.id &&
+      this.isProjectManagerOfProject(project) &&
+      !project?.archived &&
+      !project?.delivered &&
+      task.status === TaskStatus.IN_REVIEW
+    );
+  }
+
+  markTaskDone(task: Task | undefined, project: Project | null): void {
+    if (!task?.id || !project?.id || !this.canMarkTaskDone(task, project)) {
+      return;
+    }
+    this.taskService.updateTaskStatus(task.id, { status: TaskStatus.DONE }).subscribe({
+      next: () => {
+        this.loadProject(project.id!);
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Task completed',
+          detail: `Task "${task.title}" was marked as done.`
+        });
+      },
+      error: () => {
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Update failed',
+          detail: 'Could not mark this task as done. Try again.'
+        });
+      }
+    });
   }
 
   private resolveProjectsListUrl(): string {
@@ -1122,7 +1154,7 @@ export class ProjectDetailPage implements OnInit {
     }
   }
 
-  /** Client portal: read-only progress and shared files; no internal team/skills UI. */
+  /** Client portal: read-only progress and shared files. */
   isClientPortal(): boolean {
     return this.currentUserRole() === 'CLIENT';
   }

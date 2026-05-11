@@ -11,23 +11,28 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
+import { finalize, switchMap } from 'rxjs/operators';
 import { CdkDrag, CdkDragDrop, CdkDropList, DragDropModule } from '@angular/cdk/drag-drop';
 
 import { BadgeModule } from 'primeng/badge';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
+import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
 import { MessageService } from 'primeng/api';
 
 import { Priority, Task, TaskStatus } from '../../../../models/task.model';
 import { TaskService } from '../../../../services/task.service';
+import { TaskReportService } from '../../../../services/task-report.service';
 import { WebsocketService } from '../../../../services/websocket.service';
 import { AppLoaderComponent } from '../../../../layout/app-loader';
 import { TaskDetailsPanelComponent } from '../../task-details-panel';
 
 type KanbanColumn = { status: TaskStatus; title: string; canDrop: boolean; colorClass: string };
 type ManagerKanbanFilter = 'assigned_to_me' | 'assigned_to_others';
+type TaskDateFilter = 'all' | 'overdue' | 'recently_added';
+type TaskDateSort = 'none' | 'deadline_asc' | 'deadline_desc';
 
 @Component({
   selector: 'app-task-kanban-board',
@@ -43,6 +48,7 @@ type ManagerKanbanFilter = 'assigned_to_me' | 'assigned_to_others';
     ButtonModule,
     DialogModule,
     InputTextModule,
+    TextareaModule,
     ToastModule,
     AppLoaderComponent,
     TaskDetailsPanelComponent
@@ -54,6 +60,8 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
   @Input() projectId?: number;
   /** Optional filter line (e.g. project detail search bar). */
   @Input() filterText = '';
+  /** Taller columns when embedded (e.g. admin project detail). */
+  @Input() tallEmbed = false;
 
   tasks: Task[] = [];
   filteredTasks: Task[] = [];
@@ -79,10 +87,21 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
   role: string | null = null;
   selectedTask: Task | null = null;
   managerKanbanFilter: ManagerKanbanFilter = 'assigned_to_me';
+  dateFilter: TaskDateFilter = 'all';
+  dateSort: TaskDateSort = 'none';
 
   pauseDialogVisible = false;
   reviewDialogVisible = false;
-  pauseReason = '';
+  pauseReportReason = 'Task is not aligned with my skills';
+  pauseReportDetails = '';
+  pauseSubmitting = false;
+  readonly reportReasons = [
+    'Task is not aligned with my skills',
+    'I have too many tasks',
+    'Missing file or task information',
+    'Deadline or priority problem',
+    'Other problem'
+  ];
   reviewNote = '';
   pendingTask: Task | null = null;
   pendingStatus: TaskStatus | null = null;
@@ -92,6 +111,7 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
 
   constructor(
     private taskService: TaskService,
+    private taskReportService: TaskReportService,
     private ws: WebsocketService,
     private cdr: ChangeDetectorRef,
     private messageService: MessageService
@@ -233,6 +253,22 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
     this.cdr.markForCheck();
   }
 
+  setDateFilter(filter: TaskDateFilter): void {
+    if (this.dateFilter === filter) {
+      return;
+    }
+    this.dateFilter = filter;
+    this.rebuildColumnTasks();
+    this.clearSelectionIfTaskHidden();
+    this.cdr.markForCheck();
+  }
+
+  setDateSort(sort: Exclude<TaskDateSort, 'none'>): void {
+    this.dateSort = this.dateSort === sort ? 'none' : sort;
+    this.rebuildColumnTasks();
+    this.cdr.markForCheck();
+  }
+
   detectRole(): void {
     const userData = localStorage.getItem('user');
     if (userData) {
@@ -351,7 +387,8 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
     if (targetStatus === TaskStatus.ON_HOLD) {
       this.pendingTask = task;
       this.pendingStatus = targetStatus;
-      this.pauseReason = '';
+      this.pauseReportReason = this.reportReasons[0];
+      this.pauseReportDetails = '';
       this.pauseDialogVisible = true;
       return;
     }
@@ -376,16 +413,57 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
     if (!this.pendingTask || this.pendingStatus !== TaskStatus.ON_HOLD) {
       return;
     }
-    if (!this.pauseReason.trim()) {
+    const taskId = this.pendingTask.id;
+    if (!taskId) {
+      return;
+    }
+    const reason = this.pauseReportReason.trim();
+    const details = this.pauseReportDetails.trim();
+    if (!reason || !details) {
       this.messageService.add({
         severity: 'warn',
-        summary: 'Reason required',
-        detail: 'Please enter a reason for putting the task on hold.'
+        summary: 'Report incomplete',
+        detail: 'Choose a problem type and describe it for your project manager.'
       });
       return;
     }
-    this.pauseDialogVisible = false;
-    this.changeStatus(this.pendingTask, TaskStatus.ON_HOLD, this.pauseReason.trim());
+
+    const holdReason = this.compactHoldReasonForStorage(reason, details);
+    this.pauseSubmitting = true;
+    this.cdr.markForCheck();
+
+    this.taskReportService
+      .createReport(taskId, { reason, details })
+      .pipe(
+        switchMap(() =>
+          this.taskService.updateTaskStatus(taskId, { status: TaskStatus.ON_HOLD, holdReason })
+        ),
+        finalize(() => {
+          this.pauseSubmitting = false;
+          this.cdr.markForCheck();
+        })
+      )
+      .subscribe({
+        next: () => {
+          this.pauseDialogVisible = false;
+          this.resetPendingDialogState();
+          this.messageService.add({
+            severity: 'success',
+            summary: 'Task on hold',
+            detail: 'Your report was sent and the task was put on hold.'
+          });
+          this.loadTasks();
+        },
+        error: (err) => {
+          console.error('Hold with report failed', err);
+          this.messageService.add({
+            severity: 'error',
+            summary: 'Could not finish',
+            detail:
+              err?.error?.message ?? err?.error?.error ?? 'Report or status update failed. Try again.'
+          });
+        }
+      });
   }
 
   confirmReview(): void {
@@ -397,6 +475,9 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
   }
 
   cancelPauseDialog(): void {
+    if (this.pauseSubmitting) {
+      return;
+    }
     this.pauseDialogVisible = false;
     this.resetPendingDialogState();
   }
@@ -414,12 +495,6 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
   get reviewDialogTitle(): string {
     const title = this.pendingTask?.title?.trim();
     return title ? `Submit "${title}" for review` : 'Submit for review';
-  }
-
-  get pauseConfirmIntro(): string {
-    const title = this.pendingTask?.title?.trim();
-    const label = title ? `the task "${title}"` : 'this task';
-    return `Are you sure you want to put ${label} on hold?`;
   }
 
   get reviewConfirmIntro(): string {
@@ -441,7 +516,8 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
   requestPauseFromPanel(task: Task): void {
     this.pendingTask = task;
     this.pendingStatus = TaskStatus.ON_HOLD;
-    this.pauseReason = '';
+    this.pauseReportReason = this.reportReasons[0];
+    this.pauseReportDetails = '';
     this.pauseDialogVisible = true;
   }
 
@@ -522,18 +598,25 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
   private resetPendingDialogState(): void {
     this.pendingTask = null;
     this.pendingStatus = null;
-    this.pauseReason = '';
+    this.pauseReportReason = this.reportReasons[0];
+    this.pauseReportDetails = '';
     this.reviewNote = '';
   }
 
+  /** DB column limit safe summary; full text is stored on the TaskReport. */
+  private compactHoldReasonForStorage(reason: string, details: string): string {
+    const singleLine = `${reason}: ${details}`.replace(/\s+/g, ' ').trim();
+    const max = 250;
+    if (singleLine.length <= max) {
+      return singleLine;
+    }
+    return `${singleLine.slice(0, max - 1)}…`;
+  }
+
   private getFilteredTasksForBoard(): Task[] {
-    if (!this.isManager) {
-      return this.filteredTasks;
-    }
-    if (this.managerKanbanFilter === 'assigned_to_me') {
-      return this.filteredTasks.filter((task) => this.isCurrentUserAssignee(task));
-    }
-    return this.filteredTasks.filter((task) => this.isAssignedToCollaboratorsView(task));
+    const dateFiltered = this.filteredTasks.filter((task) => this.matchesDateFilter(task));
+    const managerScoped = this.getManagerScopedTasks(dateFiltered);
+    return this.sortTasksForBoard(managerScoped);
   }
 
   private hasAnyAssignee(task: Task): boolean {
@@ -559,6 +642,159 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
       }
     }
     this.columnTasks = next;
+  }
+
+  private clearSelectionIfTaskHidden(): void {
+    if (this.selectedTask?.id == null) {
+      return;
+    }
+    const visibleIds = new Set(
+      this.getFilteredTasksForBoard().map((task) => task.id).filter((id): id is number => id != null)
+    );
+    if (!visibleIds.has(this.selectedTask.id)) {
+      this.selectedTask = null;
+    }
+  }
+
+  private getManagerScopedTasks(tasks: Task[]): Task[] {
+    if (!this.isManager) {
+      return tasks;
+    }
+    if (this.managerKanbanFilter === 'assigned_to_me') {
+      return tasks.filter((task) => this.isCurrentUserAssignee(task));
+    }
+    return tasks.filter((task) => this.isAssignedToCollaboratorsView(task));
+  }
+
+  private matchesDateFilter(task: Task): boolean {
+    switch (this.dateFilter) {
+      case 'overdue': {
+        return this.isOverdue(task);
+      }
+      case 'recently_added': {
+        return this.isRecentlyAdded(task, this.filteredTasks);
+      }
+      case 'all':
+      default:
+        return true;
+    }
+  }
+
+  private sortTasksForBoard(tasks: Task[]): Task[] {
+    if (this.dateSort === 'none') {
+      return tasks;
+    }
+    const copy = [...tasks];
+    copy.sort((a, b) => this.compareTasks(a, b));
+    return copy;
+  }
+
+  private compareTasks(a: Task, b: Task): number {
+    switch (this.dateSort) {
+      case 'deadline_asc':
+        return this.compareDeadlineAsc(a, b);
+      case 'deadline_desc':
+        return this.compareDeadlineDesc(a, b);
+      case 'none':
+      default:
+        return 0;
+    }
+  }
+
+  private compareDeadlineAsc(a: Task, b: Task): number {
+    const aTs = this.safeDateTimestamp(a.deadline);
+    const bTs = this.safeDateTimestamp(b.deadline);
+    if (aTs == null && bTs == null) {
+      return this.compareRecentlyAdded(a, b);
+    }
+    if (aTs == null) {
+      return 1;
+    }
+    if (bTs == null) {
+      return -1;
+    }
+    if (aTs !== bTs) {
+      return aTs - bTs;
+    }
+    return this.compareRecentlyAdded(a, b);
+  }
+
+  private compareDeadlineDesc(a: Task, b: Task): number {
+    const aTs = this.safeDateTimestamp(a.deadline);
+    const bTs = this.safeDateTimestamp(b.deadline);
+    if (aTs == null && bTs == null) {
+      return this.compareRecentlyAdded(a, b);
+    }
+    if (aTs == null) {
+      return 1;
+    }
+    if (bTs == null) {
+      return -1;
+    }
+    if (aTs !== bTs) {
+      return bTs - aTs;
+    }
+    return this.compareRecentlyAdded(a, b);
+  }
+
+  private compareRecentlyAdded(a: Task, b: Task): number {
+    const aCreated = this.resolveCreatedTimestamp(a);
+    const bCreated = this.resolveCreatedTimestamp(b);
+    if (aCreated == null && bCreated == null) {
+      return (b.id ?? 0) - (a.id ?? 0);
+    }
+    if (aCreated == null) {
+      return 1;
+    }
+    if (bCreated == null) {
+      return -1;
+    }
+    if (aCreated !== bCreated) {
+      return bCreated - aCreated;
+    }
+    return (b.id ?? 0) - (a.id ?? 0);
+  }
+
+  private isRecentlyAdded(task: Task, pool: Task[]): boolean {
+    const createdTs = this.resolveCreatedTimestamp(task);
+    if (createdTs != null) {
+      const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
+      return Date.now() - createdTs <= sevenDaysMs;
+    }
+    return this.isInTopMostRecentById(task, pool, 10);
+  }
+
+  private isInTopMostRecentById(task: Task, pool: Task[], topCount: number): boolean {
+    const targetId = task.id ?? 0;
+    if (targetId <= 0) {
+      return false;
+    }
+    const ranked = pool
+      .map((item) => item.id ?? 0)
+      .filter((id) => id > 0)
+      .sort((a, b) => b - a)
+      .slice(0, topCount);
+    return ranked.includes(targetId);
+  }
+
+  private resolveCreatedTimestamp(task: Task): number | null {
+    const createdTs = this.safeDateTimestamp(task.createdAt);
+    if (createdTs != null) {
+      return createdTs;
+    }
+    const updatedTs = this.safeDateTimestamp(task.updatedAt);
+    if (updatedTs != null) {
+      return updatedTs;
+    }
+    return null;
+  }
+
+  private safeDateTimestamp(value?: string): number | null {
+    if (!value) {
+      return null;
+    }
+    const ts = new Date(value).getTime();
+    return Number.isNaN(ts) ? null : ts;
   }
 
   private statusFromListId(listId: string): TaskStatus {

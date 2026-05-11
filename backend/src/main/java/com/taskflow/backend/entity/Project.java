@@ -1,5 +1,7 @@
 package com.taskflow.backend.entity;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonProperty.Access;
 import jakarta.persistence.*;
 
 import java.time.LocalDate;
@@ -23,16 +25,11 @@ public class Project {
 
     private String name;
     private String description;
-    /** Planned or actual project start (optional). */
     private LocalDate startDate;
     private LocalDate deadline;
 
     private boolean archived = false;
-
-    /** Work temporarily stopped; only an administrator may change this. */
     private boolean paused = false;
-
-    /** Project closed / delivered; only an administrator may change this. */
     private boolean delivered = false;
 
     @CreationTimestamp
@@ -59,4 +56,8 @@ public class Project {
             inverseJoinColumns = @JoinColumn(name = "skill_id")
     )
     private Set<Skill> requiredSkills = new HashSet<>();
+
+    @Transient
+    @JsonProperty(value = "consumedProposalId", access = Access.WRITE_ONLY)
+    private Long consumedProposalId;
 }

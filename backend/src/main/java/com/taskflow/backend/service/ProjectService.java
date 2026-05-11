@@ -1,11 +1,15 @@
 package com.taskflow.backend.service;
 
 import com.taskflow.backend.dto.project.AssigneeCandidateResponse;
+import com.taskflow.backend.dto.project.ClientOptionResponse;
+import com.taskflow.backend.dto.project.ClientProjectRowResponse;
 import com.taskflow.backend.dto.project.ProjectLifecycleRequest;
 import com.taskflow.backend.dto.project.ProjectResponse;
 import com.taskflow.backend.dto.skill.ProjectSkillMatchResponse;
 import com.taskflow.backend.dto.skill.SkillResponse;
 import com.taskflow.backend.dto.skill.UserSkillMatchResponse;
+import com.taskflow.backend.dto.task.TaskResponse;
+import com.taskflow.backend.entity.Client;
 import com.taskflow.backend.entity.Project;
 import com.taskflow.backend.entity.Skill;
 import com.taskflow.backend.entity.Task;
@@ -15,6 +19,7 @@ import com.taskflow.backend.entity.UserRole;
 import com.taskflow.backend.exception.BadRequestException;
 import com.taskflow.backend.exception.ResourceNotFoundException;
 import com.taskflow.backend.exception.UnauthorizedException;
+import com.taskflow.backend.repository.ClientRepository;
 import com.taskflow.backend.repository.ProjectRepository;
 import com.taskflow.backend.repository.SkillRepository;
 import com.taskflow.backend.repository.TaskRepository;
@@ -25,13 +30,16 @@ import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import com.taskflow.backend.dto.websocket.ProjectMessage;
+import com.taskflow.backend.dto.websocket.TaskMessage;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -45,25 +53,29 @@ public class ProjectService {
     private final SkillRepository skillRepository;
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
+    private final ClientRepository clientRepository;
 
     private static final List<TaskStatus> ACTIVE_ASSIGNEE_STATUSES = List.of(
             TaskStatus.IN_PROGRESS,
             TaskStatus.ON_HOLD,
             TaskStatus.IN_REVIEW
     );
+    private static final String PROJECT_PAUSED_HOLD_REASON = "Project paused by admin.";
 
     public ProjectService(ProjectRepository projectRepository,
                           SimpMessagingTemplate messagingTemplate,
                           UploadedFileService uploadedFileService,
                           SkillRepository skillRepository,
                           TaskRepository taskRepository,
-                          UserRepository userRepository) {
+                          UserRepository userRepository,
+                          ClientRepository clientRepository) {
         this.projectRepository = projectRepository;
         this.messagingTemplate = messagingTemplate;
         this.uploadedFileService = uploadedFileService;
         this.skillRepository = skillRepository;
         this.taskRepository = taskRepository;
         this.userRepository = userRepository;
+        this.clientRepository = clientRepository;
     }
 
     @Transactional
@@ -176,11 +188,12 @@ public class ProjectService {
     }
 
     /**
-     * Projects listed for collaborators: non-archived, non-paused, non-delivered, and either a member or
-     * assigned on a task. Future start dates stay visible so they match the “not started” column in the UI.
+     * Projects listed for collaborators: non-archived, non-delivered, and either a member or
+     * assigned on a task. Paused projects stay visible so collaborators can track on-hold work.
+     * Future start dates stay visible so they match the “not started” column in the UI.
      */
     private boolean collaboratorSeesListableProject(Project project, User collaborator) {
-        if (project.isArchived() || project.isPaused() || project.isDelivered()) {
+        if (project.isArchived() || project.isDelivered()) {
             return false;
         }
         return collaboratorCanAccessProject(project, collaborator);
@@ -260,6 +273,51 @@ public class ProjectService {
         out.sort(Comparator
                 .comparingLong(AssigneeCandidateResponse::getActiveTaskCount)
                 .thenComparing(AssigneeCandidateResponse::getEmail, String.CASE_INSENSITIVE_ORDER));
+        return out;
+    }
+
+    /**
+     * Used when creating a project (no DB row yet): list active project managers, optionally filtered so they
+     * cover <strong>all</strong> requested skill ids — same matching rule as task assignee suggestions.
+     * Sorted by ascending active-task workload then email.
+     */
+    @Transactional(readOnly = true)
+    public List<AssigneeCandidateResponse> listProjectManagerCandidatesForAdmin(List<Long> skillIds, User actor) {
+        if (actor.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Only administrators can load project manager candidates");
+        }
+
+        List<Long> wanted = skillIds == null
+                ? List.of()
+                : skillIds.stream().filter(Objects::nonNull).distinct().toList();
+
+        Set<UserRole> roles = EnumSet.of(UserRole.PROJECT_MANAGER);
+        List<User> candidates = userRepository.findActiveByRolesWithSkills(roles);
+        List<AssigneeCandidateResponse> out = new ArrayList<>();
+        for (User u : candidates) {
+            if (!u.isActive()) {
+                continue;
+            }
+            Set<Long> userSkillIds = u.getSkills() == null
+                    ? Set.of()
+                    : u.getSkills().stream().map(Skill::getId).filter(Objects::nonNull).collect(Collectors.toSet());
+            int matched = (int) wanted.stream().filter(userSkillIds::contains).count();
+            if (!wanted.isEmpty() && matched < wanted.size()) {
+                continue;
+            }
+            long workload = taskRepository.countByCollaboratorIdAndStatusIn(u.getId(), ACTIVE_ASSIGNEE_STATUSES);
+            out.add(new AssigneeCandidateResponse(
+                    u.getEmail(),
+                    u.getFirstName(),
+                    u.getLastName(),
+                    u.getRole() != null ? u.getRole().name() : "",
+                    workload,
+                    matched
+            ));
+        }
+        out.sort(Comparator
+                .comparingLong(AssigneeCandidateResponse::getActiveTaskCount)
+                .thenComparing(c -> c.getEmail() != null ? c.getEmail() : "", String.CASE_INSENSITIVE_ORDER));
         return out;
     }
 
@@ -378,24 +436,75 @@ public class ProjectService {
         if (request == null) {
             throw new BadRequestException("Request body is required");
         }
-        Project project = projectRepository.findById(projectId)
+        Project project = projectRepository.findDetailedById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", projectId));
         if (request.getArchived() != null) {
             project.setArchived(request.getArchived());
         }
         if (request.getPaused() != null) {
             project.setPaused(request.getPaused());
+            if (request.getPaused()) {
+                pauseUnfinishedTasks(project);
+            }
         }
         if (request.getDelivered() != null) {
+            if (request.getDelivered() && !isReadyForDelivery(project)) {
+                throw new BadRequestException("All project tasks must be done before delivery.");
+            }
             project.setDelivered(request.getDelivered());
         }
         Project saved = projectRepository.save(project);
+        if (request.getPaused() != null && request.getPaused()) {
+            broadcastTaskUpdates(project.getTasks());
+        }
         ProjectMessage msg = new ProjectMessage("UPDATED", ProjectResponse.fromProject(saved));
         messagingTemplate.convertAndSend("/topic/projects", msg);
         return ProjectResponse.fromProject(
                 projectRepository.findDetailedById(projectId)
                         .orElseThrow(() -> new ResourceNotFoundException("Project", projectId))
         );
+    }
+
+    private boolean isReadyForDelivery(Project project) {
+        List<Task> tasks = project.getTasks() != null ? project.getTasks() : List.of();
+        return !tasks.isEmpty() && tasks.stream()
+                .allMatch(task -> task != null && task.getStatus() == TaskStatus.DONE);
+    }
+
+    private void pauseUnfinishedTasks(Project project) {
+        if (project.getTasks() == null) {
+            return;
+        }
+        for (Task task : project.getTasks()) {
+            if (task == null || task.getStatus() == TaskStatus.DONE) {
+                continue;
+            }
+            task.setStatus(TaskStatus.ON_HOLD);
+            if (task.getHoldReason() == null || task.getHoldReason().isBlank()) {
+                task.setHoldReason(PROJECT_PAUSED_HOLD_REASON);
+            }
+        }
+    }
+
+    private void broadcastTaskUpdates(List<Task> tasks) {
+        if (tasks == null) {
+            return;
+        }
+        for (Task task : tasks) {
+            if (task == null || task.getId() == null || task.getProject() == null || task.getStatus() != TaskStatus.ON_HOLD) {
+                continue;
+            }
+            TaskMessage msg = new TaskMessage("UPDATED", TaskResponse.fromTask(task));
+            messagingTemplate.convertAndSend("/topic/tasks/project/" + task.getProject().getId(), msg);
+            if (task.getCollaborators() == null) {
+                continue;
+            }
+            for (User collaborator : task.getCollaborators()) {
+                if (collaborator != null && collaborator.getId() != null) {
+                    messagingTemplate.convertAndSend("/topic/tasks/user/" + collaborator.getId(), msg);
+                }
+            }
+        }
     }
 
     public ProjectResponse addAttachment(Long projectId, MultipartFile file, User user) {
@@ -544,5 +653,223 @@ public class ProjectService {
         }
         SkillService.ensureNotArchived(found);
         return new HashSet<>(found);
+    }
+
+    /** Non-archived projects where the user is in {@link Project#getMembers()} (admin only). */
+    @Transactional(readOnly = true)
+    public List<ClientProjectRowResponse> listProjectsForClient(Long clientId, User actor) {
+        if (actor.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Only administrators can list client projects");
+        }
+        User client = userRepository.findById(clientId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", clientId));
+        if (client.getRole() != UserRole.CLIENT) {
+            throw new BadRequestException("User is not a client account.");
+        }
+        return projectRepository.findByMembersContainingAndArchived(client, false).stream()
+                .sorted(Comparator
+                        .comparing(Project::getDeadline, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .reversed()
+                        .thenComparing(p -> p.getName() == null ? "" : p.getName(),
+                                String.CASE_INSENSITIVE_ORDER))
+                .map(p -> new ClientProjectRowResponse(p.getId(), p.getName(), p.getDeadline()))
+                .toList();
+    }
+
+    /**
+     * Adds a client to each project's members set (non-archived projects only).
+     * Idempotent for duplicate membership.
+     */
+    @Transactional
+    public void addClientToProjects(Long clientId, List<Long> projectIds, User actor) {
+        if (actor.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Only administrators can assign clients to projects");
+        }
+        User client = userRepository.findById(clientId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", clientId));
+        if (client.getRole() != UserRole.CLIENT) {
+            throw new BadRequestException("User is not a client account.");
+        }
+        if (projectIds == null || projectIds.isEmpty()) {
+            return;
+        }
+        List<Long> uniqueIds = projectIds.stream().filter(Objects::nonNull).distinct().toList();
+        for (Long pid : uniqueIds) {
+            Project project = projectRepository.findById(pid)
+                    .orElseThrow(() -> new ResourceNotFoundException("Project", pid));
+            if (project.isArchived()) {
+                throw new BadRequestException("Cannot add clients to an archived project.");
+            }
+            if (project.getMembers() == null) {
+                project.setMembers(new HashSet<>());
+            }
+            project.getMembers().add(client);
+            Project saved = projectRepository.save(project);
+            projectRepository.findDetailedById(saved.getId()).ifPresent(detailed -> {
+                ProjectMessage msg = new ProjectMessage("UPDATED", ProjectResponse.fromProject(detailed));
+                messagingTemplate.convertAndSend("/topic/projects", msg);
+            });
+        }
+    }
+
+    /**
+     * Replaces the full set of (non-archived) projects this client belongs to. Archived projects
+     * are not touched. The client is added to projects in the new list and removed from any prior
+     * non-archived project not in the list.
+     */
+    @Transactional
+    public void replaceClientProjects(Long clientId, List<Long> projectIds, User actor) {
+        if (actor.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Only administrators can assign clients to projects");
+        }
+        User client = userRepository.findById(clientId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", clientId));
+        if (client.getRole() != UserRole.CLIENT) {
+            throw new BadRequestException("User is not a client account.");
+        }
+
+        Set<Long> targetIds = projectIds == null
+                ? new HashSet<>()
+                : projectIds.stream().filter(Objects::nonNull).collect(Collectors.toCollection(HashSet::new));
+
+        List<Project> affected = new ArrayList<>();
+        if (!targetIds.isEmpty()) {
+            for (Long pid : targetIds) {
+                Project project = projectRepository.findById(pid)
+                        .orElseThrow(() -> new ResourceNotFoundException("Project", pid));
+                if (project.isArchived()) {
+                    throw new BadRequestException("Cannot add clients to an archived project.");
+                }
+                if (project.getMembers() == null) {
+                    project.setMembers(new HashSet<>());
+                }
+                if (project.getMembers().stream().noneMatch(m -> m.getId().equals(client.getId()))) {
+                    project.getMembers().add(client);
+                    affected.add(projectRepository.save(project));
+                }
+            }
+        }
+
+        for (Project current : projectRepository.findByMembersContainingAndArchived(client, false)) {
+            if (targetIds.contains(current.getId())) {
+                continue;
+            }
+            current.getMembers().removeIf(m -> m.getId().equals(client.getId()));
+            affected.add(projectRepository.save(current));
+        }
+
+        for (Project saved : affected) {
+            projectRepository.findDetailedById(saved.getId()).ifPresent(detailed -> {
+                ProjectMessage msg = new ProjectMessage("UPDATED", ProjectResponse.fromProject(detailed));
+                messagingTemplate.convertAndSend("/topic/projects", msg);
+            });
+        }
+    }
+
+    /**
+     * Lists clients currently assigned to a project. Admins only.
+     */
+    @Transactional(readOnly = true)
+    public List<ClientOptionResponse> listClientsForProject(Long projectId, User actor) {
+        if (actor.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Only administrators can list project clients");
+        }
+        if (!projectRepository.existsById(projectId)) {
+            throw new ResourceNotFoundException("Project", projectId);
+        }
+        List<User> clients = projectRepository.findMembersByProjectIdAndRole(projectId, UserRole.CLIENT);
+        return mapClientsToOptions(clients);
+    }
+
+    /**
+     * Replaces the full set of client members on a project. Other members (manager, collaborators)
+     * are not affected. Cannot run on archived projects.
+     */
+    @Transactional
+    public void setProjectClients(Long projectId, List<Long> clientIds, User actor) {
+        if (actor.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Only administrators can change project clients");
+        }
+        Project project = projectRepository.findById(projectId)
+                .orElseThrow(() -> new ResourceNotFoundException("Project", projectId));
+        if (project.isArchived()) {
+            throw new BadRequestException("Cannot change clients on an archived project.");
+        }
+
+        Set<Long> wanted = clientIds == null
+                ? new HashSet<>()
+                : clientIds.stream().filter(Objects::nonNull).collect(Collectors.toCollection(HashSet::new));
+
+        List<User> resolved = new ArrayList<>();
+        if (!wanted.isEmpty()) {
+            resolved = userRepository.findAllById(wanted);
+            if (resolved.size() != wanted.size()) {
+                throw new BadRequestException("One or more selected clients are invalid.");
+            }
+            for (User u : resolved) {
+                if (u.getRole() != UserRole.CLIENT) {
+                    throw new BadRequestException("Selected user is not a client account: " + u.getEmail());
+                }
+            }
+        }
+
+        if (project.getMembers() == null) {
+            project.setMembers(new HashSet<>());
+        }
+        project.getMembers().removeIf(m -> m.getRole() == UserRole.CLIENT && !wanted.contains(m.getId()));
+        for (User client : resolved) {
+            if (project.getMembers().stream().noneMatch(m -> m.getId().equals(client.getId()))) {
+                project.getMembers().add(client);
+            }
+        }
+
+        Project saved = projectRepository.save(project);
+        projectRepository.findDetailedById(saved.getId()).ifPresent(detailed -> {
+            ProjectMessage msg = new ProjectMessage("UPDATED", ProjectResponse.fromProject(detailed));
+            messagingTemplate.convertAndSend("/topic/projects", msg);
+        });
+    }
+
+    private List<ClientOptionResponse> mapClientsToOptions(List<User> clients) {
+        if (clients == null || clients.isEmpty()) {
+            return List.of();
+        }
+        Map<Long, Client> profiles = clientProfileMapForUsers(clients);
+        return clients.stream()
+                .sorted(Comparator
+                        .comparing((User u) -> {
+                            Client cp = profiles.get(u.getId());
+                            String company = cp == null || cp.getCompanyName() == null ? "" : cp.getCompanyName();
+                            return company.toLowerCase(Locale.ROOT);
+                        })
+                        .thenComparing(u -> ((u.getFirstName() == null ? "" : u.getFirstName())
+                                + " " + (u.getLastName() == null ? "" : u.getLastName())).toLowerCase(Locale.ROOT)))
+                .map(u -> {
+                    Client cp = profiles.get(u.getId());
+                    return new ClientOptionResponse(
+                            u.getId(),
+                            u.getFirstName(),
+                            u.getLastName(),
+                            u.getEmail(),
+                            cp == null ? null : cp.getCompanyName()
+                    );
+                })
+                .toList();
+    }
+
+    private Map<Long, Client> clientProfileMapForUsers(List<User> users) {
+        List<Long> clientIds = users.stream()
+                .filter(u -> u.getRole() == UserRole.CLIENT)
+                .map(User::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (clientIds.isEmpty()) {
+            return Map.of();
+        }
+        Map<Long, Client> map = new LinkedHashMap<>();
+        for (Client cp : clientRepository.findAllByUser_IdIn(clientIds)) {
+            map.put(cp.getUser().getId(), cp);
+        }
+        return map;
     }
 }

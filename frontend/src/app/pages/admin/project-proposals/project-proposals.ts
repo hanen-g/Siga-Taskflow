@@ -1,15 +1,34 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
-import { TableModule } from 'primeng/table';
-import { TagModule } from 'primeng/tag';
-import { SelectModule } from 'primeng/select';
+import { PopoverModule } from 'primeng/popover';
+import { SkeletonModule } from 'primeng/skeleton';
 import { ToastModule } from 'primeng/toast';
 import { ConfirmationService, MessageService } from 'primeng/api';
 import { ProjectService } from '../../../services/project.service';
-import { UserService, ProjectManagerOption } from '../../../services/user.service';
+
+interface ProposalRow {
+  id: number;
+  name: string;
+  description?: string;
+  clientContact?: string;
+  proposerId?: number;
+  proposerFirstName?: string;
+  proposerLastName?: string;
+  proposerEmail?: string;
+  proposerRole?: string;
+  createdAt?: string;
+}
+
+interface ProposerOption {
+  id: number;
+  label: string;
+  role?: string;
+  initials: string;
+}
 
 @Component({
   selector: 'app-project-proposals',
@@ -18,143 +37,214 @@ import { UserService, ProjectManagerOption } from '../../../services/user.servic
     CommonModule,
     FormsModule,
     ButtonModule,
-    TableModule,
-    TagModule,
-    SelectModule,
     ToastModule,
-    ConfirmDialogModule
+    ConfirmDialogModule,
+    PopoverModule,
+    SkeletonModule
   ],
   templateUrl: './project-proposals.html',
   styleUrls: ['./project-proposals.css'],
   providers: [ConfirmationService, MessageService]
 })
 export class ProjectProposalsPage implements OnInit {
-  proposals: any[] = [];
-  projectManagers: ProjectManagerOption[] = [];
-  pmSelectOptions: { label: string; value: number }[] = [];
-  /** For collaborator-originated proposals, admin must pick a PM per row. */
-  managerIdByProposal: Record<number, number | null> = {};
+  proposals: ProposalRow[] = [];
   loading = true;
   error: string | null = null;
 
+  /** ISO yyyy-MM-dd strings, bound to native date inputs. */
+  dateFrom: string | null = null;
+  dateTo: string | null = null;
+
+  selectedProposerIds: number[] = [];
+
+  private readonly proposalDateFormatter = new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  });
+
   constructor(
     private projectService: ProjectService,
-    private userService: UserService,
+    private router: Router,
     private messageService: MessageService,
-    private confirmation: ConfirmationService
+    private confirmation: ConfirmationService,
+    private cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
-    this.userService.getProjectManagersForAdmin().subscribe({
-      next: (m) => {
-        setTimeout(() => {
-          this.projectManagers = m;
-          this.pmSelectOptions = this.projectManagers.map((u) => ({
-            label: `${u.firstName} ${u.lastName} (${u.email})`,
-            value: u.id
-          }));
-          this.load();
-        }, 0);
-      },
-      error: () => {
-        setTimeout(() => {
-          this.error = 'Could not load project managers.';
-          this.load();
-        }, 0);
-      }
-    });
+    this.load();
   }
 
   load(): void {
     this.loading = true;
     this.error = null;
+    this.cdr.markForCheck();
     this.projectService.listPendingProposals().subscribe({
       next: (list) => {
-        setTimeout(() => {
-          const nextManagerIdByProposal: Record<number, number | null> = { ...this.managerIdByProposal };
-          for (const p of list) {
-            if (p.proposerRole === 'COLLABORATOR' && nextManagerIdByProposal[p.id] === undefined) {
-              nextManagerIdByProposal[p.id] = this.projectManagers[0]?.id ?? null;
-            }
-          }
-          this.managerIdByProposal = nextManagerIdByProposal;
-          this.proposals = list;
-          this.loading = false;
-        }, 0);
+        this.proposals = list ?? [];
+        this.loading = false;
+        this.cdr.markForCheck();
       },
       error: (err) => {
-        setTimeout(() => {
-          this.error = err?.error?.message || 'Failed to load proposals.';
-          this.loading = false;
-        }, 0);
+        this.error = err?.error?.message || 'Failed to load proposals.';
+        this.loading = false;
+        this.cdr.markForCheck();
       }
     });
   }
 
-  needsManagerPick(p: { proposerRole: string }): boolean {
-    return p.proposerRole === 'COLLABORATOR';
-  }
-
-  approve(p: { id: number; proposerRole: string; name: string }): void {
-    let managerId: number | null | undefined;
-    if (p.proposerRole === 'COLLABORATOR') {
-      managerId = this.managerIdByProposal[p.id] ?? null;
-      if (managerId == null) {
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Manager required',
-          detail: 'Select a project manager before approving a collaborator’s proposal.'
-        });
-        return;
-      }
-    }
-
-    this.projectService.approveProposal(p.id, managerId).subscribe({
-      next: () => {
-        this.messageService.add({
-          severity: 'success',
-          summary: 'Approved',
-          detail: `Project "${p.name}" was created.`
-        });
-        this.load();
-      },
-      error: (err) => {
-        this.messageService.add({
-          severity: 'error',
-          summary: 'Error',
-          detail: err?.error?.message || 'Could not approve.'
-        });
-      }
+  startCreateFromProposal(p: { id: number }): void {
+    this.router.navigate(['/dashboard/admin/projects'], {
+      queryParams: { approveProposal: p.id }
     });
   }
 
   discard(p: { id: number; name: string; nativeEvent?: Event }): void {
     this.confirmation.confirm({
       target: p.nativeEvent?.target ?? undefined,
-      message: `Are you sure you want to discard the proposal “${p.name}”? This cannot be undone.`,
-      header: 'Discard proposal',
+      message: `Delete the proposal "${p.name}"? This permanently removes it from the database.`,
+      header: 'Delete proposal',
       icon: 'pi pi-times-circle',
       acceptButtonStyleClass: 'p-button-danger',
       accept: () => {
         this.projectService.discardProposal(p.id).subscribe({
           next: () => {
-            this.messageService.add({ severity: 'info', summary: 'Discarded', detail: 'Proposal was discarded.' });
+            this.messageService.add({
+              severity: 'info',
+              summary: 'Deleted',
+              detail: 'Proposal was removed.'
+            });
             this.load();
+            this.cdr.markForCheck();
           },
           error: (err) => {
             this.messageService.add({
               severity: 'error',
               summary: 'Error',
-              detail: err?.error?.message || 'Could not discard.'
+              detail: err?.error?.message || 'Could not delete.'
             });
+            this.cdr.markForCheck();
           }
         });
       }
     });
   }
 
-  proposerLabel(p: { proposerFirstName?: string; proposerLastName?: string; proposerEmail?: string; proposerRole?: string }): string {
-    const n = [p.proposerFirstName, p.proposerLastName].filter(Boolean).join(' ').trim();
-    return `${n || p.proposerEmail} (${(p.proposerRole || '').replace(/_/g, ' ')})`;
+  // --- Filtering -----------------------------------------------------------
+
+  get dateRangeActive(): boolean {
+    return Boolean(this.dateFrom || this.dateTo);
+  }
+
+  get proposerOptions(): ProposerOption[] {
+    const map = new Map<number, ProposerOption>();
+    for (const p of this.proposals) {
+      if (p.proposerId == null || map.has(p.proposerId)) continue;
+      map.set(p.proposerId, {
+        id: p.proposerId,
+        label: this.proposerName(p),
+        role: p.proposerRole,
+        initials: this.proposerInitials(p)
+      });
+    }
+    return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label));
+  }
+
+  get filteredProposals(): ProposalRow[] {
+    const fromMs = this.dateFrom ? new Date(`${this.dateFrom}T00:00:00`).getTime() : null;
+    const toMs = this.dateTo ? new Date(`${this.dateTo}T23:59:59.999`).getTime() : null;
+    const proposerSet = new Set(this.selectedProposerIds);
+    return this.proposals.filter((p) => {
+      if (proposerSet.size && (p.proposerId == null || !proposerSet.has(p.proposerId))) {
+        return false;
+      }
+      if (fromMs != null || toMs != null) {
+        if (!p.createdAt) return false;
+        const ts = new Date(p.createdAt).getTime();
+        if (Number.isNaN(ts)) return false;
+        if (fromMs != null && ts < fromMs) return false;
+        if (toMs != null && ts > toMs) return false;
+      }
+      return true;
+    });
+  }
+
+  onDateFromChange(value: string | null): void {
+    this.dateFrom = value || null;
+  }
+
+  onDateToChange(value: string | null): void {
+    this.dateTo = value || null;
+  }
+
+  clearDateRange(): void {
+    this.dateFrom = null;
+    this.dateTo = null;
+  }
+
+  isProposerSelected(id: number): boolean {
+    return this.selectedProposerIds.includes(id);
+  }
+
+  toggleProposer(id: number): void {
+    const idx = this.selectedProposerIds.indexOf(id);
+    if (idx >= 0) {
+      this.selectedProposerIds = [
+        ...this.selectedProposerIds.slice(0, idx),
+        ...this.selectedProposerIds.slice(idx + 1)
+      ];
+    } else {
+      this.selectedProposerIds = [...this.selectedProposerIds, id];
+    }
+  }
+
+  clearProposerFilter(): void {
+    this.selectedProposerIds = [];
+  }
+
+  resetFilters(): void {
+    this.clearDateRange();
+    this.clearProposerFilter();
+  }
+
+  trackById(_index: number, p: ProposalRow): number {
+    return p.id;
+  }
+
+  // --- Display helpers -----------------------------------------------------
+
+  isProjectManager(p: ProposalRow): boolean {
+    return (p.proposerRole || '').toUpperCase() === 'PROJECT_MANAGER';
+  }
+
+  proposerName(p: ProposalRow): string {
+    const full = [p.proposerFirstName, p.proposerLastName].filter(Boolean).join(' ').trim();
+    return full || p.proposerEmail || 'Unknown';
+  }
+
+  proposerInitials(p: ProposalRow): string {
+    const first = p.proposerFirstName?.charAt(0) ?? '';
+    const last = p.proposerLastName?.charAt(0) ?? '';
+    const initials = `${first}${last}`.toUpperCase();
+    if (initials) return initials;
+    return (p.proposerEmail?.charAt(0) ?? '?').toUpperCase();
+  }
+
+  formatRole(role?: string): string {
+    if (!role) return '';
+    return role.replace(/_/g, ' ').toUpperCase();
+  }
+
+  formatDate(value?: string): string {
+    if (!value) return 'Unknown date';
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return 'Unknown date';
+    return this.proposalDateFormatter.format(parsed);
+  }
+
+  clientSourceLabel(p: ProposalRow): string {
+    if (this.isProjectManager(p)) return ', from submitter';
+    if (p.proposerRole) return `(${this.formatRole(p.proposerRole)})`;
+    return '';
   }
 }

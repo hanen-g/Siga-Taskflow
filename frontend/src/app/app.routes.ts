@@ -3,7 +3,6 @@ import { Login } from './pages/login/login';
 import { Signup } from './pages/signup/signup';
 import { Dashboard } from './pages/dashboard/dashboard';
 import { ProjectsPage } from './pages/project_manager/projects/projects';
-import { IAChatComponent } from './ia-dashbord/ia-chat.component';
 
 import { AuthGuard } from './guards/auth.guard';
 import { AppLayout } from './layout/app.layout';
@@ -88,18 +87,8 @@ export const routes: Routes = [
         data: { roles: ['PROJECT_MANAGER'] }
       },
       {
-        path: 'dashboard/pm/ia-chat',
-        component: IAChatComponent,
-        data: { roles: ['PROJECT_MANAGER'] }
-      },
-      {
         path: 'dashboard/collab/tasks',
         loadComponent: () => import('./pages/tasks/tasks-page').then(m => m.TasksPage),
-        data: { roles: ['COLLABORATOR'] }
-      },
-      {
-        path: 'dashboard/collab/ia-chat',
-        component: IAChatComponent,
         data: { roles: ['COLLABORATOR'] }
       },
       {
@@ -110,6 +99,18 @@ export const routes: Routes = [
       {
         path: 'dashboard/admin',
         component: Dashboard,
+        data: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'dashboard/admin/advanced-filter',
+        loadComponent: () =>
+          import('./pages/admin/admin-advanced-filter/admin-advanced-filter').then((m) => m.AdminAdvancedFilterPage),
+        data: { roles: ['ADMIN'] }
+      },
+      {
+        path: 'dashboard/admin/ai-chat',
+        loadComponent: () =>
+          import('./pages/admin/admin-ai-assistant/admin-ai-assistant').then((m) => m.AdminAiAssistantPage),
         data: { roles: ['ADMIN'] }
       },
       {
@@ -152,11 +153,6 @@ export const routes: Routes = [
       {
         path: 'dashboard/admin/skills',
         loadComponent: () => import('./pages/admin/skills/admin-skills').then(m => m.AdminSkillsPage),
-        data: { roles: ['ADMIN'] }
-      },
-      {
-        path: 'dashboard/admin/ia-chat',
-        component: IAChatComponent,
         data: { roles: ['ADMIN'] }
       }
 

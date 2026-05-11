@@ -1,6 +1,10 @@
 package com.taskflow.backend.controller;
 
 import com.taskflow.backend.dto.project.AssigneeCandidateResponse;
+import com.taskflow.backend.dto.project.ClientIdsRequest;
+import com.taskflow.backend.dto.project.ClientOptionResponse;
+import com.taskflow.backend.dto.project.ClientProjectRowResponse;
+import com.taskflow.backend.dto.project.ProjectIdsRequest;
 import com.taskflow.backend.dto.project.ProjectLifecycleRequest;
 import com.taskflow.backend.dto.project.ProjectResponse;
 import com.taskflow.backend.dto.skill.ProjectSkillMatchResponse;
@@ -8,8 +12,12 @@ import com.taskflow.backend.dto.skill.SkillIdsRequest;
 import com.taskflow.backend.entity.Project;
 import com.taskflow.backend.entity.User;
 import com.taskflow.backend.entity.UserRole;
+import com.taskflow.backend.exception.BadRequestException;
+import com.taskflow.backend.exception.ResourceNotFoundException;
+import com.taskflow.backend.exception.UnauthorizedException;
 import com.taskflow.backend.repository.UserRepository;
 import com.taskflow.backend.security.CustomUserDetails;
+import com.taskflow.backend.service.ProjectProposalService;
 import com.taskflow.backend.service.ProjectService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -26,10 +34,15 @@ import java.util.Set;
 public class ProjectController {
 
     private final ProjectService projectService;
+    private final ProjectProposalService projectProposalService;
     private final UserRepository userRepository;
 
-    public ProjectController(ProjectService projectService, UserRepository userRepository) {
+    public ProjectController(
+            ProjectService projectService,
+            ProjectProposalService projectProposalService,
+            UserRepository userRepository) {
         this.projectService = projectService;
+        this.projectProposalService = projectProposalService;
         this.userRepository = userRepository;
     }
 
@@ -57,7 +70,15 @@ public class ProjectController {
         } else {
             project.getMembers().add(manager);
         }
-        return ResponseEntity.ok(projectService.createProject(project));
+        Long consumedProposalId = project.getConsumedProposalId();
+        ProjectResponse created = projectService.createProject(project);
+        if (consumedProposalId != null) {
+            projectProposalService.consumeAfterAdminCreatesProject(
+                    userDetails.getUser(),
+                    consumedProposalId,
+                    created.getId());
+        }
+        return ResponseEntity.ok(created);
     }
 
 
@@ -66,6 +87,97 @@ public class ProjectController {
     public List<ProjectResponse> getAllProjects() {
         return projectService.getAllProjects();
     }
+
+    /**
+     * Suggest project managers for the admin “create project” flow (skills + workload), before a project id exists.
+     */
+    @GetMapping("/admin/project-manager-candidates")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<AssigneeCandidateResponse> listProjectManagerCandidates(
+            @RequestParam(name = "skillIds", required = false) List<Long> skillIds,
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return projectService.listProjectManagerCandidatesForAdmin(skillIds, userDetails.getUser());
+    }
+
+    @GetMapping("/admin/clients/{clientId}/projects")
+    @PreAuthorize("hasRole('ADMIN')")
+    public List<ClientProjectRowResponse> listProjectsForClient(
+            @PathVariable Long clientId,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        return projectService.listProjectsForClient(clientId, userDetails.getUser());
+    }
+
+    @PostMapping("/admin/clients/{clientId}/projects")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> addClientToProjects(
+            @PathVariable Long clientId,
+            @RequestBody(required = false) ProjectIdsRequest body,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        try {
+            List<Long> ids = body == null ? List.of() : body.getProjectIds();
+            projectService.addClientToProjects(clientId, ids, userDetails.getUser());
+            return ResponseEntity.ok().build();
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (BadRequestException | UnauthorizedException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/admin/clients/{clientId}/projects")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> setClientProjects(
+            @PathVariable Long clientId,
+            @RequestBody(required = false) ProjectIdsRequest body,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        try {
+            List<Long> ids = body == null ? List.of() : body.getProjectIds();
+            projectService.replaceClientProjects(clientId, ids, userDetails.getUser());
+            return ResponseEntity.ok().build();
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (BadRequestException | UnauthorizedException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
+        }
+    }
+
+    @GetMapping("/{id}/clients")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> listProjectClients(
+            @PathVariable Long id,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        try {
+            List<ClientOptionResponse> rows = projectService.listClientsForProject(id, userDetails.getUser());
+            return ResponseEntity.ok(rows);
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (UnauthorizedException e) {
+            return ResponseEntity.status(403).body(java.util.Map.of("message", e.getMessage()));
+        }
+    }
+
+    @PutMapping("/{id}/clients")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<?> setProjectClients(
+            @PathVariable Long id,
+            @RequestBody(required = false) ClientIdsRequest body,
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        try {
+            List<Long> ids = body == null ? List.of() : body.getClientIds();
+            projectService.setProjectClients(id, ids, userDetails.getUser());
+            return ResponseEntity.ok().build();
+        } catch (ResourceNotFoundException e) {
+            return ResponseEntity.notFound().build();
+        } catch (BadRequestException | UnauthorizedException e) {
+            return ResponseEntity.badRequest().body(java.util.Map.of("message", e.getMessage()));
+        }
+    }
+
     @GetMapping("/my-projects")
 
     public List<ProjectResponse> myProjects(

@@ -28,6 +28,79 @@
   font-size: 1rem;
 }
 
+.pm-candidates-trigger {
+  margin-top: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.pm-candidates-popup-scroll {
+  max-height: min(22rem, 50vh);
+  overflow-y: auto;
+  padding-right: 0.35rem;
+}
+
+.pm-candidate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.pm-candidate-btn {
+  width: 100%;
+  text-align: left;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #334155;
+  font-size: 0.875rem;
+  cursor: pointer;
+  line-height: 1.35;
+}
+
+.pm-candidate-btn:hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+}
+
+
+.projects-status-pill.is-code-0 {
+  background: #ffedd5;
+  color: #9a3412;
+  border-color: #fdba74;
+}
+
+.projects-status-pill.is-code-1 {
+  background: #fef3c7;
+  color: #92400e;
+  border-color: #fcd34d;
+}
+
+.projects-status-pill.is-code-2 {
+  color: #1d4ed8;
+  border-color: #93c5fd;
+}
+
+.projects-status-pill.is-code-3 {
+  color: #475569;
+  border-color: #cbd5e1;
+}
+
+.projects-status-pill.is-code-4 {
+  color: #0f766e;
+  border-color: #67e8f9;
+}
+
+.projects-status-pill.is-code-5 {
+  color: #334155;
+  border-color: #cbd5e1;
+}
+
 .workspace-create-button {
   border-radius: 1rem;
   padding-inline: 1.25rem;
@@ -335,6 +408,19 @@
 .projects-proposals-urgent-meta {
   font-size: 0.85rem;
   color: #64748b;
+}
+
+.projects-proposals-status-code {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  padding: 0.2rem 0.48rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #ffedd5;
+  color: #9a3412;
+  border: 1px solid #fdba74;
 }
 
 .projects-proposals-urgent-deadline {

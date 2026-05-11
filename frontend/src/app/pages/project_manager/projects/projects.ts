@@ -1,9 +1,9 @@
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Observable, Subject, of } from 'rxjs';
-import { catchError, switchMap, startWith, tap } from 'rxjs/operators';
+import { catchError, finalize, switchMap, startWith, tap } from 'rxjs/operators';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, ParamMap, Router, RouterLink } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { ButtonModule } from 'primeng/button';
 import { MessageModule } from 'primeng/message';
@@ -17,8 +17,8 @@ import { MessageService, ConfirmationService } from 'primeng/api';
 import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
 
-import { ProjectService } from '../../../services/project.service';
-import { UserService, ProjectManagerOption } from '../../../services/user.service';
+import { AssigneeCandidate, ProjectService } from '../../../services/project.service';
+import { UserService, ProjectManagerOption, ClientAccountOption } from '../../../services/user.service';
 import { WebsocketService } from '../../../services/websocket.service';
 import { ApiService } from '../../../services/api';
 import { ProjectPanel } from './project-panel';
@@ -26,7 +26,6 @@ import { AppLoaderComponent } from '../../../layout/app-loader';
 import { ClientReportingPage } from '../../reporting/client-reporting.component';
 import { Skill } from '../../../models/skill.model';
 import { SkillService } from '../../../services/skill.service';
-import { NotificationService } from '../../../services/notification.service';
 
 @Component({
   standalone: true,
@@ -54,6 +53,14 @@ import { NotificationService } from '../../../services/notification.service';
   providers: [ConfirmationService, MessageService]
 })
 export class ProjectsPage implements OnInit {
+  readonly projectStatusLegend = [
+    { code: 0, label: 'Proposed', color: 'orange' },
+    { code: 1, label: 'Not started', color: 'yellow' },
+    { code: 2, label: 'In progress', color: 'blue' },
+    { code: 3, label: 'Archived', color: 'gray' },
+    { code: 4, label: 'Delivered', color: 'teal' },
+    { code: 5, label: 'Paused', color: 'slate' }
+  ];
 
   /** URL: ?filter=… | (none) full dashboard */
   projectsViewFilter: 'all' | 'not-started' | 'in-progress' | 'paused' = 'all';
@@ -83,22 +90,42 @@ export class ProjectsPage implements OnInit {
     deadline: string;
     managerId: number | null;
     requiredSkillIds: number[];
-  } = { name: '', description: '', startDate: '', deadline: '', managerId: null, requiredSkillIds: [] };
+    clientIds: number[];
+  } = { name: '', description: '', startDate: '', deadline: '', managerId: null, requiredSkillIds: [], clientIds: [] };
 
   displayProposeDialog = false;
-  proposeIdea = { name: '', description: '', deadline: '' as string | null };
+  proposeIdea = { name: '', description: '', clientContact: '' as string | null };
   proposeSubmitting = false;
   projectManagers: ProjectManagerOption[] = [];
   projectManagersLoadError: string | null = null;
   allSkills: Skill[] = [];
   skillsLoading = false;
+  clients: ClientAccountOption[] = [];
+  clientsLoading = false;
+  clientsLoadError: string | null = null;
+  /** Snapshot of clients assigned to the project being edited (for diff/no-op detection). */
+  private editClientIdsSnapshot: number[] = [];
 
   /** Optional file uploaded with admin “create project”. */
   createProjectAttachmentFile: File | null = null;
   saveInProgress = false;
 
+  /**
+   * When the admin opens “create project” from a proposal, the row is deleted on the server
+   * after a successful POST /api/projects with {@code consumedProposalId}.
+   */
+  createFromProposalId: number | null = null;
+  /** Display-only hint from the proposer (client contact text; maps to Clients multiselect manually). */
+  proposalClientContactHint: string | null = null;
+
   /** Pending project ideas (admin): shown as urgent alert above in-progress projects. */
   pendingProposals: any[] = [];
+
+  /** Create-project dialog: project managers filtered by workload (same backend as assignee hints). */
+  pmCandidatesPopupVisible = false;
+  pmCandidates: AssigneeCandidate[] = [];
+  pmCandidatesLoading = false;
+  private pmCandidateLoadSeq = 0;
 
   constructor(
     private projectService: ProjectService,
@@ -109,7 +136,7 @@ export class ProjectsPage implements OnInit {
     private confirmationService: ConfirmationService,
     private messageService: MessageService,
     private route: ActivatedRoute,
-    private notificationService: NotificationService,
+    private router: Router
   ) {
     this.ws.getProjectUpdates().subscribe(() => {
       this.refresh$.next();
@@ -121,7 +148,10 @@ export class ProjectsPage implements OnInit {
     this.syncProjectsViewFilterFromRoute();
     this.route.queryParamMap
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.syncProjectsViewFilterFromRoute());
+      .subscribe((params) => {
+        this.syncProjectsViewFilterFromRoute();
+        this.tryOpenCreateDialogFromApproveProposal(params);
+      });
 
     this.projects$ = this.refresh$.pipe(
       startWith(null),
@@ -206,7 +236,7 @@ export class ProjectsPage implements OnInit {
 
   /** Roles that may use filtered project list URLs (?filter=…). */
   supportsStatusFilteredNav(): boolean {
-    return this.supportsNotStartedNav();
+    return this.isAdmin || this.isProjectManager || this.isCollaborator || this.isClient;
   }
 
   /** Full grid: en cours + pause + sidebar + banners. Single-column filtered views omit this. */
@@ -288,54 +318,21 @@ export class ProjectsPage implements OnInit {
     );
   }
 
-  /** Nombre de compétences requises (parmi `required`) possédées par ce PM. */
-  private pmSkillOverlapCount(pm: ProjectManagerOption, required: number[]): number {
-    if (!required.length) {
-      return 0;
-    }
-    const pmSkills = this.pmSkillIdSet(pm);
-    return required.filter((id) => pmSkills.has(id)).length;
-  }
-
   /**
-   * Chefs de projet à proposer selon les compétences cochées :
-   * sans compétence → tous les PM ; sinon → ceux qui ont **au moins une** compétence en commun
-   * (tri : d’abord ceux qui ont **toutes** les compétences, puis par nombre de correspondances).
+   * Same rule as assignee suggestions: if required skills are selected, only managers who have **all**
+   * of them; otherwise show every project manager.
    */
   projectManagersMatchingRequiredSkills(): ProjectManagerOption[] {
     const required = this.normalizedRequiredSkillIds();
     if (!required.length) {
-      return this.projectManagers;
+      return [...this.projectManagers].sort((a, b) =>
+        `${a.firstName ?? ''} ${a.lastName ?? ''}`
+          .trim()
+          .localeCompare(`${b.firstName ?? ''} ${b.lastName ?? ''}`.trim(), undefined, { sensitivity: 'base' })
+      );
     }
     const need = new Set(required);
-    const scored = this.projectManagers.map((pm) => {
-      const matchCount = this.pmSkillOverlapCount(pm, required);
-      const full = matchCount === need.size;
-      return { pm, matchCount, full };
-    });
-    const matched = scored.filter((s) => s.matchCount > 0);
-    matched.sort((a, b) => {
-      if (a.full !== b.full) {
-        return a.full ? -1 : 1;
-      }
-      if (b.matchCount !== a.matchCount) {
-        return b.matchCount - a.matchCount;
-      }
-      const la = `${a.pm.firstName ?? ''} ${a.pm.lastName ?? ''}`.trim();
-      const lb = `${b.pm.firstName ?? ''} ${b.pm.lastName ?? ''}`.trim();
-      return la.localeCompare(lb, undefined, { sensitivity: 'base' });
-    });
-    return matched.map((s) => s.pm);
-  }
-
-  /** Au moins un PM possède toutes les compétences cochées. */
-  projectManagersIncludeFullSkillCover(): boolean {
-    const required = this.normalizedRequiredSkillIds();
-    if (!required.length) {
-      return true;
-    }
-    const need = new Set(required);
-    return this.projectManagers.some((pm) => {
+    const matched = this.projectManagers.filter((pm) => {
       const pmSkills = this.pmSkillIdSet(pm);
       for (const id of need) {
         if (!pmSkills.has(id)) {
@@ -344,24 +341,19 @@ export class ProjectsPage implements OnInit {
       }
       return true;
     });
+    matched.sort((a, b) =>
+      `${a.firstName ?? ''} ${a.lastName ?? ''}`
+        .trim()
+        .localeCompare(`${b.firstName ?? ''} ${b.lastName ?? ''}`.trim(), undefined, { sensitivity: 'base' })
+    );
+    return matched;
   }
 
   projectManagerOptions(): { label: string; value: number }[] {
-    const required = this.normalizedRequiredSkillIds();
-    return this.projectManagersMatchingRequiredSkills().map((u) => {
-      const n = required.length;
-      let suffix = '';
-      if (n > 0) {
-        const mc = this.pmSkillOverlapCount(u, required);
-        if (mc < n) {
-          suffix = ` — ${mc}/${n} compétence(s)`;
-        }
-      }
-      return {
-        label: `${u.firstName} ${u.lastName} (${u.email})${suffix}`,
-        value: u.id
-      };
-    });
+    return this.projectManagersMatchingRequiredSkills().map((u) => ({
+      label: `${u.firstName} ${u.lastName} (${u.email})`,
+      value: u.id
+    }));
   }
 
   onRequiredSkillsForProjectChange(): void {
@@ -373,6 +365,80 @@ export class ProjectsPage implements OnInit {
     if (match.length === 1) {
       this.newProject.managerId = match[0].id;
     }
+    if (this.pmCandidatesPopupVisible && !this.isEditMode && this.isAdmin) {
+      this.loadProjectManagerCandidatesForCreateForm();
+    }
+  }
+
+  openProjectManagerCandidatesPopup(): void {
+    if (!this.isAdmin || this.isEditMode || !this.displayDialog) {
+      return;
+    }
+    this.pmCandidatesPopupVisible = true;
+    this.loadProjectManagerCandidatesForCreateForm();
+  }
+
+  onProjectManagerCandidatesDialogHide(): void {
+    this.resetPmCandidatesState();
+  }
+
+  private resetPmCandidatesState(): void {
+    this.pmCandidatesPopupVisible = false;
+    this.pmCandidates = [];
+    this.pmCandidatesLoading = false;
+    this.pmCandidateLoadSeq++;
+  }
+
+  loadProjectManagerCandidatesForCreateForm(): void {
+    const seq = ++this.pmCandidateLoadSeq;
+    this.pmCandidatesLoading = true;
+    const ids = this.normalizedRequiredSkillIds();
+    this.projectService.getProjectManagerCandidates(ids).subscribe({
+      next: (rows) => {
+        if (seq !== this.pmCandidateLoadSeq) {
+          return;
+        }
+        this.pmCandidates = (rows ?? []).filter((r) => (r.role ?? '') === 'PROJECT_MANAGER');
+        this.pmCandidatesLoading = false;
+      },
+      error: () => {
+        if (seq !== this.pmCandidateLoadSeq) {
+          return;
+        }
+        this.pmCandidates = [];
+        this.pmCandidatesLoading = false;
+        this.notify('error', 'Error', 'Could not load project manager suggestions.');
+      }
+    });
+  }
+
+  formatProjectManagerCandidateRow(c: AssigneeCandidate): string {
+    const name = `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim();
+    const label = name ? `${name} <${c.email}>` : c.email;
+    const n = c.activeTaskCount ?? 0;
+    const workload = n === 1 ? '1 active task' : `${n} active tasks`;
+    const req = this.normalizedRequiredSkillIds();
+    const skillNote =
+      req.length > 0
+        ? ` • skills matched: ${c.matchedSkillCount ?? 0}/${req.length}`
+        : '';
+    return `${label} — ${workload}${skillNote}`;
+  }
+
+  pickProjectManagerFromCandidate(candidate: AssigneeCandidate): void {
+    const email = (candidate.email ?? '').trim().toLowerCase();
+    const pm = this.projectManagers.find((p) => (p.email ?? '').trim().toLowerCase() === email);
+    if (!pm) {
+      this.notify('warn', 'Could not assign', 'That manager could not be matched to the roster. Reload the dialog or pick from the dropdown.');
+      return;
+    }
+    const allowed = new Set(this.projectManagersMatchingRequiredSkills().map((m) => m.id));
+    if (!allowed.has(pm.id)) {
+      this.notify('warn', 'Skills', 'Selected skills require a manager who has all required skills.');
+      return;
+    }
+    this.newProject.managerId = pm.id;
+    this.pmCandidatesPopupVisible = false;
   }
 
   get projectDetailBase(): string {
@@ -414,6 +480,79 @@ export class ProjectsPage implements OnInit {
   }): string {
     const n = [p.proposerFirstName, p.proposerLastName].filter(Boolean).join(' ').trim();
     return n || p.proposerEmail || '—';
+  }
+
+  private tryOpenCreateDialogFromApproveProposal(params: ParamMap): void {
+    if (!this.isAdmin) return;
+    const raw = params.get('approveProposal');
+    if (!raw) return;
+    const id = Number(raw);
+    if (!Number.isFinite(id)) return;
+
+    this.projectService
+      .getProposalForAdmin(id)
+      .pipe(
+        finalize(() => {
+          void this.router.navigate([], {
+            relativeTo: this.route,
+            queryParams: { approveProposal: null },
+            queryParamsHandling: 'merge',
+            replaceUrl: true
+          });
+        })
+      )
+      .subscribe({
+        next: (p) => this.openCreateDialogPrefilledFromProposal(p),
+        error: () => {
+          this.notify('warn', 'Proposal', 'That proposal is no longer available.');
+        }
+      });
+  }
+
+  private openCreateDialogPrefilledFromProposal(p: any): void {
+    this.displayDialog = false;
+    this.resetPmCandidatesState();
+    this.isEditMode = false;
+    this.selectedProjectId = null;
+    this.createProjectAttachmentFile = null;
+    const n = Number(p?.id);
+    this.createFromProposalId = Number.isFinite(n) && n >= 1 ? n : null;
+    const cc = typeof p?.clientContact === 'string' ? p.clientContact.trim() : '';
+    this.proposalClientContactHint = cc.length ? cc : null;
+    this.newProject = {
+      name: (p?.name as string) ?? '',
+      description: (p?.description as string) ?? '',
+      startDate: this.nextDayYmdLocal(),
+      deadline: '',
+      managerId: p?.proposerRole === 'PROJECT_MANAGER' && typeof p?.proposerId === 'number' ? p.proposerId : null,
+      requiredSkillIds: [],
+      clientIds: []
+    };
+    this.editClientIdsSnapshot = [];
+    this.projectManagersLoadError = null;
+    this.loadSkillsIfNeeded();
+    this.loadClientsIfNeeded();
+    this.userService.getProjectManagersForAdmin().subscribe({
+      next: (m) => {
+        this.projectManagers = m;
+        this.displayDialog = true;
+      },
+      error: () => {
+        this.projectManagersLoadError = 'Could not load project managers.';
+        this.notify('error', 'Error', 'Could not load project managers for assignment.');
+        this.displayDialog = true;
+      }
+    });
+  }
+
+  /** Default “not started” start date used when turning a proposal into a project (local calendar day after today). */
+  private nextDayYmdLocal(): string {
+    const d = new Date();
+    d.setDate(d.getDate() + 1);
+    const y = d.getFullYear();
+    const mo = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${mo}-${day}`;
   }
 
   filteredProjects(projects: any[] | null): any[] {
@@ -529,9 +668,12 @@ export class ProjectsPage implements OnInit {
   showDialog() {
     this.isEditMode = false;
     this.createProjectAttachmentFile = null;
-    this.newProject = { name: '', description: '', startDate: '', deadline: '', managerId: null, requiredSkillIds: [] };
+    this.resetPmCandidatesState();
+    this.newProject = { name: '', description: '', startDate: '', deadline: '', managerId: null, requiredSkillIds: [], clientIds: [] };
+    this.editClientIdsSnapshot = [];
     this.projectManagersLoadError = null;
     this.loadSkillsIfNeeded();
+    this.loadClientsIfNeeded();
     this.userService.getProjectManagersForAdmin().subscribe({
       next: (m) => {
         this.projectManagers = m;
@@ -550,18 +692,71 @@ export class ProjectsPage implements OnInit {
     this.isEditMode = false;
     this.selectedProjectId = null;
     this.createProjectAttachmentFile = null;
+    this.createFromProposalId = null;
+    this.proposalClientContactHint = null;
+    this.editClientIdsSnapshot = [];
+    this.resetPmCandidatesState();
   }
 
   editProject(project: any) {
     this.isEditMode = true;
+    this.resetPmCandidatesState();
     this.createProjectAttachmentFile = null;
+    this.createFromProposalId = null;
+    this.proposalClientContactHint = null;
     this.selectedProjectId = project.id;
     this.newProject = {
       ...project,
-      requiredSkillIds: (project.requiredSkills ?? []).map((s: Skill) => s.id)
+      requiredSkillIds: (project.requiredSkills ?? []).map((s: Skill) => s.id),
+      clientIds: []
     };
+    this.editClientIdsSnapshot = [];
     this.loadSkillsIfNeeded();
+    this.loadClientsIfNeeded();
+    this.projectService.getProjectClients(project.id).subscribe({
+      next: (rows) => {
+        const ids = (rows ?? []).map((r) => r.id).filter((n): n is number => typeof n === 'number');
+        this.newProject.clientIds = [...ids];
+        this.editClientIdsSnapshot = [...ids];
+      },
+      error: () => {
+        this.newProject.clientIds = [];
+        this.editClientIdsSnapshot = [];
+      }
+    });
     this.displayDialog = true;
+  }
+
+  private loadClientsIfNeeded(): void {
+    if (this.clients.length > 0 || this.clientsLoading) {
+      return;
+    }
+    this.clientsLoading = true;
+    this.clientsLoadError = null;
+    this.userService.getClientsForAdmin().subscribe({
+      next: (list) => {
+        this.clients = list ?? [];
+        this.clientsLoading = false;
+      },
+      error: () => {
+        this.clients = [];
+        this.clientsLoading = false;
+        this.clientsLoadError = 'Could not load clients for assignment.';
+      }
+    });
+  }
+
+  clientOptions(): { label: string; value: number }[] {
+    return [...this.clients]
+      .map((c) => {
+        const name = `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim();
+        const company = c.company?.trim();
+        const head = company ? company : (name || c.email);
+        const detail = company && name ? ` — ${name}` : '';
+        const tail = c.email ? ` (${c.email})` : '';
+        return { label: `${head}${detail}${tail}`, value: c.id };
+      })
+      .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
   }
 
   private loadSkillsIfNeeded(): void {
@@ -621,7 +816,7 @@ export class ProjectsPage implements OnInit {
         this.notify(
           'error',
           'Validation',
-          'Aucun chef de projet ne possède au moins une des compétences sélectionnées. Associez des compétences aux profils ou modifiez la sélection.'
+          'No project manager has all selected required skills. Update skills or user profiles.'
         );
         return;
       }
@@ -631,7 +826,11 @@ export class ProjectsPage implements OnInit {
       }
       const allowed = new Set(this.projectManagersMatchingRequiredSkills().map((m) => m.id));
       if (!allowed.has(this.newProject.managerId)) {
-        this.notify('error', 'Validation', 'Le chef de projet choisi ne correspond pas aux compétences filtrées.');
+        this.notify(
+          'error',
+          'Validation',
+          'The selected project manager does not satisfy the required-skills rule (must have all selected skills).'
+        );
         return;
       }
     }
@@ -659,7 +858,11 @@ export class ProjectsPage implements OnInit {
           startDate: this.newProject.startDate || undefined,
           deadline: this.newProject.deadline || undefined,
           manager: { id: this.newProject.managerId! },
-          requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id }))
+          requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id })),
+          consumedProposalId:
+            this.createFromProposalId != null && this.createFromProposalId >= 1
+              ? this.createFromProposalId
+              : undefined
         });
 
     this.saveInProgress = true;
@@ -670,22 +873,29 @@ export class ProjectsPage implements OnInit {
           !isEditing && result && typeof result === 'object' && 'id' in result
             ? (result as { id: number }).id
             : null;
+        const targetId = isEditing ? this.selectedProjectId : newProjectId;
+
+        const continueAfterAttachment = (attachmentFailed: boolean) => {
+          this.persistProjectClientsIfNeeded(targetId, isEditing, (clientsFailed) => {
+            this.finishProjectSave(isEditing, attachmentFailed, clientsFailed);
+          });
+        };
 
         if (!isEditing && attachment && newProjectId != null) {
           this.projectService.uploadAttachment(newProjectId, attachment).subscribe({
             next: () => {
               this.createProjectAttachmentFile = null;
-              this.finishProjectSave(isEditing, false);
+              continueAfterAttachment(false);
             },
             error: () => {
               this.createProjectAttachmentFile = null;
-              this.finishProjectSave(isEditing, true);
+              continueAfterAttachment(true);
             }
           });
           return;
         }
 
-        this.finishProjectSave(isEditing, false);
+        continueAfterAttachment(false);
       },
       error: (err) => {
         this.saveInProgress = false;
@@ -702,8 +912,41 @@ export class ProjectsPage implements OnInit {
     });
   }
 
+  /**
+   * Sync project ↔ client assignments after the main create/update succeeded. When editing we skip the
+   * call when the selection was unchanged; on creation we always sync (even with an empty list, this is a
+   * no-op on the server).
+   */
+  private persistProjectClientsIfNeeded(
+    projectId: number | null,
+    isEditing: boolean,
+    done: (clientsFailed: boolean) => void
+  ): void {
+    if (projectId == null) {
+      done(false);
+      return;
+    }
+    const desired = [...(this.newProject.clientIds ?? [])];
+    if (isEditing) {
+      const a = [...desired].sort((x, y) => x - y);
+      const b = [...this.editClientIdsSnapshot].sort((x, y) => x - y);
+      const same = a.length === b.length && a.every((v, i) => v === b[i]);
+      if (same) {
+        done(false);
+        return;
+      }
+    } else if (desired.length === 0) {
+      done(false);
+      return;
+    }
+    this.projectService.setProjectClients(projectId, desired).subscribe({
+      next: () => done(false),
+      error: () => done(true)
+    });
+  }
+
   /** @param attachmentUploadFailed only when project was already created and optional file upload failed */
-  private finishProjectSave(isEditing: boolean, attachmentUploadFailed: boolean): void {
+  private finishProjectSave(isEditing: boolean, attachmentUploadFailed: boolean, clientsUpdateFailed = false): void {
     this.saveInProgress = false;
     this.closeDialog();
     this.refresh$.next();
@@ -712,6 +955,14 @@ export class ProjectsPage implements OnInit {
         'warn',
         'Partial success',
         'The project was created, but the attachment could not be uploaded. You can add a file from the project page.'
+      );
+    } else if (clientsUpdateFailed) {
+      this.notify(
+        'warn',
+        'Partial success',
+        isEditing
+          ? 'Project was updated, but client assignments could not be saved. Try again from the edit dialog.'
+          : 'Project was created, but client assignments could not be saved. Open the project to assign clients.'
       );
     } else {
       this.notify(
@@ -723,7 +974,7 @@ export class ProjectsPage implements OnInit {
   }
 
   showProposeDialog() {
-    this.proposeIdea = { name: '', description: '', deadline: null };
+    this.proposeIdea = { name: '', description: '', clientContact: '' };
     this.displayProposeDialog = true;
   }
 
@@ -738,11 +989,12 @@ export class ProjectsPage implements OnInit {
       return;
     }
     this.proposeSubmitting = true;
+    const clientContact = this.proposeIdea.clientContact?.trim() || undefined;
     this.projectService
       .submitProjectProposal({
         name,
         description: this.proposeIdea.description,
-        deadline: this.proposeIdea.deadline || null
+        clientContact: clientContact ?? null
       })
       .subscribe({
         next: () => {
@@ -750,7 +1002,6 @@ export class ProjectsPage implements OnInit {
           this.closeProposeDialog();
           this.notify('success', 'Submitted', 'Your project idea was sent to the administrator for review.');
           this.refresh$.next();
-          this.notificationService.requestNotificationsRefresh();
         },
         error: (err) => {
           this.proposeSubmitting = false;

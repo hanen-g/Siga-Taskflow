@@ -1,19 +1,23 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin } from 'rxjs';
 import { map } from 'rxjs/operators';
 import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
-import { DialogModule } from 'primeng/dialog';
 import { InputTextModule } from 'primeng/inputtext';
 import { MessageModule } from 'primeng/message';
-import { TableModule } from 'primeng/table';
+import { MultiSelectModule } from 'primeng/multiselect';
+import { SelectModule } from 'primeng/select';
 import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
 import { UserService, AdminUser } from '../../../services/user.service';
+import { ClientProjectRow, ProjectService } from '../../../services/project.service';
 
 type ClientGender = 'FEMALE' | 'MALE' | 'OTHER' | '';
+
+type RightPanelMode = 'form' | 'profile';
+type ListStatusFilter = 'all' | 'active' | 'inactive';
 
 @Component({
   selector: 'app-create-client-page',
@@ -26,38 +30,50 @@ type ClientGender = 'FEMALE' | 'MALE' | 'OTHER' | '';
     MessageModule,
     ToastModule,
     TextareaModule,
-    TableModule,
-    DialogModule
+    MultiSelectModule,
+    SelectModule,
   ],
   templateUrl: './create-client.html',
   styleUrls: ['./create-client.css'],
-  providers: [MessageService]
+  providers: [MessageService],
 })
 export class CreateClientPage implements OnInit {
+  readonly statusOptions: { label: string; value: boolean }[] = [
+    { label: 'Active', value: true },
+    { label: 'Inactive', value: false },
+  ];
+
   form = {
+    company: '',
+    fiscalMatricule: '',
     firstName: '',
     lastName: '',
     email: '',
     phoneNumber: '',
-    dateOfBirth: '' as string,
-    gender: '' as ClientGender,
-    recruitmentDate: '' as string,
-    company: '',
-    fiscalMatricule: '',
-    address: ''
+    address: '',
+    active: true,
   };
+  selectedProjectIds: number[] = [];
+  projectOptions: { label: string; value: number }[] = [];
+
   createLoading = false;
   tableLoading = false;
+  projectsCatalogLoading = false;
   createError: string | null = null;
 
-  /** Active + anciens comptes (désactivés) fusionnés, tri création récente */
   clients: AdminUser[] = [];
 
   private readonly statusSavingIds = new Set<number>();
 
-  /** Ligne sélectionnée — détails dans la boîte de dialogue */
+  listSearch = '';
+  listStatusFilter: ListStatusFilter = 'all';
+  nameSortAsc = true;
+
+  rightPanelMode: RightPanelMode = 'form';
   selectedClient: AdminUser | null = null;
-  detailDialogVisible = false;
+
+  profileProjects: ClientProjectRow[] = [];
+  profileProjectsLoading = false;
 
   detailEditing = false;
   detailSaveLoading = false;
@@ -72,23 +88,60 @@ export class CreateClientPage implements OnInit {
     recruitmentDate: '' as string,
     company: '',
     fiscalMatricule: '',
-    address: ''
+    address: '',
   };
+  /** Project ids selected for the currently-edited client (active projects only). */
+  detailEditProjectIds: number[] = [];
+  /** Snapshot used to detect whether the project list changed during the edit session. */
+  private detailEditInitialProjectIds: number[] = [];
 
   constructor(
     private userService: UserService,
-    private messageService: MessageService
+    private projectService: ProjectService,
+    private messageService: MessageService,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
     this.loadClients();
+    this.loadProjectCatalog();
+  }
+
+  get filteredClients(): AdminUser[] {
+    let list = [...this.clients];
+    const q = this.listSearch.trim().toLowerCase();
+    if (q) {
+      list = list.filter((c) => {
+        const company = (c.company ?? '').toLowerCase();
+        const email = (c.email ?? '').toLowerCase();
+        const name = `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim().toLowerCase();
+        const fiscal = (c.fiscalMatricule ?? '').toLowerCase();
+        return company.includes(q) || email.includes(q) || name.includes(q) || fiscal.includes(q);
+      });
+    }
+    if (this.listStatusFilter === 'active') {
+      list = list.filter((c) => c.active);
+    } else if (this.listStatusFilter === 'inactive') {
+      list = list.filter((c) => !c.active);
+    }
+
+    const dir = this.nameSortAsc ? 1 : -1;
+    list.sort((a, b) => {
+      const na = this.clientFullName(a).toLowerCase();
+      const nb = this.clientFullName(b).toLowerCase();
+      if (na !== nb) {
+        return na < nb ? -dir : dir;
+      }
+      return (a.company ?? '').localeCompare(b.company ?? '', undefined, { sensitivity: 'base' });
+    });
+    return list;
   }
 
   loadClients(): void {
     this.tableLoading = true;
     forkJoin({
       active: this.userService.getAdminUsers('', 'CLIENT', 'active'),
-      former: this.userService.getAdminUsers('', 'CLIENT', 'former')
+      former: this.userService.getAdminUsers('', 'CLIENT', 'former'),
     })
       .pipe(
         map(({ active, former }) => {
@@ -98,38 +151,145 @@ export class CreateClientPage implements OnInit {
             byId.set(u.id, u);
           }
           return [...byId.values()].sort((a, b) =>
-            String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? ''))
+            String(b.createdAt ?? '').localeCompare(String(a.createdAt ?? '')),
           );
-        })
+        }),
       )
       .subscribe({
         next: (list) => {
           this.clients = list;
           this.tableLoading = false;
+          if (this.selectedClient) {
+            const fresh = list.find((u) => u.id === this.selectedClient!.id);
+            if (fresh) {
+              this.selectedClient = fresh;
+            }
+          }
+          this.cdr.markForCheck();
         },
         error: () => {
           this.tableLoading = false;
           this.clients = [];
-        }
+          this.cdr.markForCheck();
+        },
       });
+  }
+
+  loadProjectCatalog(): void {
+    this.projectsCatalogLoading = true;
+    this.projectService.getAllProjects().subscribe({
+      next: (list) => {
+        this.projectsCatalogLoading = false;
+        this.projectOptions = (list ?? [])
+          .map((p) => ({
+            label: (p.name as string)?.trim() || `Project #${p.id}`,
+            value: p.id as number,
+          }))
+          .sort((a, b) => a.label.localeCompare(b.label, undefined, { sensitivity: 'base' }));
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.projectsCatalogLoading = false;
+        this.projectOptions = [];
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  showNewClientForm(): void {
+    this.selectedClient = null;
+    this.rightPanelMode = 'form';
+    this.detailEditing = false;
+    this.detailEditError = null;
+    this.profileProjects = [];
+  }
+
+  selectClient(c: AdminUser): void {
+    this.detailEditing = false;
+    this.detailEditError = null;
+    this.selectedClient = c;
+    this.rightPanelMode = 'profile';
+    this.loadProfileProjects(c.id);
+  }
+
+  
+
+  loadProfileProjects(clientId: number): void {
+    this.profileProjectsLoading = true;
+    this.profileProjects = [];
+    this.projectService.getProjectsForClient(clientId).subscribe({
+      next: (rows) => {
+        this.profileProjects = rows ?? [];
+        this.profileProjectsLoading = false;
+        this.cdr.markForCheck();
+      },
+      error: () => {
+        this.profileProjectsLoading = false;
+        this.profileProjects = [];
+        this.cdr.markForCheck();
+      },
+    });
+  }
+
+  toggleNameSort(): void {
+    this.nameSortAsc = !this.nameSortAsc;
+  }
+
+  clientFullName(c: Pick<AdminUser, 'firstName' | 'lastName'>): string {
+    const n = `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim();
+    return n || '—';
+  }
+
+  cycleListFilter(): void {
+    const order: ListStatusFilter[] = ['all', 'active', 'inactive'];
+    const i = order.indexOf(this.listStatusFilter);
+    this.listStatusFilter = order[(i + 1) % order.length];
+  }
+
+  filterIconClass(): string {
+    switch (this.listStatusFilter) {
+      case 'active':
+        return 'pi pi-filter-fill';
+      case 'inactive':
+        return 'pi pi-filter-slash';
+      default:
+        return 'pi pi-filter';
+    }
+  }
+
+  filterTooltip(): string {
+    switch (this.listStatusFilter) {
+      case 'active':
+        return 'Filter: Active only — click to change';
+      case 'inactive':
+        return 'Filter: Inactive only — click to change';
+      default:
+        return 'Filter: All clients — click to change';
+    }
   }
 
   private resetForm(): void {
     this.form = {
+      company: '',
+      fiscalMatricule: '',
       firstName: '',
       lastName: '',
       email: '',
       phoneNumber: '',
-      dateOfBirth: '',
-      gender: '',
-      recruitmentDate: '',
-      company: '',
-      fiscalMatricule: '',
-      address: ''
+      address: '',
+      active: true,
     };
+    this.selectedProjectIds = [];
+    this.createError = null;
   }
 
-  /** Affichage du détail lecture seule. */
+  clearForm(): void {
+    if (this.createLoading) {
+      return;
+    }
+    this.resetForm();
+  }
+
   formatAddressPlain(blob: string | null | undefined): string {
     const t = (blob ?? '').trim();
     return t ? t.replace(/\s+$/, '') : '—';
@@ -138,20 +298,24 @@ export class CreateClientPage implements OnInit {
   genderLabel(code: string | null | undefined): string {
     switch (code) {
       case 'FEMALE':
-        return 'Femme';
+        return 'Female';
       case 'MALE':
-        return 'Homme';
+        return 'Male';
       case 'OTHER':
-        return 'Autre';
+        return 'Other';
       default:
         return '—';
     }
   }
 
-  formatDate(val: string | null | undefined): string {
-    if (!val) return '—';
+  formatDeadline(val: string | null | undefined): string {
+    if (!val) {
+      return '—';
+    }
     const d = val.includes('T') ? val.split('T')[0] : String(val).slice(0, 10);
-    if (!d || d.length < 10) return '—';
+    if (!d || d.length < 10) {
+      return '—';
+    }
     try {
       const [y, m, day] = d.split('-');
       return `${day}/${m}/${y}`;
@@ -164,22 +328,45 @@ export class CreateClientPage implements OnInit {
     return this.statusSavingIds.has(id);
   }
 
-  openClientDetail(c: AdminUser): void {
-    this.detailEditing = false;
-    this.detailEditError = null;
-    this.selectedClient = c;
-    this.detailDialogVisible = true;
+  avatarInitials(c: Pick<AdminUser, 'firstName' | 'lastName'>): string {
+    const f = (c.firstName ?? '').trim()[0] ?? '';
+    const l = (c.lastName ?? '').trim()[0] ?? '';
+    const s = (f + l).toUpperCase();
+    return s || '?';
   }
 
-  onDetailHide(): void {
-    this.detailEditing = false;
-    this.detailEditError = null;
-    this.selectedClient = null;
+  profileCompanyTitle(): string {
+    const c = this.selectedClient;
+    if (!c) {
+      return '';
+    }
+    return (c.company ?? '').trim() || `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || 'Client';
+  }
+
+  profileBannerName(): string {
+    const c = this.selectedClient;
+    if (!c) {
+      return '';
+    }
+    return `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || '—';
+  }
+
+  sendEmail(): void {
+    const e = this.selectedClient?.email;
+    if (e) {
+      window.location.href = `mailto:${encodeURIComponent(e)}`;
+    }
+  }
+
+  printProfile(): void {
+    window.print();
   }
 
   startDetailEdit(): void {
     const d = this.selectedClient;
-    if (!d) return;
+    if (!d) {
+      return;
+    }
     this.detailEditError = null;
     this.detailEditForm = {
       firstName: d.firstName ?? '',
@@ -191,59 +378,41 @@ export class CreateClientPage implements OnInit {
       recruitmentDate: this.apiDateToInput(d.recruitmentDate),
       company: d.company ?? '',
       fiscalMatricule: d.fiscalMatricule ?? '',
-      address: d.address ?? ''
+      address: d.address ?? '',
     };
+    const projectIds = (this.profileProjects ?? [])
+      .map((p) => p.id)
+      .filter((id): id is number => typeof id === 'number');
+    this.detailEditProjectIds = [...projectIds];
+    this.detailEditInitialProjectIds = [...projectIds];
     this.detailEditing = true;
   }
 
   cancelDetailEdit(): void {
     this.detailEditing = false;
     this.detailEditError = null;
+    this.detailEditProjectIds = [...this.detailEditInitialProjectIds];
   }
 
   private apiDateToInput(api: string | null | undefined): string {
-    if (!api) return '';
+    if (!api) {
+      return '';
+    }
     const s = api.includes('T') ? String(api.split('T')[0]) : String(api).slice(0, 10);
     return s.length >= 10 ? s : '';
   }
 
   saveDetailProfile(): void {
     const d = this.selectedClient;
-    if (!d || this.detailSaveLoading) return;
+    if (!d || this.detailSaveLoading) {
+      return;
+    }
 
     const f = this.detailEditForm;
     this.detailEditError = null;
 
     if (!f.firstName?.trim() || !f.lastName?.trim() || !f.email?.trim()) {
-      this.detailEditError = 'Renseignez le prénom, le nom et l’e-mail.';
-      return;
-    }
-    if (!f.phoneNumber?.trim()) {
-      this.detailEditError = 'Renseignez le numéro de téléphone.';
-      return;
-    }
-    if (!f.dateOfBirth?.trim()) {
-      this.detailEditError = 'Renseignez la date de naissance.';
-      return;
-    }
-    if (!f.gender?.trim()) {
-      this.detailEditError = 'Sélectionnez le genre.';
-      return;
-    }
-    if (!f.recruitmentDate?.trim()) {
-      this.detailEditError = 'Renseignez la date de recrutement.';
-      return;
-    }
-    if (!f.company?.trim()) {
-      this.detailEditError = 'Renseignez la société.';
-      return;
-    }
-    if (!f.fiscalMatricule?.trim()) {
-      this.detailEditError = 'Renseignez le matricule fiscal.';
-      return;
-    }
-    if (!f.address?.trim()) {
-      this.detailEditError = 'Renseignez l’adresse.';
+      this.detailEditError = 'First name, last name and email are required.';
       return;
     }
 
@@ -254,17 +423,16 @@ export class CreateClientPage implements OnInit {
         lastName: f.lastName.trim(),
         email: f.email.trim().toLowerCase(),
         role: 'CLIENT',
-        phoneNumber: f.phoneNumber.trim(),
-        address: f.address.trim(),
-        dateOfBirth: f.dateOfBirth.trim(),
-        gender: f.gender.trim(),
-        recruitmentDate: f.recruitmentDate.trim(),
-        company: f.company.trim(),
-        fiscalMatricule: f.fiscalMatricule.trim()
+        phoneNumber: f.phoneNumber?.trim() || undefined,
+        address: f.address?.trim() || undefined,
+        dateOfBirth: f.dateOfBirth?.trim() || undefined,
+        gender: f.gender?.trim() || undefined,
+        recruitmentDate: f.recruitmentDate?.trim() || undefined,
+        company: f.company?.trim() || undefined,
+        fiscalMatricule: f.fiscalMatricule?.trim() || undefined,
       })
       .subscribe({
         next: (updated) => {
-          this.detailSaveLoading = false;
           const row = this.clients.find((u) => u.id === updated.id);
           if (row) {
             Object.assign(row, updated);
@@ -272,29 +440,54 @@ export class CreateClientPage implements OnInit {
           if (this.selectedClient?.id === updated.id) {
             Object.assign(this.selectedClient, updated);
           }
-          this.detailEditing = false;
-          this.messageService.add({
-            severity: 'success',
-            summary: 'Profil mis à jour',
-            detail: 'Les informations du client ont été enregistrées.',
-            life: 2200
-          });
+          this.persistDetailProjectsIfChanged(updated.id);
         },
         error: (err) => {
           this.detailSaveLoading = false;
           const msg = err?.error?.message;
-          this.detailEditError = typeof msg === 'string' ? msg : 'Impossible d’enregistrer le profil.';
-        }
+          this.detailEditError = typeof msg === 'string' ? msg : 'Could not save profile.';
+          this.cdr.markForCheck();
+        },
       });
   }
 
-  clientDetailHeader(): string {
-    const c = this.selectedClient;
-    if (!c) {
-      return 'Détails du client';
+  private persistDetailProjectsIfChanged(clientId: number): void {
+    const next = [...this.detailEditProjectIds].sort((a, b) => a - b);
+    const prev = [...this.detailEditInitialProjectIds].sort((a, b) => a - b);
+    const same = next.length === prev.length && next.every((id, i) => id === prev[i]);
+    if (same) {
+      this.completeDetailSave(clientId, true);
+      return;
     }
-    const name = `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim();
-    return name || 'Détails du client';
+    this.projectService.setClientProjects(clientId, next).subscribe({
+      next: () => this.completeDetailSave(clientId, true),
+      error: (err) => {
+        const msg = err?.error?.message;
+        this.completeDetailSave(clientId, false, typeof msg === 'string' ? msg : undefined);
+      },
+    });
+  }
+
+  private completeDetailSave(clientId: number, projectsOk: boolean, projectsErr?: string): void {
+    this.detailSaveLoading = false;
+    this.detailEditing = false;
+    this.detailEditInitialProjectIds = [...this.detailEditProjectIds];
+    this.loadProfileProjects(clientId);
+    this.messageService.add({
+      severity: 'success',
+      summary: 'Profile updated',
+      detail: 'Client details were saved.',
+      life: 2200,
+    });
+    if (!projectsOk) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Projects',
+        detail: projectsErr ?? 'Profile saved, but project assignments could not be updated.',
+        life: 5000,
+      });
+    }
+    this.cdr.markForCheck();
   }
 
   onClientStatusToggle(c: AdminUser, nextActive: boolean): void {
@@ -312,61 +505,48 @@ export class CreateClientPage implements OnInit {
         this.statusSavingIds.delete(id);
         this.messageService.add({
           severity: 'success',
-          summary: 'Statut mis à jour',
-          detail: updated.active ? 'Le compte est actif.' : 'Le compte est désactivé.',
-          life: 2000
+          summary: 'Status updated',
+          detail: updated.active ? 'Account is active.' : 'Account is inactive.',
+          life: 2000,
         });
+        this.cdr.markForCheck();
       },
       error: () => {
         c.active = prev;
         this.statusSavingIds.delete(id);
         this.messageService.add({
           severity: 'error',
-          summary: 'Échec',
-          detail: 'Impossible de modifier le statut du compte.',
-          life: 3500
+          summary: 'Failed',
+          detail: 'Could not update account status.',
+          life: 3500,
         });
-      }
+        this.cdr.markForCheck();
+      },
     });
   }
 
   submit(): void {
     this.createError = null;
 
+    if (!this.form.company?.trim()) {
+      this.createError = 'Company name is required.';
+      return;
+    }
     if (!this.form.firstName?.trim() || !this.form.lastName?.trim() || !this.form.email?.trim()) {
-      this.createError = 'Renseignez le prénom, le nom et l’e-mail.';
+      this.createError = 'First name, last name and email are required.';
       return;
     }
     if (!this.form.phoneNumber?.trim()) {
-      this.createError = 'Renseignez le numéro de téléphone.';
-      return;
-    }
-    if (!this.form.dateOfBirth?.trim()) {
-      this.createError = 'Renseignez la date de naissance.';
-      return;
-    }
-    if (!this.form.gender?.trim()) {
-      this.createError = 'Sélectionnez le genre.';
-      return;
-    }
-    if (!this.form.recruitmentDate?.trim()) {
-      this.createError = 'Renseignez la date de recrutement.';
-      return;
-    }
-    if (!this.form.company?.trim()) {
-      this.createError = 'Renseignez la société.';
-      return;
-    }
-    if (!this.form.fiscalMatricule?.trim()) {
-      this.createError = 'Renseignez le matricule fiscal.';
+      this.createError = 'Phone number is required.';
       return;
     }
     if (!this.form.address?.trim()) {
-      this.createError = 'Renseignez l’adresse.';
+      this.createError = 'Address is required.';
       return;
     }
 
     this.createLoading = true;
+    const fiscal = this.form.fiscalMatricule?.trim();
     this.userService
       .createAdminUser({
         firstName: this.form.firstName.trim(),
@@ -376,30 +556,63 @@ export class CreateClientPage implements OnInit {
         skillIds: [],
         phoneNumber: this.form.phoneNumber.trim(),
         address: this.form.address.trim(),
-        dateOfBirth: this.form.dateOfBirth.trim(),
-        active: false,
-        gender: this.form.gender.trim(),
-        recruitmentDate: this.form.recruitmentDate.trim(),
+        active: this.form.active,
         company: this.form.company.trim(),
-        fiscalMatricule: this.form.fiscalMatricule.trim()
+        ...(fiscal ? { fiscalMatricule: fiscal } : {}),
       })
       .subscribe({
         next: (res) => {
-          this.createLoading = false;
-          this.messageService.add({
-            severity: 'success',
-            summary: 'Client créé',
-            detail: res?.message ?? 'Compte client enregistré.',
-            life: 2000
+          const newUser = res.user;
+          const projectIds = [...this.selectedProjectIds];
+          const finishSuccess = (assignOk: boolean, assignErr?: string) => {
+            this.createLoading = false;
+            this.messageService.add({
+              severity: 'success',
+              summary: 'Client created',
+              detail: res?.message ?? 'Account saved.',
+              life: 2400,
+            });
+            if (projectIds.length && !assignOk) {
+              this.messageService.add({
+                severity: 'warn',
+                summary: 'Projects',
+                detail: assignErr ?? 'Client was created but project assignment failed.',
+                life: 5000,
+              });
+            }
+            this.resetForm();
+            this.clients = [newUser, ...this.clients.filter((u) => u.id !== newUser.id)];
+            this.selectClient(newUser);
+            this.cdr.markForCheck();
+          };
+
+          if (projectIds.length === 0) {
+            finishSuccess(true);
+            return;
+          }
+
+          this.projectService.setClientProjects(newUser.id, projectIds).subscribe({
+            next: () => finishSuccess(true),
+            error: (err) => {
+              const msg = err?.error?.message;
+              finishSuccess(false, typeof msg === 'string' ? msg : undefined);
+            },
           });
-          this.resetForm();
-          this.loadClients();
         },
         error: (err) => {
           this.createLoading = false;
           const msg = err?.error?.message;
-          this.createError = typeof msg === 'string' ? msg : 'Impossible de créer le compte client.';
-        }
+          this.createError = typeof msg === 'string' ? msg : 'Could not create client account.';
+          this.cdr.markForCheck();
+        },
       });
+  }
+
+  listRowActivate(event: Event, c: AdminUser): void {
+    const kb = event as KeyboardEvent;
+    if (kb.key === 'Enter' || kb.key === ' ') {
+      kb.preventDefault();
+      this.selectClient(c);
+    }
   }
 }

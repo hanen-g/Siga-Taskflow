@@ -38,6 +38,7 @@ export class AdminReportingPage implements OnInit {
   data?: AdminDashboard;
 
   usersRoleDonut = donutData();
+  projectsStatusDonut = donutData();
   tasksPerProject = barData();
   pmBar = barData();
   platStatus = donutData();
@@ -61,6 +62,7 @@ export class AdminReportingPage implements OnInit {
         next: (d) => {
           this.data = d;
           this.usersRoleDonut = donutData(d.usersByRole);
+          this.projectsStatusDonut = donutData(d.projectsByStatus);
           this.tasksPerProject = barData(d.tasksPerProject, 'Tasks');
           this.pmBar = barData(d.projectManagerTeamCompletionPercent, 'Team %');
           this.platStatus = donutData(d.platformStatusDistribution);

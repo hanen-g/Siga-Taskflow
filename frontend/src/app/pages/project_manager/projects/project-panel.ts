@@ -18,6 +18,7 @@ import { ButtonModule } from 'primeng/button';
 import { Menu, MenuModule } from 'primeng/menu';
 
 import { Project } from '../../../models/project.model';
+import { TaskStatus } from '../../../models/task.model';
 import { ProjectService } from '../../../services/project.service';
 
 @Component({
@@ -256,6 +257,61 @@ import { ProjectService } from '../../../services/project.service';
       line-height: 1.4;
     }
 
+    .project-status-column {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin: 0;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #334155;
+    }
+
+    .project-status-code {
+      min-width: 1.55rem;
+      text-align: center;
+      padding: 0.14rem 0.4rem;
+      border-radius: 999px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      border: 1px solid transparent;
+    }
+
+    .project-status-code--0 {
+      background: #ffedd5;
+      color: #9a3412;
+      border-color: #fdba74;
+    }
+
+    .project-status-code--1 {
+      background: #fef3c7;
+      color: #92400e;
+      border-color: #fcd34d;
+    }
+
+    .project-status-code--2 {
+      background: #dbeafe;
+      color: #1d4ed8;
+      border-color: #93c5fd;
+    }
+
+    .project-status-code--3 {
+      background: #e2e8f0;
+      color: #475569;
+      border-color: #cbd5e1;
+    }
+
+    .project-status-code--4 {
+      background: #cffafe;
+      color: #0f766e;
+      border-color: #67e8f9;
+    }
+
+    .project-status-code--5 {
+      background: #e5e7eb;
+      color: #374151;
+      border-color: #d1d5db;
+    }
+
     .project-paused-actions {
       display: flex;
       align-items: center;
@@ -331,6 +387,7 @@ export class ProjectPanel implements OnInit, OnChanges {
     const archived = !!this.project.archived;
     const paused = !!this.project.paused;
     const delivered = !!this.project.delivered;
+    const readyForDelivery = this.isReadyForDelivery(this.project);
 
     if (this.adminProjectControls) {
       // When paused, keep actions locked except explicit resume.
@@ -375,13 +432,18 @@ export class ProjectPanel implements OnInit, OnChanges {
           {
             label: delivered ? 'Reopen (not delivered)' : 'Mark as delivered',
             icon: delivered ? 'pi pi-replay' : ProjectPanel.MENU_ICON_DELIVER,
-            command: (event) =>
+            disabled: !delivered && !readyForDelivery,
+            command: (event) => {
+              if (!delivered && !readyForDelivery) {
+                return;
+              }
               this.setDelivered.emit({
                 id: this.project.id,
                 delivered: !delivered,
                 name: this.project.name ?? '',
                 nativeEvent: event.originalEvent as Event
-              })
+              });
+            }
           },
           {
             label: 'Edit',
@@ -414,6 +476,14 @@ export class ProjectPanel implements OnInit, OnChanges {
       this.menuItems = [];
     }
     this.cdr.markForCheck();
+  }
+
+  private isReadyForDelivery(project: Project): boolean {
+    if (typeof project.readyForDelivery === 'boolean') {
+      return project.readyForDelivery;
+    }
+    const tasks = project.tasks ?? [];
+    return tasks.length > 0 && tasks.every((task) => task.status === TaskStatus.DONE);
   }
 
   onCardNavigate(event: MouseEvent): void {
@@ -477,19 +547,78 @@ export class ProjectPanel implements OnInit, OnChanges {
     });
   }
 
+  get statusCode(): number {
+    return this.resolveProjectStatusCode();
+  }
+
+  statusCodeLabel(): string {
+    switch (this.statusCode) {
+      case 0:
+        return 'Proposed';
+      case 1:
+        return 'Not started';
+      case 2:
+        return 'In progress';
+      case 3:
+        return 'Archived';
+      case 4:
+        return 'Delivered';
+      case 5:
+        return 'Paused';
+      default:
+        return 'In progress';
+    }
+  }
+
   private resolveBannerColor(): string {
-    if (this.project?.delivered) {
-      // Minimal clean style for delivered projects.
-      return 'linear-gradient(135deg, #ecfeff 0%, #cffafe 52%, #e0f2fe 100%)';
+    switch (this.statusCode) {
+      case 0:
+        return 'linear-gradient(135deg, #ffedd5 0%, #fed7aa 54%, #ffedd5 100%)';
+      case 1:
+        return 'linear-gradient(135deg, #fef3c7 0%, #fde68a 55%, #fef9c3 100%)';
+      case 2:
+        return 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 55%, #e0f2fe 100%)';
+      case 3:
+        return 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f1f5f9 100%)';
+      case 4:
+        return 'linear-gradient(135deg, #ecfeff 0%, #cffafe 52%, #e0f2fe 100%)';
+      case 5:
+        return 'linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 52%, #f8fafc 100%)';
+      default:
+        return 'linear-gradient(135deg, #dbeafe 0%, #bfdbfe 55%, #e0f2fe 100%)';
+    }
+  }
+
+  private resolveProjectStatusCode(): number {
+    const fromApi = Number(this.project?.projectStatus);
+    if (Number.isInteger(fromApi) && fromApi >= 0) {
+      return fromApi;
     }
     if (this.project?.archived) {
-      // Neutral minimal style for archived projects.
-      return 'linear-gradient(135deg, #f8fafc 0%, #e2e8f0 50%, #f1f5f9 100%)';
+      return 3;
     }
+    if (this.project?.delivered) {
+      return 4;
+    }
+    if (this.project?.paused) {
+      return 5;
+    }
+    if (this.isNotStartedByDate(this.project?.startDate)) {
+      return 1;
+    }
+    return 2;
+  }
 
-    const palette = ['#fecdd3', '#fde68a', '#bfdbfe', '#c7d2fe', '#bbf7d0', '#fbcfe8', '#fed7aa', '#a7f3d0'];
-    const seed = `${this.project.id ?? ''}${this.project.name ?? ''}`;
-    const index = Array.from(seed).reduce((total, char) => total + char.charCodeAt(0), 0) % palette.length;
-    return palette[index];
+  private isNotStartedByDate(raw?: string): boolean {
+    if (!raw || typeof raw !== 'string') {
+      return false;
+    }
+    const ymd = raw.length >= 10 ? raw.slice(0, 10) : raw;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(ymd)) {
+      return false;
+    }
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    return ymd > today;
   }
 }

@@ -56,6 +56,7 @@ export interface AdminDashboard {
   blockedTasks: number;
   inactiveAccounts: number;
   usersByRole: ChartSeries;
+  projectsByStatus: ChartSeries;
   tasksPerProject: ChartSeries;
   projectManagerTeamCompletionPercent: ChartSeries;
   platformCompletionTrend30Days: ChartSeries;
@@ -83,6 +84,39 @@ export interface AdminDashboard {
   };
   topCollaborators: { name: string; score: number }[];
   topProjectManagers: { name: string; score: number }[];
+}
+
+export interface AdminProjectAdvancedFilter {
+  projectName?: string;
+  managerName?: string;
+  collaboratorName?: string;
+  skillName?: string;
+  statusLabel?: 'ACTIVE' | 'COMPLETED' | '';
+  startDateFrom?: string;
+  startDateTo?: string;
+  deadlineFrom?: string;
+  deadlineTo?: string;
+}
+
+export interface AdminProjectAdvancedFilterRow {
+  projectName: string;
+  projectManagerName: string;
+  startDateIso: string;
+  deadlineIso: string;
+  totalTasksCount: number;
+  completedTasksCount: number;
+  onHoldTasksCount: number;
+  overdueTasksCount: number;
+  collaboratorNames: string[];
+  skills: string[];
+  projectStatusLabel: 'ACTIVE' | 'COMPLETED';
+}
+
+export interface AdminProjectAdvancedFilterResponse {
+  projects: AdminProjectAdvancedFilterRow[];
+  totalElements: number;
+  page: number;
+  size: number;
 }
 
 export interface ClientDashboard {

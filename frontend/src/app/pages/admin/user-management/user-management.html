@@ -22,18 +22,6 @@
           />
         </label>
 
-        <div class="filter-control" *ngIf="!roleLocked">
-          <p-select
-            [options]="roleOptions"
-            [(ngModel)]="selectedRole"
-            optionLabel="label"
-            optionValue="value"
-            appendTo="body"
-            styleClass="filter-select"
-            (onChange)="onFiltersChange()"
-          ></p-select>
-        </div>
-
         <div class="filter-control">
           <p-select
             [options]="statusOptions"
@@ -104,7 +92,7 @@
                   type="button"
                   [icon]="user.active ? 'pi pi-lock' : 'pi pi-lock-open'"
                   [label]="user.active ? 'Deactivate' : 'Reactivate'"
-                  class="action-button status-button"
+                  class="deactivate-button"
                   [class.deactivate-button]="user.active"
                   [class.reactivate-button]="!user.active"
                   (click)="openStatusDialog(user)"

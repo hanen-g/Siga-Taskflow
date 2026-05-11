@@ -12,6 +12,22 @@ export interface AssigneeCandidate {
   matchedSkillCount: number;
 }
 
+/** Admin client profile / assignment */
+export interface ClientProjectRow {
+  id: number;
+  name: string;
+  deadline: string | null;
+}
+
+/** Lightweight client account row for admin selection menus. */
+export interface ClientOption {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  company: string | null;
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -30,6 +46,36 @@ export class ProjectService {
     return this.http.get<any[]>(this.apiUrl);
   }
 
+  /** Projects linked to a client (member of non-archived project). Admin only. */
+  getProjectsForClient(clientId: number): Observable<ClientProjectRow[]> {
+    return this.http.get<ClientProjectRow[]>(`${this.apiUrl}/admin/clients/${clientId}/projects`);
+  }
+
+  /** Adds the client user to each project's members set. Admin only. */
+  assignClientToProjects(clientId: number, projectIds: number[]): Observable<void> {
+    return this.http.post<void>(`${this.apiUrl}/admin/clients/${clientId}/projects`, { projectIds });
+  }
+
+  /**
+   * Replaces the full set of (non-archived) projects this client belongs to. Admin only.
+   * Archived projects remain untouched.
+   */
+  setClientProjects(clientId: number, projectIds: number[]): Observable<void> {
+    return this.http.put<void>(`${this.apiUrl}/admin/clients/${clientId}/projects`, { projectIds });
+  }
+
+  /** Lists the client members currently assigned to a project. Admin only. */
+  getProjectClients(projectId: number): Observable<ClientOption[]> {
+    return this.http.get<ClientOption[]>(`${this.apiUrl}/${projectId}/clients`);
+  }
+
+  /**
+   * Replaces the full set of client members on a project (other roles untouched). Admin only.
+   */
+  setProjectClients(projectId: number, clientIds: number[]): Observable<void> {
+    return this.http.put<void>(`${this.apiUrl}/${projectId}/clients`, { clientIds });
+  }
+
   createProject(project: {
     name: string;
     description?: string;
@@ -37,11 +83,12 @@ export class ProjectService {
     deadline?: string;
     manager: { id: number };
     requiredSkills?: Array<{ id: number }>;
+    consumedProposalId?: number | null;
   }): Observable<any> {
     return this.http.post<any>(this.apiUrl, project);
   }
 
-  submitProjectProposal(body: { name: string; description?: string; deadline?: string | null }): Observable<any> {
+  submitProjectProposal(body: { name: string; description?: string; clientContact?: string | null }): Observable<any> {
     return this.http.post<any>(this.proposalsUrl, body);
   }
 
@@ -54,9 +101,8 @@ export class ProjectService {
     return this.http.get<any[]>(`${this.proposalsUrl}/mine`);
   }
 
-  approveProposal(proposalId: number, managerId?: number | null): Observable<any> {
-    const body = managerId != null && managerId !== undefined ? { managerId } : {};
-    return this.http.post<any>(`${this.proposalsUrl}/${proposalId}/approve`, body);
+  getProposalForAdmin(proposalId: number): Observable<any> {
+    return this.http.get<any>(`${this.proposalsUrl}/${proposalId}`);
   }
 
   discardProposal(proposalId: number): Observable<void> {
@@ -99,6 +145,17 @@ export class ProjectService {
       }
     }
     return this.http.get<AssigneeCandidate[]>(`${this.apiUrl}/${projectId}/assignee-candidates`, { params });
+  }
+
+  /** Admin create-project: managers matching skills + workload order (same rules as task assignee suggestions). */
+  getProjectManagerCandidates(skillIds: number[]): Observable<AssigneeCandidate[]> {
+    let params = new HttpParams();
+    for (const id of skillIds ?? []) {
+      if (id != null) {
+        params = params.append('skillIds', String(id));
+      }
+    }
+    return this.http.get<AssigneeCandidate[]>(`${this.apiUrl}/admin/project-manager-candidates`, { params });
   }
 
   getProjectSkillMatches(projectId: number): Observable<ProjectSkillMatchResult> {
