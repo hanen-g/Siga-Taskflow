@@ -29,6 +29,8 @@ export interface Task {
   collaborators?: User[];
   projectName?: string;
   holdReason?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
   /** Subset of project required skills for this task (create/update). */
   skillIds?: number[];
   skills?: Skill[];

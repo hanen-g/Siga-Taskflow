@@ -5,16 +5,12 @@ import { MessageService } from 'primeng/api';
 import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { InputTextModule } from 'primeng/inputtext';
-import { TextareaModule } from 'primeng/textarea';
 import { MessageModule } from 'primeng/message';
-import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { ToastModule } from 'primeng/toast';
 import { CreateUserRole, UserService } from '../../../services/user.service';
 import { Skill } from '../../../models/skill.model';
 import { SkillService } from '../../../services/skill.service';
-
-type EmployeeGender = '' | 'FEMALE' | 'MALE' | 'OTHER';
 
 @Component({
   selector: 'app-create-users',
@@ -23,8 +19,6 @@ type EmployeeGender = '' | 'FEMALE' | 'MALE' | 'OTHER';
     CommonModule,
     FormsModule,
     InputTextModule,
-    TextareaModule,
-    SelectModule,
     MultiSelectModule,
     CardModule,
     ButtonModule,
@@ -38,20 +32,9 @@ type EmployeeGender = '' | 'FEMALE' | 'MALE' | 'OTHER';
 export class CreateUsersPage implements OnInit {
   createRole: CreateUserRole | null = 'COLLABORATOR';
   supportsSkills = true;
-  form = {
-    firstName: '',
-    lastName: '',
-    email: '',
-    phoneNumber: '',
-    dateOfBirth: '',
-    gender: '' as EmployeeGender,
-    recruitmentDate: '',
-    address: ''
-  };
+  form = { firstName: '', lastName: '', email: '' };
   selectedSkillIds: number[] = [];
   allSkills: Skill[] = [];
-  /** When false, p-multiselect is not mounted — avoids NG0100 ([] → data) with shareReplay + dev CD. */
-  skillsCatalogReady = false;
   skillsLoading = false;
   newSkillName = '';
   addingSkill = false;
@@ -59,24 +42,11 @@ export class CreateUsersPage implements OnInit {
   createInfoMessage: string | null = null;
   createError: string | null = null;
 
-  /**
-   * Sets inline form error outside the dev-mode verification pass that follows HttpClient emits.
-   * Also used for deferred clears from loadSkills failures.
-   */
+  /** Avoid NG0100 when async subscriptions set bindable error text after stabilisation. */
   private setDeferredCreateError(message: string | null): void {
-    this.deferSkillsViewUpdate(() => {
+    setTimeout(() => {
       this.createError = message;
-    });
-  }
-
-  /** Next macrotask — avoids NG0100 for skills/options and similar. */
-  private deferSkillsViewUpdate(cb: () => void): void {
-    setTimeout(() => cb(), 0);
-  }
-
-  /** Double defer: HttpClient error + synchronous createLoading mutation still trips NG0100 on createError in v21. */
-  private deferSubmitOutcome(cb: () => void): void {
-    setTimeout(() => setTimeout(() => cb(), 0), 0);
+    }, 0);
   }
 
   readonly createRoleOptions: { label: string; value: CreateUserRole }[] = [
@@ -84,26 +54,6 @@ export class CreateUsersPage implements OnInit {
     { label: 'Project Manager', value: 'PROJECT_MANAGER' },
     { label: 'Admin', value: 'ADMIN' }
   ];
-
-  readonly genderOptions: { label: string; value: EmployeeGender }[] = [
-    { label: '—', value: '' },
-    { label: 'Female', value: 'FEMALE' },
-    { label: 'Male', value: 'MALE' },
-    { label: 'Other', value: 'OTHER' }
-  ];
-
-  private emptyForm() {
-    return {
-      firstName: '',
-      lastName: '',
-      email: '',
-      phoneNumber: '',
-      dateOfBirth: '',
-      gender: '' as EmployeeGender,
-      recruitmentDate: '',
-      address: ''
-    };
-  }
 
   constructor(
     private userService: UserService,
@@ -148,9 +98,6 @@ export class CreateUsersPage implements OnInit {
         this.selectedSkillIds = [];
         return;
       }
-      if (this.allSkills.length > 0) {
-        this.skillsCatalogReady = true;
-      }
       this.loadSkillsIfNeeded();
     }, 0);
   }
@@ -164,83 +111,48 @@ export class CreateUsersPage implements OnInit {
   }
 
   private loadSkillsIfNeeded(): void {
-    if (this.allSkills.length > 0) {
-      this.skillsCatalogReady = true;
-      return;
-    }
-    if (this.skillsLoading) {
+    if (this.allSkills.length > 0 || this.skillsLoading) {
       return;
     }
     this.skillsLoading = true;
     this.skillService.getAllSkills().subscribe({
       next: (skills) => {
-        this.deferSkillsViewUpdate(() => {
-          this.allSkills = skills ?? [];
-          this.skillsLoading = false;
-          this.skillsCatalogReady = true;
-        });
+        this.allSkills = skills;
+        this.skillsLoading = false;
       },
       error: () => {
-        this.deferSkillsViewUpdate(() => {
-          this.allSkills = [];
-          this.skillsLoading = false;
-          this.skillsCatalogReady = true;
-          this.setDeferredCreateError('Could not load skills catalog.');
-        });
+        this.skillsLoading = false;
+        this.setDeferredCreateError('Could not load skills catalog.');
       }
     });
   }
 
-  /**
-   * Saves a new skill to the catalog via API immediately — does not create a user account.
-   * Repeat as needed; submit() creates the account only when you click Create account.
-   */
   addSkillToCatalog(): void {
     const name = this.newSkillName.trim();
     if (!name) {
-      this.messageService.add({
-        severity: 'warn',
-        summary: 'Skill name required',
-        detail: 'Enter a skill name, then click Add to catalog.'
-      });
+      this.createError = 'Enter a skill name first.';
       return;
     }
+    this.createError = null;
     this.addingSkill = true;
     this.skillService.createSkill(name).subscribe({
       next: (created) => {
         this.addingSkill = false;
         this.newSkillName = '';
-        this.deferSkillsViewUpdate(() => {
-          const merged = [...this.allSkills.filter((s) => s.id !== created.id), created];
-          this.allSkills = merged.sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
-          if (!this.selectedSkillIds.includes(created.id)) {
-            this.selectedSkillIds = [...this.selectedSkillIds, created.id];
-          }
-        });
+        this.allSkills = [...this.allSkills, created].sort((a, b) => a.name.localeCompare(b.name));
+        if (!this.selectedSkillIds.includes(created.id)) {
+          this.selectedSkillIds = [...this.selectedSkillIds, created.id];
+        }
         this.messageService.add({
           severity: 'success',
-          summary: 'Saved to catalog',
-          detail: `"${created.name}" is in the catalog. Add more skills or finish the form — the account is only created with Create account.`
+          summary: 'Skill added',
+          detail: `"${created.name}" was created and selected.`
         });
       },
       error: (err) => {
         this.addingSkill = false;
-        const body = err?.error;
-        const msg =
-          typeof body === 'string'
-            ? body
-            : typeof body?.message === 'string'
-              ? body.message
-              : typeof body?.error === 'string'
-                ? body.error
-                : null;
-        const detail = msg ?? 'Could not save the skill to the catalog.';
-        const conflict = err?.status === 409;
-        this.messageService.add({
-          severity: conflict ? 'warn' : 'error',
-          summary: conflict ? 'Skill already in catalog' : 'Catalog update failed',
-          detail
-        });
+        const msg = err?.error?.message ?? err?.error?.error;
+        this.setDeferredCreateError(typeof msg === 'string' ? msg : 'Could not create skill.');
       }
     });
   }
@@ -259,58 +171,39 @@ export class CreateUsersPage implements OnInit {
     }
 
     this.createLoading = true;
-    const dob = this.form.dateOfBirth?.trim();
-    const recruited = this.form.recruitmentDate?.trim();
     this.userService
       .createAdminUser({
         firstName: this.form.firstName.trim(),
         lastName: this.form.lastName.trim(),
         email: this.form.email.trim().toLowerCase(),
         role: this.createRole,
-        skillIds: this.supportsSkills ? this.selectedSkillIds : [],
-        phoneNumber: this.form.phoneNumber?.trim() || undefined,
-        address: this.form.address?.trim() || undefined,
-        dateOfBirth: dob || undefined,
-        gender: this.form.gender || undefined,
-        recruitmentDate: recruited || undefined
+        skillIds: this.supportsSkills ? this.selectedSkillIds : []
       })
       .subscribe({
         next: (res) => {
+          this.createLoading = false;
           const parts = [res.message];
           if (res.user?.createdAt) {
-            new Date(res.user.createdAt).toLocaleString(undefined, {
+            const when = new Date(res.user.createdAt).toLocaleString(undefined, {
               dateStyle: 'medium',
               timeStyle: 'short'
             });
           }
           const detail = parts.join(' ');
+          this.createInfoMessage = null;
           this.messageService.add({
             severity: 'success',
             summary: 'Account created',
             detail,
-            life: 6000
+            life: 1000
           });
-          this.deferSubmitOutcome(() => {
-            this.createLoading = false;
-            this.createInfoMessage = null;
-            this.form = this.emptyForm();
-            this.selectedSkillIds = [];
-          });
+          this.form = { firstName: '', lastName: '', email: '' };
+          this.selectedSkillIds = [];
         },
         error: (err) => {
-          const body = err?.error;
-          const msg =
-            typeof body === 'string'
-              ? body
-              : typeof body?.message === 'string'
-                ? body.message
-                : typeof body?.error === 'string'
-                  ? body.error
-                  : null;
-          this.deferSubmitOutcome(() => {
-            this.createLoading = false;
-            this.createError = msg ?? 'Could not create the account.';
-          });
+          this.createLoading = false;
+          const msg = err?.error?.message;
+          this.setDeferredCreateError(typeof msg === 'string' ? msg : 'Could not create the account.');
         }
       });
   }

@@ -8,17 +8,17 @@
       <p-card header="Users"><span class="kpi-num">{{ data.totalUsers }}</span></p-card>
       <p-card header="Projects"><span class="kpi-num">{{ data.totalProjects }}</span></p-card>
       <p-card header="Tasks"><span class="kpi-num">{{ data.totalTasks }}</span></p-card>
-      <p-card header="Platform completion %">
-        <span class="kpi-num">{{ data.platformCompletionRatePercent | number : '1.0-1' }}%</span>
-      </p-card>
-      <p-card header="Blocked (ON_HOLD)"><span class="kpi-num">{{ data.blockedTasks }}</span></p-card>
-      <p-card header="Inactive accounts"><span class="kpi-num">{{ data.inactiveAccounts }}</span></p-card>
-    </div>
+</div>
 
     <div class="chart-grid-mixed">
       <p-card header="Users by role">
         <div class="chart-box">
           <p-chart type="doughnut" [data]="usersRoleDonut" [options]="opts" />
+        </div>
+      </p-card>
+      <p-card header="Projects by status">
+        <div class="chart-box">
+          <p-chart type="doughnut" [data]="projectsStatusDonut" [options]="opts" />
         </div>
       </p-card>
       <p-card header="Tasks per project">
@@ -29,11 +29,6 @@
       <p-card header="Team completion by PM">
         <div class="chart-tall">
           <p-chart type="bar" [data]="pmBar" [options]="barOpts" />
-        </div>
-      </p-card>
-      <p-card header="Platform trend (30 days)">
-        <div class="chart-tall">
-          <p-chart type="line" [data]="trend" [options]="lineOpts" />
         </div>
       </p-card>
       <p-card header="Task status (platform)">

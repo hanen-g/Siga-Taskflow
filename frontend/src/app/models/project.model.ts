@@ -1,6 +1,15 @@
 import { Task } from "./task.model";
 import { UploadedFile } from "./uploaded-file.model";
 import { Skill } from "./skill.model";
+
+export interface ProjectClient {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email: string;
+  company: string | null;
+}
+
 export interface Project {
   id: number;
   name: string;
@@ -19,7 +28,16 @@ export interface Project {
   paused?: boolean;
   /** Admin-controlled: project delivered / closed */
   delivered?: boolean;
+  /** True when the project has tasks and every task is DONE. */
+  readyForDelivery?: boolean;
+  /**
+   * Numeric lifecycle code:
+   * 0 proposed, 1 not started, 2 in progress, 3 archived, 4 delivered, 5 paused.
+   */
+  projectStatus?: number;
   tasks?: Task[];
   files?: UploadedFile[];
   requiredSkills?: Skill[];
+  /** Loaded on demand for admin project ↔ client editor (not part of the standard project payload). */
+  clients?: ProjectClient[];
 }

@@ -1,10 +1,9 @@
 package com.taskflow.backend.dto.project;
 
+import com.fasterxml.jackson.annotation.JsonAlias;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
-
-import java.time.LocalDate;
 
 @Getter
 @Setter
@@ -12,5 +11,8 @@ import java.time.LocalDate;
 public class ProjectProposalRequest {
     private String name;
     private String description;
-    private LocalDate deadline;
+
+    /** Incoming JSON uses {@code clientContact}; {@code clientName} is accepted for backward compatibility. */
+    @JsonAlias("clientName")
+    private String clientContact;
 }

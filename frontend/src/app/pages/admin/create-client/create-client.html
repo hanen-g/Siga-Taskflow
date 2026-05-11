@@ -1,353 +1,436 @@
-<div class="create-client-page">
+<div class="create-client-page client-page-print-root">
   <p-toast />
 
-  <header class="page-title-banner">
-    <h1>Gestion des comptes clients</h1>
-    <p>Saisie en haut, liste des comptes enregistrés en bas.</p>
-  </header>
-
-  <section class="sheet-section form-sheet" aria-labelledby="new-client-heading">
-    <div class="sheet-inner">
-      <h2 id="new-client-heading" class="sheet-heading">Création d’un nouveau compte client</h2>
-
-      <p-message *ngIf="createError" severity="error" styleClass="w-full msg">{{ createError }}</p-message>
-
-      <div class="labeled-form">
-        <div class="lf-row lf-row-balanced">
-          <div class="lf-label">Prénom</div>
-          <div class="lf-cell">
-            <input pInputText [(ngModel)]="form.firstName" [disabled]="createLoading" class="lf-input w-full" />
-          </div>
-          <div class="lf-label">Nom</div>
-          <div class="lf-cell">
-            <input pInputText [(ngModel)]="form.lastName" [disabled]="createLoading" class="lf-input w-full" />
-          </div>
-          <div class="lf-label">E-mail</div>
-          <div class="lf-cell">
-            <input
-              pInputText
-              type="email"
-              [(ngModel)]="form.email"
-              [disabled]="createLoading"
-              class="lf-input w-full"
-              autocomplete="off"
-            />
-          </div>
-        </div>
-
-        <div class="lf-row lf-row-balanced">
-          <div class="lf-label">Téléphone</div>
-          <div class="lf-cell">
-            <input pInputText type="tel" [(ngModel)]="form.phoneNumber" [disabled]="createLoading" class="lf-input w-full" />
-          </div>
-          <div class="lf-label">Naissance</div>
-          <div class="lf-cell">
-            <input type="date" [(ngModel)]="form.dateOfBirth" [disabled]="createLoading" class="lf-input native-date w-full" />
-          </div>
-          <div class="lf-label">Genre</div>
-          <div class="lf-cell">
-            <select [(ngModel)]="form.gender" [disabled]="createLoading" class="lf-select w-full">
-              <option value="">— Choisir —</option>
-              <option value="FEMALE">Femme</option>
-              <option value="MALE">Homme</option>
-              <option value="OTHER">Autre</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="lf-row lf-row-balanced">
-          <div class="lf-label">Recrutement</div>
-          <div class="lf-cell">
-            <input type="date" [(ngModel)]="form.recruitmentDate" [disabled]="createLoading" class="lf-input native-date w-full" />
-          </div>
-          <div class="lf-label">Société</div>
-          <div class="lf-cell">
-            <input pInputText [(ngModel)]="form.company" [disabled]="createLoading" class="lf-input w-full" />
-          </div>
-          <div class="lf-label">Matricule fiscal</div>
-          <div class="lf-cell">
-            <input pInputText [(ngModel)]="form.fiscalMatricule" [disabled]="createLoading" class="lf-input w-full" />
-          </div>
-        </div>
-
-        <div class="lf-row lf-row-full">
-          <div class="lf-label">Adresse</div>
-          <div class="lf-cell lf-cell-multiline">
-            <textarea
-              pTextarea
-              rows="3"
-              [(ngModel)]="form.address"
-              [disabled]="createLoading"
-              class="lf-input lf-textarea w-full"
-              placeholder="Rue, complément, code postal, ville, pays…"
-            ></textarea>
-          </div>
-        </div>
-      </div>
-
-      <div class="form-submit-row">
-        <button
-          pButton
-          type="button"
-          label="Enregistrer le client et envoyer l’e-mail"
-          [loading]="createLoading"
-          [disabled]="createLoading"
-          (click)="submit()"
-          class="submit-btn"
-        ></button>
-      </div>
-    </div>
-  </section>
-
-  <section class="sheet-section table-sheet" aria-labelledby="clients-table-heading">
-    <div class="sheet-inner sheet-inner-flush">
-      <h2 id="clients-table-heading" class="sheet-heading table-sheet-title">Clients enregistrés</h2>
-
-      <p-table
-        [value]="clients"
-        [loading]="tableLoading"
-        [tableStyle]="{ width: '100%' }"
-        styleClass="clients-data-table clients-table-compact"
-        responsiveLayout="scroll"
+  <div class="client-shell">
+    <aside class="client-sidebar no-print" aria-label="Client list">
+      <button
+        type="button"
+        class="btn-add-client"
+        (click)="showNewClientForm()"
       >
-        <ng-template pTemplate="header">
-          <tr>
-            <th>Nom</th>
-            <th>E-mail</th>
-            <th>Société</th>
-            <th>Statut</th>
-          </tr>
-        </ng-template>
-        <ng-template pTemplate="body" let-c>
-          <tr
-            class="client-row-clickable"
-            [class.client-row-inactive]="!c.active"
-            tabindex="0"
-            (click)="openClientDetail(c)"
-            (keyup.enter)="openClientDetail(c)"
-          >
-            <td class="nowrap-strong">{{ c.firstName }} {{ c.lastName }}</td>
-            <td>{{ c.email }}</td>
-            <td>{{ c.company || '—' }}</td>
-            <td class="status-cell" (click)="$event.stopPropagation()">
-              <label class="table-status">
-                <input
-                  type="checkbox"
-                  class="table-status-input"
-                  [checked]="c.active"
-                  [disabled]="isSavingStatus(c.id)"
-                  (change)="onClientStatusToggle(c, $any($event.target).checked)"
-                  [attr.aria-label]="
-                    c.active ? 'Désactiver le compte ' + c.email : 'Activer le compte ' + c.email
-                  "
-                />
-                @if (isSavingStatus(c.id)) {
-                  <span class="status-saving" aria-busy="true"><i class="pi pi-spinner pi-spin" aria-hidden="true"></i></span>
-                }
-                <span class="status-pill" [class.inactive]="!c.active">{{ c.active ? 'Actif' : 'Désactivé' }}</span>
-              </label>
-            </td>
-          </tr>
-        </ng-template>
-        <ng-template pTemplate="emptymessage">
-          <tr>
-            <td colspan="4" class="empty-table-msg">
-              Aucun client pour le moment. Créez un compte avec le formulaire ci-dessus.
-            </td>
-          </tr>
-        </ng-template>
-      </p-table>
-    </div>
-  </section>
+        <i class="pi pi-plus" aria-hidden="true"></i>
+        Add New Client
+      </button>
 
-  <p-dialog
-    [(visible)]="detailDialogVisible"
-    [modal]="true"
-    [draggable]="false"
-    [resizable]="false"
-    [style]="{ width: '92vw', maxWidth: '40rem' }"
-    styleClass="client-detail-dialog"
-    [header]="clientDetailHeader()"
-    (onHide)="onDetailHide()"
-  >
-    <div *ngIf="selectedClient as d" class="client-detail-body" [class.client-detail-muted]="!d.active">
-      <ng-container *ngIf="!detailEditing">
-        <dl class="detail-grid">
-          <dt>Prénom</dt>
-          <dd>{{ d.firstName || '—' }}</dd>
-          <dt>Nom</dt>
-          <dd>{{ d.lastName || '—' }}</dd>
-          <dt>E-mail</dt>
-          <dd><a class="detail-mail" href="mailto:{{ d.email }}">{{ d.email }}</a></dd>
-          <dt>Téléphone</dt>
-          <dd>{{ d.phoneNumber || '—' }}</dd>
-          <dt>Date de naissance</dt>
-          <dd>{{ formatDate(d.dateOfBirth) }}</dd>
-          <dt>Genre</dt>
-          <dd>{{ genderLabel(d.gender) }}</dd>
-          <dt>Date de recrutement</dt>
-          <dd>{{ formatDate(d.recruitmentDate) }}</dd>
-          <dt>Société</dt>
-          <dd>{{ d.company || '—' }}</dd>
-          <dt>Matricule fiscal</dt>
-          <dd class="mono-cell">{{ d.fiscalMatricule || '—' }}</dd>
-          <dt>Adresse</dt>
-          <dd class="detail-address">{{ formatAddressPlain(d.address) }}</dd>
-          <dt>Créé le</dt>
-          <dd>{{ d.createdAt ? formatDate(d.createdAt) : '—' }}</dd>
-        </dl>
-      </ng-container>
-
-      <div *ngIf="detailEditing" class="dialog-long-form">
-        <p-message *ngIf="detailEditError" severity="error" styleClass="w-full msg detail-edit-msg">{{ detailEditError }}</p-message>
-
-        <div class="long-field">
-          <label class="long-label" for="edit-client-firstName">Prénom</label>
+      <div class="list-toolbar">
+        <div class="search-field">
+          <i class="pi pi-search search-field-icon" aria-hidden="true"></i>
           <input
-            pInputText
-            id="edit-client-firstName"
-            [(ngModel)]="detailEditForm.firstName"
-            [disabled]="detailSaveLoading"
-            class="long-input w-full"
-          />
-        </div>
-        <div class="long-field">
-          <label class="long-label" for="edit-client-lastName">Nom</label>
-          <input
-            pInputText
-            id="edit-client-lastName"
-            [(ngModel)]="detailEditForm.lastName"
-            [disabled]="detailSaveLoading"
-            class="long-input w-full"
-          />
-        </div>
-        <div class="long-field">
-          <label class="long-label" for="edit-client-email">E-mail</label>
-          <input
-            pInputText
-            id="edit-client-email"
-            type="email"
-            [(ngModel)]="detailEditForm.email"
-            [disabled]="detailSaveLoading"
-            class="long-input w-full"
+            type="search"
+            [(ngModel)]="listSearch"
+            name="clientListSearch"
+            placeholder="Search clients..."
+            class="search-input"
             autocomplete="off"
           />
         </div>
-        <div class="long-field">
-          <label class="long-label" for="edit-client-phone">Téléphone</label>
-          <input
-            pInputText
-            id="edit-client-phone"
-            type="tel"
-            [(ngModel)]="detailEditForm.phoneNumber"
-            [disabled]="detailSaveLoading"
-            class="long-input w-full"
-          />
-        </div>
-        <div class="long-field">
-          <label class="long-label" for="edit-client-dob">Date de naissance</label>
-          <input
-            id="edit-client-dob"
-            type="date"
-            [(ngModel)]="detailEditForm.dateOfBirth"
-            [disabled]="detailSaveLoading"
-            class="long-input long-input-date w-full"
-          />
-        </div>
-        <div class="long-field">
-          <label class="long-label" for="edit-client-gender">Genre</label>
-          <select id="edit-client-gender" [(ngModel)]="detailEditForm.gender" [disabled]="detailSaveLoading" class="long-select w-full">
-            <option value="">— Choisir —</option>
-            <option value="FEMALE">Femme</option>
-            <option value="MALE">Homme</option>
-            <option value="OTHER">Autre</option>
-          </select>
-        </div>
-        <div class="long-field">
-          <label class="long-label" for="edit-client-recruitment">Date de recrutement</label>
-          <input
-            id="edit-client-recruitment"
-            type="date"
-            [(ngModel)]="detailEditForm.recruitmentDate"
-            [disabled]="detailSaveLoading"
-            class="long-input long-input-date w-full"
-          />
-        </div>
-        <div class="long-field">
-          <label class="long-label" for="edit-client-company">Société</label>
-          <input
-            pInputText
-            id="edit-client-company"
-            [(ngModel)]="detailEditForm.company"
-            [disabled]="detailSaveLoading"
-            class="long-input w-full"
-          />
-        </div>
-        <div class="long-field">
-          <label class="long-label" for="edit-client-fiscal">Matricule fiscal</label>
-          <input
-            pInputText
-            id="edit-client-fiscal"
-            [(ngModel)]="detailEditForm.fiscalMatricule"
-            [disabled]="detailSaveLoading"
-            class="long-input w-full"
-          />
-        </div>
-        <div class="long-field">
-          <label class="long-label" for="edit-client-address">Adresse</label>
-          <textarea
-            pTextarea
-            id="edit-client-address"
-            rows="4"
-            [(ngModel)]="detailEditForm.address"
-            [disabled]="detailSaveLoading"
-            class="long-textarea w-full"
-            placeholder="Rue, complément, code postal, ville, pays…"
-          ></textarea>
-        </div>
+        <button
+          type="button"
+          class="icon-tool-btn"
+          [title]="filterTooltip()"
+          (click)="cycleListFilter()"
+        >
+          <i [class]="filterIconClass()" aria-hidden="true"></i>
+        </button>
       </div>
 
-      <div class="detail-status-block">
-        <span class="detail-status-label">Statut du compte</span>
-        <label class="table-status dialog-status">
-          <input
-            type="checkbox"
-            class="table-status-input"
-            [checked]="d.active"
-            [disabled]="isSavingStatus(d.id) || detailEditing"
-            (click)="$event.stopPropagation()"
-            (change)="onClientStatusToggle(d, $any($event.target).checked)"
-            [attr.aria-label]="d.active ? 'Désactiver le compte ' + d.email : 'Activer le compte ' + d.email"
-          />
-          @if (isSavingStatus(d.id)) {
-            <span class="status-saving" aria-busy="true"><i class="pi pi-spinner pi-spin" aria-hidden="true"></i></span>
+      <div class="client-list-scroll">
+        @if (tableLoading) {
+          <div class="list-loading">
+            <i class="pi pi-spinner pi-spin" aria-hidden="true"></i>
+            <span>Loading…</span>
+          </div>
+        } @else if (!filteredClients.length) {
+          <div class="list-empty">No clients match your filter.</div>
+        } @else {
+          @for (c of filteredClients; track c.id; let idx = $index) {
+            <div
+              class="client-list-row"
+              [class.is-selected]="selectedClient?.id === c.id && rightPanelMode === 'profile'"
+              [class.is-inactive]="!c.active"
+              role="button"
+              tabindex="0"
+              (click)="selectClient(c)"
+              (keydown)="listRowActivate($event, c)"
+            >
+              <span class="row-num">{{ idx + 1 }}</span>
+              <div class="row-avatar">
+                @if (c.profilePicture) {
+                  <img [src]="c.profilePicture" alt="" class="avatar-img-sm" />
+                } @else {
+                  <span class="avatar-initials-sm">{{ avatarInitials(c) }}</span>
+                }
+              </div>
+              <div class="row-text">
+                <div class="row-primary">{{ clientFullName(c) }}</div>
+                <div class="row-secondary">{{ c.company?.trim() || '—' }}</div>
+              </div>
+            </div>
           }
-          <span class="status-pill" [class.inactive]="!d.active">{{ d.active ? 'Actif' : 'Désactivé' }}</span>
-        </label>
+        }
       </div>
-    </div>
-    <ng-template pTemplate="footer">
-      @if (detailEditing) {
-        <button
-          pButton
-          type="button"
-          label="Annuler"
-          class="p-button-text"
-          [disabled]="detailSaveLoading"
-          (click)="cancelDetailEdit()"
-        ></button>
-        <button
-          pButton
-          type="button"
-          label="Enregistrer"
-          [loading]="detailSaveLoading"
-          [disabled]="detailSaveLoading"
-          (click)="saveDetailProfile()"
-        ></button>
-      } @else {
-        <button pButton type="button" label="Modifier le profil" class="p-button-outlined" (click)="startDetailEdit()"></button>
-        <button pButton type="button" label="Fermer" class="p-button-text" (click)="detailDialogVisible = false"></button>
+    </aside>
+
+    <main class="client-main">
+      @if (rightPanelMode === 'form') {
+        <section class="right-panel form-panel">
+          <header class="right-panel-header">
+            <div class="header-title-block">
+              <i class="pi pi-user-plus header-title-icon" aria-hidden="true"></i>
+              <h2 class="panel-title">New Client</h2>
+            </div>
+            
+          </header>
+
+          <div class="panel-body-scroll">
+            <p-message *ngIf="createError" severity="error" styleClass="w-full msg-inline">{{ createError }}</p-message>
+
+            <div class="new-client-form-grid">
+              <div class="field">
+                <label for="nf-company">Company name <span class="req">*</span></label>
+                <input
+                  pInputText
+                  id="nf-company"
+                  [(ngModel)]="form.company"
+                  name="nfCompany"
+                  [disabled]="createLoading"
+                  class="w-full"
+                  autocomplete="organization"
+                />
+              </div>
+              <div class="field">
+                <label for="nf-fiscal">Tax registration number</label>
+                <input
+                  pInputText
+                  id="nf-fiscal"
+                  [(ngModel)]="form.fiscalMatricule"
+                  name="nfFiscal"
+                  [disabled]="createLoading"
+                  class="w-full"
+                  placeholder="Matricule fiscale"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="field">
+                <label for="nf-fn">First name <span class="req">*</span></label>
+                <input
+                  pInputText
+                  id="nf-fn"
+                  [(ngModel)]="form.firstName"
+                  name="nfFn"
+                  [disabled]="createLoading"
+                  class="w-full"
+                  autocomplete="given-name"
+                />
+              </div>
+              <div class="field">
+                <label for="nf-ln">Last name <span class="req">*</span></label>
+                <input
+                  pInputText
+                  id="nf-ln"
+                  [(ngModel)]="form.lastName"
+                  name="nfLn"
+                  [disabled]="createLoading"
+                  class="w-full"
+                  autocomplete="family-name"
+                />
+              </div>
+              <div class="field">
+                <label for="nf-email">Email <span class="req">*</span></label>
+                <input
+                  pInputText
+                  id="nf-email"
+                  type="email"
+                  [(ngModel)]="form.email"
+                  name="nfEmail"
+                  [disabled]="createLoading"
+                  class="w-full"
+                  autocomplete="off"
+                />
+              </div>
+              <div class="field">
+                <label for="nf-phone">Phone number <span class="req">*</span></label>
+                <input
+                  pInputText
+                  id="nf-phone"
+                  type="tel"
+                  [(ngModel)]="form.phoneNumber"
+                  name="nfPhone"
+                  [disabled]="createLoading"
+                  class="w-full"
+                  placeholder="+1 555-0199"
+                  autocomplete="tel"
+                />
+              </div>
+              <div class="field field-span-2">
+                <label for="nf-address">Address <span class="req">*</span></label>
+                <textarea
+                  pTextarea
+                  id="nf-address"
+                  rows="3"
+                  [(ngModel)]="form.address"
+                  name="nfAddress"
+                  [disabled]="createLoading"
+                  class="w-full"
+                  placeholder="Street, city, ZIP"
+                ></textarea>
+              </div>
+              <div class="field field-span-2">
+                <label for="nf-projects">Projects</label>
+                <p-multiSelect
+                  inputId="nf-projects"
+                  [options]="projectOptions"
+                  [(ngModel)]="selectedProjectIds"
+                  name="nfProjects"
+                  optionLabel="label"
+                  optionValue="value"
+                  placeholder="Assign existing projects"
+                  display="chip"
+                  [filter]="true"
+                  filterPlaceholder="Search projects"
+                  [disabled]="createLoading || projectsCatalogLoading"
+                  styleClass="w-full"
+                />
+              </div>
+            </div>
+
+            <p class="form-invite-note">
+              The client will receive an email invitation upon account creation.
+            </p>
+
+            <div class="form-footer-submit no-print">
+              <button
+                pButton
+                type="button"
+                label="Create Client"
+                class="btn-primary-deep btn-footer-create"
+                [loading]="createLoading"
+                [disabled]="createLoading"
+                (click)="submit()"
+              ></button>
+            </div>
+          </div>
+        </section>
       }
-    </ng-template>
-  </p-dialog>
+
+      @if (rightPanelMode === 'profile') {
+        @if (selectedClient; as sc) {
+        <section class="right-panel profile-panel">
+          <header class="profile-toolbar">
+            <h2 class="profile-page-title">CLIENT PROFILE: {{ profileCompanyTitle() }}</h2>
+            @if (!detailEditing) {
+              <div class="profile-toolbar-actions no-print">
+                <button
+                  pButton
+                  type="button"
+                  icon="pi pi-pencil"
+                  label="Edit"
+                  (click)="startDetailEdit()"
+                ></button>
+                <button
+                  pButton
+                  type="button"
+                  icon="pi pi-envelope"
+                  label="Send Email"
+                  (click)="sendEmail()"
+                ></button>
+                <button
+                  pButton
+                  type="button"
+                  icon="pi pi-print"
+                  class="p-button-outlined square-icon-btn"
+                  [attr.aria-label]="'Print'"
+                  (click)="printProfile()"
+                ></button>
+              </div>
+            } @else {
+              <div class="profile-toolbar-actions no-print">
+                <button
+                  pButton
+                  type="button"
+                  label="Cancel"
+                  class="p-button-text"
+                  [disabled]="detailSaveLoading"
+                  (click)="cancelDetailEdit()"
+                ></button>
+                <button
+                  pButton
+                  type="button"
+                  label="Save"
+                  [loading]="detailSaveLoading"
+                  [disabled]="detailSaveLoading"
+                  (click)="saveDetailProfile()"
+                ></button>
+              </div>
+            }
+          </header>
+
+          @if (!detailEditing) {
+            <div class="panel-body-scroll profile-readonly">
+              <div class="profile-banner">
+                <div class="banner-avatar-wrap">
+                  @if (sc.profilePicture) {
+                    <img [src]="sc.profilePicture" alt="" class="banner-avatar-img" />
+                  } @else {
+                    <span class="banner-avatar-fallback">{{ avatarInitials(sc) }}</span>
+                  }
+                </div>
+                <div class="banner-center">
+                  <div class="banner-name">{{ profileBannerName() }}</div>
+                </div>
+                <div class="banner-status-wrap">
+                  <span class="banner-status-prefix">Status:</span>
+                  <label class="banner-status-toggle">
+                    <input
+                      type="checkbox"
+                      class="banner-status-input"
+                      [checked]="sc.active"
+                      [disabled]="isSavingStatus(sc.id)"
+                      (change)="onClientStatusToggle(sc, $any($event.target).checked)"
+                      [attr.aria-label]="sc.active ? 'Set inactive' : 'Set active'"
+                    />
+                    @if (isSavingStatus(sc.id)) {
+                      <span class="banner-status-saving"><i class="pi pi-spinner pi-spin" aria-hidden="true"></i></span>
+                    }
+                    <span class="profile-status-pill" [class.inactive]="!sc.active">{{
+                      sc.active ? 'Active' : 'Inactive'
+                    }}</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="profile-columns">
+                <section class="info-card general-block" aria-labelledby="gen-heading">
+                  <h3 id="gen-heading" class="info-card-title">General Information</h3>
+                  <dl class="info-dl">
+                    <dt>Company Name</dt>
+                    <dd>{{ sc.company?.trim() || '—' }}</dd>
+                    <dt>Full Name</dt>
+                    <dd>{{ profileBannerName() }}</dd>
+                    <dt>Tax registration number</dt>
+                    <dd>{{ sc.fiscalMatricule?.trim() || '—' }}</dd>
+                    <dt>Email</dt>
+                    <dd>
+                      {{ sc.email }}
+                    </dd>
+                    <dt>Phone Number</dt>
+                    <dd>{{ sc.phoneNumber?.trim() || '—' }}</dd>
+                    <dt>Address</dt>
+                    <dd class="multiline">{{ formatAddressPlain(sc.address) }}</dd>
+                  </dl>
+                </section>
+
+                <section class="info-card projects-block" aria-labelledby="proj-heading">
+                  <h3 id="proj-heading" class="info-card-title">Recent Projects</h3>
+                  @if (profileProjectsLoading) {
+                    <div class="projects-loading"><i class="pi pi-spinner pi-spin" aria-hidden="true"></i></div>
+                  } @else if (!profileProjects.length) {
+                    <p class="projects-empty">No projects linked yet.</p>
+                  } @else {
+                    <table class="projects-table">
+                      <thead>
+                        <tr>
+                          <th>PROJECT NAME</th>
+                          <th>DEADLINE</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (p of profileProjects; track p.id) {
+                          <tr>
+                            <td>{{ p.name }}</td>
+                            <td>{{ formatDeadline(p.deadline) }}</td>
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  }
+                </section>
+              </div>
+            </div>
+          } @else {
+            <div class="panel-body-scroll profile-edit-scroll">
+              <p-message *ngIf="detailEditError" severity="error" styleClass="w-full msg-inline">{{ detailEditError }}</p-message>
+
+              <div class="edit-form-grid">
+                <div class="field">
+                  <label for="ef-fn">First name</label>
+                  <input pInputText id="ef-fn" [(ngModel)]="detailEditForm.firstName" [disabled]="detailSaveLoading" class="w-full" />
+                </div>
+                <div class="field">
+                  <label for="ef-ln">Last name</label>
+                  <input pInputText id="ef-ln" [(ngModel)]="detailEditForm.lastName" [disabled]="detailSaveLoading" class="w-full" />
+                </div>
+                <div class="field field-span-2">
+                  <label for="ef-email">Email</label>
+                  <input
+                    pInputText
+                    id="ef-email"
+                    type="email"
+                    [(ngModel)]="detailEditForm.email"
+                    [disabled]="detailSaveLoading"
+                    class="w-full"
+                    autocomplete="off"
+                  />
+                </div>
+                <div class="field">
+                  <label for="ef-phone">Phone</label>
+                  <input pInputText id="ef-phone" type="tel" [(ngModel)]="detailEditForm.phoneNumber" [disabled]="detailSaveLoading" class="w-full" />
+                </div>
+                <div class="field">
+                  <label for="ef-company">Company</label>
+                  <input pInputText id="ef-company" [(ngModel)]="detailEditForm.company" [disabled]="detailSaveLoading" class="w-full" />
+                </div>
+                <div class="field field-span-2">
+                  <label for="ef-fiscal">Tax registration number</label>
+                  <input pInputText id="ef-fiscal" [(ngModel)]="detailEditForm.fiscalMatricule" [disabled]="detailSaveLoading" class="w-full" />
+                </div>
+                
+                <div class="field">
+                  <label for="ef-gender">Gender</label>
+                  <select id="ef-gender" [(ngModel)]="detailEditForm.gender" [disabled]="detailSaveLoading" class="native-select w-full">
+                    <option value="">—</option>
+                    <option value="FEMALE">Female</option>
+                    <option value="MALE">Male</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
+                <div class="field field-span-2">
+                  <label for="ef-address">Address</label>
+                  <textarea
+                    pTextarea
+                    id="ef-address"
+                    rows="4"
+                    [(ngModel)]="detailEditForm.address"
+                    [disabled]="detailSaveLoading"
+                    class="w-full"
+                  ></textarea>
+                </div>
+                <div class="field field-span-2">
+                  <label for="ef-projects">Projects</label>
+                  <p-multiSelect
+                    inputId="ef-projects"
+                    [options]="projectOptions"
+                    [(ngModel)]="detailEditProjectIds"
+                    name="efProjects"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="Assign projects to this client"
+                    display="chip"
+                    [filter]="true"
+                    filterPlaceholder="Search projects"
+                    [disabled]="detailSaveLoading || projectsCatalogLoading"
+                    styleClass="w-full"
+                  />
+                  <p class="form-help-note">
+                    Archived projects are not editable here; this list reflects active projects only.
+                  </p>
+                </div>
+              </div>
+            </div>
+          }
+        </section>
+        }
+      }
+    </main>
+  </div>
 </div>

@@ -1,6 +1,8 @@
 package com.taskflow.backend.service;
 
 import com.taskflow.backend.dto.reporting.AdminDashboardResponse;
+import com.taskflow.backend.dto.reporting.AdminProjectFilterRequest;
+import com.taskflow.backend.dto.reporting.AdminProjectFilterResponse;
 import com.taskflow.backend.dto.reporting.ChartSeriesResponse;
 import com.taskflow.backend.dto.reporting.ClientDashboardResponse;
 import com.taskflow.backend.dto.reporting.CollaboratorDashboardResponse;
@@ -18,7 +20,10 @@ import com.taskflow.backend.repository.ProjectRepository;
 import com.taskflow.backend.repository.TaskRepository;
 import com.taskflow.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -225,6 +230,7 @@ public class DashboardReportingService {
                 Arrays.stream(UserRole.values()).map(Enum::name).toList(),
                 Arrays.stream(UserRole.values()).map(r -> roleBuckets.getOrDefault(r, 0L)).toList()
         );
+        ChartSeriesResponse projectsByStatus = projectsByStatus(projects);
 
         long totalProj = projects.size();
         long totalT = allTasks.size();
@@ -330,6 +336,7 @@ public class DashboardReportingService {
                 blocked,
                 inactive,
                 usersByRole,
+                projectsByStatus,
                 tasksBar,
                 pmChart,
                 trend,
@@ -342,6 +349,140 @@ public class DashboardReportingService {
                 topCollab,
                 topPms
         );
+    }
+
+    private ChartSeriesResponse projectsByStatus(List<Project> projects) {
+        Map<String, Long> buckets = new LinkedHashMap<>();
+        buckets.put("Not started", 0L);
+        buckets.put("In progress", 0L);
+        buckets.put("Paused", 0L);
+        buckets.put("Delivered", 0L);
+        buckets.put("Archived", 0L);
+
+        LocalDate today = LocalDate.now();
+        for (Project project : projects == null ? List.<Project>of() : projects) {
+            if (project == null) {
+                continue;
+            }
+            String status;
+            if (project.isArchived()) {
+                status = "Archived";
+            } else if (project.isDelivered()) {
+                status = "Delivered";
+            } else if (project.isPaused()) {
+                status = "Paused";
+            } else if (project.getStartDate() != null && project.getStartDate().isAfter(today)) {
+                status = "Not started";
+            } else {
+                status = "In progress";
+            }
+            buckets.computeIfPresent(status, (_key, value) -> value + 1);
+        }
+
+        return new ChartSeriesResponse(
+                new ArrayList<>(buckets.keySet()),
+                new ArrayList<>(buckets.values())
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public AdminProjectFilterResponse filterAdminProjects(
+            User user,
+            AdminProjectFilterRequest filter,
+            int page,
+            int size
+    ) {
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Admin only");
+        }
+
+        Specification<Project> spec = (root, query, cb) -> cb.conjunction();
+
+        if (hasFilterText(filter.projectName())) {
+            String term = "%" + filter.projectName().trim().toLowerCase() + "%";
+            spec = spec.and((root, query, cb) -> cb.like(cb.lower(root.get("name")), term));
+        }
+
+        if (hasFilterText(filter.managerName())) {
+            String term = "%" + filter.managerName().trim().toLowerCase() + "%";
+            spec = spec.and((root, query, cb) -> {
+                var manager = root.join("manager");
+                var fullName = cb.lower(cb.trim(cb.concat(
+                        cb.concat(cb.coalesce(manager.get("firstName"), ""), " "),
+                        cb.coalesce(manager.get("lastName"), "")
+                )));
+                return cb.or(
+                        cb.like(cb.lower(cb.coalesce(manager.get("firstName"), "")), term),
+                        cb.like(cb.lower(cb.coalesce(manager.get("lastName"), "")), term),
+                        cb.like(fullName, term)
+                );
+            });
+        }
+
+        if (hasFilterText(filter.collaboratorName())) {
+            String term = "%" + filter.collaboratorName().trim().toLowerCase() + "%";
+            spec = spec.and((root, query, cb) -> {
+                query.distinct(true);
+                var member = root.joinSet("members");
+                var fullName = cb.lower(cb.trim(cb.concat(
+                        cb.concat(cb.coalesce(member.get("firstName"), ""), " "),
+                        cb.coalesce(member.get("lastName"), "")
+                )));
+                return cb.or(
+                        cb.like(cb.lower(cb.coalesce(member.get("firstName"), "")), term),
+                        cb.like(cb.lower(cb.coalesce(member.get("lastName"), "")), term),
+                        cb.like(fullName, term)
+                );
+            });
+        }
+
+        if (hasFilterText(filter.skillName())) {
+            String term = "%" + filter.skillName().trim().toLowerCase() + "%";
+            spec = spec.and((root, query, cb) -> {
+                query.distinct(true);
+                var skill = root.joinSet("requiredSkills");
+                return cb.like(cb.lower(skill.get("name")), term);
+            });
+        }
+
+        if (filter.startDateFrom() != null) {
+            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("startDate"), filter.startDateFrom()));
+        }
+        if (filter.startDateTo() != null) {
+            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("startDate"), filter.startDateTo()));
+        }
+        if (filter.deadlineFrom() != null) {
+            spec = spec.and((root, query, cb) -> cb.greaterThanOrEqualTo(root.get("deadline"), filter.deadlineFrom()));
+        }
+        if (filter.deadlineTo() != null) {
+            spec = spec.and((root, query, cb) -> cb.lessThanOrEqualTo(root.get("deadline"), filter.deadlineTo()));
+        }
+        if (hasFilterText(filter.statusLabel())) {
+            String normalized = filter.statusLabel().trim().toUpperCase();
+            if ("COMPLETED".equals(normalized)) {
+                spec = spec.and((root, query, cb) -> cb.isTrue(root.get("delivered")));
+            } else if ("ACTIVE".equals(normalized)) {
+                spec = spec.and((root, query, cb) -> cb.isFalse(root.get("delivered")));
+            }
+        }
+
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1));
+        Page<Project> idPage = projectRepository.findAll(spec, pageable);
+        List<Long> ids = idPage.getContent().stream().map(Project::getId).filter(Objects::nonNull).toList();
+        if (ids.isEmpty()) {
+            return new AdminProjectFilterResponse(List.of(), idPage.getTotalElements(), idPage.getNumber(), idPage.getSize());
+        }
+
+        Map<Long, Project> detailed = projectRepository.findDetailedByIdIn(ids).stream()
+                .collect(Collectors.toMap(Project::getId, p -> p));
+
+        List<AdminProjectFilterResponse.ProjectRow> rows = ids.stream()
+                .map(detailed::get)
+                .filter(Objects::nonNull)
+                .map(this::toAdminProjectFilterRow)
+                .toList();
+
+        return new AdminProjectFilterResponse(rows, idPage.getTotalElements(), idPage.getNumber(), idPage.getSize());
     }
 
     @Transactional(readOnly = true)
@@ -795,6 +936,51 @@ public class DashboardReportingService {
             return "";
         }
         return s.length() <= 200 ? s : s.substring(0, 200);
+    }
+
+    private boolean hasFilterText(String s) {
+        return s != null && !s.trim().isEmpty();
+    }
+
+    private AdminProjectFilterResponse.ProjectRow toAdminProjectFilterRow(Project p) {
+        List<Task> tasks = safeTasks(p);
+        long total = tasks.size();
+        long completed = countStatus(tasks, TaskStatus.DONE);
+        long onHold = countStatus(tasks, TaskStatus.ON_HOLD);
+        long overdue = tasks.stream().filter(this::isOverdueActive).count();
+
+        List<String> collaborators = p.getMembers() == null ? List.of() : p.getMembers().stream()
+                .filter(Objects::nonNull)
+                .map(this::collabDisplayName)
+                .filter(name -> !name.isBlank())
+                .distinct()
+                .sorted()
+                .toList();
+
+        List<String> skills = p.getRequiredSkills() == null ? List.of() : p.getRequiredSkills().stream()
+                .filter(Objects::nonNull)
+                .map(s -> s.getName() == null ? "" : s.getName().trim())
+                .filter(name -> !name.isBlank())
+                .distinct()
+                .sorted()
+                .toList();
+
+        boolean completedLabel = p.isDelivered() || (total > 0 && completed == total);
+        String statusLabel = completedLabel ? "COMPLETED" : "ACTIVE";
+
+        return new AdminProjectFilterResponse.ProjectRow(
+                optionalStr(p.getName()),
+                collabDisplayName(p.getManager()),
+                p.getStartDate() != null ? p.getStartDate().toString() : "",
+                p.getDeadline() != null ? p.getDeadline().toString() : "",
+                total,
+                completed,
+                onHold,
+                overdue,
+                collaborators,
+                skills,
+                statusLabel
+        );
     }
 }
 

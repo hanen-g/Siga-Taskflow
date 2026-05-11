@@ -4,6 +4,7 @@ import com.taskflow.backend.dto.task.TaskResponse;
 import com.taskflow.backend.dto.file.UploadedFileResponse;
 import com.taskflow.backend.dto.skill.SkillResponse;
 import com.taskflow.backend.entity.Project;
+import com.taskflow.backend.entity.TaskStatus;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -29,6 +30,17 @@ public class ProjectResponse {
     private boolean archived;
     private boolean paused;
     private boolean delivered;
+    private boolean readyForDelivery;
+    /**
+     * Numeric lifecycle code used by the frontend for stable status colors.
+     * 0 = proposed (reserved for proposal objects),
+     * 1 = not started,
+     * 2 = in progress,
+     * 3 = archived,
+     * 4 = delivered,
+     * 5 = paused.
+     */
+    private int projectStatus;
     private LocalDateTime createdAt;
     private Long managerId;
     private String managerFirstName;
@@ -52,6 +64,8 @@ public class ProjectResponse {
         response.archived = project.isArchived();
         response.setPaused(project.isPaused());
         response.setDelivered(project.isDelivered());
+        response.setReadyForDelivery(isReadyForDelivery(project));
+        response.setProjectStatus(resolveProjectStatusCode(project));
         response.createdAt = project.getCreatedAt();
         if (project.getManager() != null) {
             response.managerId = project.getManager().getId();
@@ -83,6 +97,31 @@ public class ProjectResponse {
         }
 
         return response;
+    }
+
+    private static boolean isReadyForDelivery(Project project) {
+        if (project.getTasks() == null || project.getTasks().isEmpty()) {
+            return false;
+        }
+        return project.getTasks().stream()
+                .allMatch(task -> task != null && task.getStatus() == TaskStatus.DONE);
+    }
+
+    private static int resolveProjectStatusCode(Project project) {
+        if (project.isArchived()) {
+            return 3;
+        }
+        if (project.isDelivered()) {
+            return 4;
+        }
+        if (project.isPaused()) {
+            return 5;
+        }
+        LocalDate start = project.getStartDate();
+        if (start != null && start.isAfter(LocalDate.now())) {
+            return 1;
+        }
+        return 2;
     }
 
     /**

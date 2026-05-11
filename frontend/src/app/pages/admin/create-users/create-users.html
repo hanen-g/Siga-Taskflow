@@ -63,67 +63,7 @@
             autocomplete="off"
           />
         </div>
-        <div class="field">
-          <label for="cphone">Phone</label>
-          <input
-            pInputText
-            id="cphone"
-            type="tel"
-            [(ngModel)]="form.phoneNumber"
-            [disabled]="createLoading"
-            class="w-full"
-            autocomplete="off"
-          />
-        </div>
-        <div class="field">
-          <label for="cdob">Date of birth</label>
-          <input
-            pInputText
-            id="cdob"
-            type="date"
-            [(ngModel)]="form.dateOfBirth"
-            [disabled]="createLoading"
-            class="w-full"
-          />
-        </div>
-        <div class="field">
-          <label for="cgender">Gender</label>
-          <p-select
-            inputId="cgender"
-            [options]="genderOptions"
-            [(ngModel)]="form.gender"
-            optionLabel="label"
-            optionValue="value"
-            placeholder="Select"
-            [showClear]="false"
-            appendTo="body"
-            styleClass="w-full"
-            [disabled]="createLoading"
-          />
-        </div>
-        <div class="field">
-          <label for="crecruit">Recruitment date</label>
-          <input
-            pInputText
-            id="crecruit"
-            type="date"
-            [(ngModel)]="form.recruitmentDate"
-            [disabled]="createLoading"
-            class="w-full"
-          />
-        </div>
-        <div class="field field-wide">
-          <label for="caddr">Address</label>
-          <textarea
-            pInputTextarea
-            id="caddr"
-            rows="3"
-            [(ngModel)]="form.address"
-            [disabled]="createLoading"
-            class="w-full"
-            placeholder="Street, city, postal code…"
-          ></textarea>
-        </div>
+
         <div class="field field-wide" *ngIf="supportsSkills">
           <label for="cskills">Skills</label>
           <p class="skills-catalog-note">
@@ -132,9 +72,9 @@
             when you click Create account.
           </p>
 
-          @if (!skillsCatalogReady) {
+          @if (skillsLoading) {
             <div class="skills-catalog-loading" aria-busy="true">
-              <small class="text-500">{{ skillsLoading ? 'Loading skills catalog…' : 'Preparing skills…' }}</small>
+              <small class="text-500">Loading skills catalog…</small>
             </div>
           } @else {
             <p-multiselect
@@ -158,7 +98,7 @@
               pInputText
               type="text"
               [(ngModel)]="newSkillName"
-              [disabled]="createLoading || addingSkill || !skillsCatalogReady"
+              [disabled]="createLoading || addingSkill || skillsLoading"
               placeholder="New skill name"
               class="skills-catalog-input"
               (keydown.enter)="$event.preventDefault(); addSkillToCatalog()"
@@ -170,7 +110,7 @@
               label="Add to catalog"
               class="skills-catalog-btn"
               [loading]="addingSkill"
-              [disabled]="createLoading || addingSkill || !skillsCatalogReady"
+              [disabled]="createLoading || addingSkill || skillsLoading"
               (click)="addSkillToCatalog()"
             ></button>
           </div>

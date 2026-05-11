@@ -2,15 +2,20 @@ package com.taskflow.backend.repository;
 
 import com.taskflow.backend.entity.Project;
 import com.taskflow.backend.entity.User;
+import com.taskflow.backend.entity.UserRole;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
 
-public interface ProjectRepository extends JpaRepository<Project, Long> {
+public interface ProjectRepository extends JpaRepository<Project, Long>, JpaSpecificationExecutor<Project> {
 
     List<Project> findByManager(User manager);
 
@@ -19,6 +24,12 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     List<Project> findByMembersContainingAndArchived(User member, boolean archived);
 
     List<Project> findByArchived(boolean archived);
+
+    /**
+     * Members of a project filtered by role (used to list current client accounts on a project).
+     */
+    @Query("SELECT m FROM Project p JOIN p.members m WHERE p.id = :projectId AND m.role = :role")
+    List<User> findMembersByProjectIdAndRole(@Param("projectId") Long projectId, @Param("role") UserRole role);
 
     /**
      * Loads project with tasks for detail views.
@@ -40,4 +51,11 @@ public interface ProjectRepository extends JpaRepository<Project, Long> {
     @EntityGraph(attributePaths = {"manager", "tasks", "tasks.collaborators", "members"})
     @Query("select distinct p from Project p")
     List<Project> findAllDistinctForReporting();
+
+    @EntityGraph(attributePaths = {"manager", "tasks", "members", "requiredSkills"})
+    @Query("select distinct p from Project p where p.id in :ids")
+    List<Project> findDetailedByIdIn(@Param("ids") List<Long> ids);
+
+    @Override
+    Page<Project> findAll(Specification<Project> spec, Pageable pageable);
 }

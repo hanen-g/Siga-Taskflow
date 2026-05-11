@@ -64,30 +64,10 @@ public class NotificationService {
         Notification entity = new Notification();
         entity.setRecipient(adminRecipient);
         entity.setMessage(
-                "Nouvelle proposition de projet : « "
+                "New project proposal idea submitted: « "
                         + proposalName
-                        + " » par "
-                        + formatManagerName(submitter)
-                        + ". À valider dans Idées de projet.");
-        entity.setProjectName(proposalName);
-        entity.setTaskTitle("Proposition de projet");
-        entity.setManagerName(formatManagerName(submitter));
-        entity.setRead(false);
-
-        return com.taskflow.backend.dto.websocket.Notification.fromEntity(notificationRepository.save(entity));
-    }
-
-    @Transactional
-    public com.taskflow.backend.dto.websocket.Notification createProjectProposalReceiptNotification(
-            User submitter,
-            String proposalName) {
-        Notification entity = new Notification();
-        entity.setRecipient(submitter);
-        entity.setMessage(
-                "Votre proposition « " + proposalName + " » a été envoyée. Un administrateur la traitera sous peu.");
-        entity.setProjectName(proposalName);
-        entity.setTaskTitle("Proposition en attente");
-        entity.setManagerName(null);
+                        + " » By "
+                        + formatManagerName(submitter));
         entity.setRead(false);
 
         return com.taskflow.backend.dto.websocket.Notification.fromEntity(notificationRepository.save(entity));
@@ -102,13 +82,13 @@ public class NotificationService {
         Notification entity = new Notification();
         entity.setRecipient(proposer);
         entity.setMessage(
-                "Votre proposition « "
+                "Your project idea « "
                         + proposalName
-                        + " » a été approuvée. Le projet « "
+                        + " » was approved and created as « "
                         + createdProjectName
-                        + " » est maintenant disponible.");
+                        + " ».");
         entity.setProjectName(createdProjectName);
-        entity.setTaskTitle("Proposition approuvée");
+        entity.setTaskTitle("Project idea approved");
         entity.setManagerName(formatManagerName(adminApprover));
         entity.setRead(false);
 

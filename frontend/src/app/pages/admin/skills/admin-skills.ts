@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
@@ -59,6 +59,7 @@ export class AdminSkillsPage implements OnInit {
     private skillService: SkillService,
     private messageService: MessageService,
     private confirmation: ConfirmationService,
+    private cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -67,8 +68,12 @@ export class AdminSkillsPage implements OnInit {
 
   reload(): void {
     this.skills = null;
+    this.cdr.markForCheck();
     this.skillService.getAdminSkills().subscribe({
-      next: (s) => (this.skills = s ?? []),
+      next: (s) => {
+        this.skills = s ?? [];
+        this.cdr.markForCheck();
+      },
       error: (err) => {
         this.skills = [];
         const body = err?.error;
@@ -92,6 +97,7 @@ export class AdminSkillsPage implements OnInit {
           summary: 'Error',
           detail,
         });
+        this.cdr.markForCheck();
       },
     });
   }
@@ -111,6 +117,7 @@ export class AdminSkillsPage implements OnInit {
         this.messageService.add({ severity: 'success', summary: 'Created', detail: 'Skill added.' });
         this.reload();
         this.skillService.getAllSkillsRefreshed().subscribe();
+        this.cdr.markForCheck();
       },
       error: (err) => {
         this.saving = false;
@@ -119,6 +126,7 @@ export class AdminSkillsPage implements OnInit {
           summary: 'Error',
           detail: err.error?.message ?? err.error?.error ?? 'Could not create skill.',
         });
+        this.cdr.markForCheck();
       },
     });
   }
@@ -152,6 +160,7 @@ export class AdminSkillsPage implements OnInit {
           this.messageService.add({ severity: 'success', summary: 'Saved', detail: 'Skill updated.' });
           this.reload();
           this.skillService.getAllSkillsRefreshed().subscribe();
+          this.cdr.markForCheck();
         },
         error: (err) => {
           this.editSaving = false;
@@ -160,6 +169,7 @@ export class AdminSkillsPage implements OnInit {
             summary: 'Error',
             detail: err.error?.message ?? err.error?.error ?? 'Could not update skill.',
           });
+          this.cdr.markForCheck();
         },
       });
   }
@@ -178,6 +188,7 @@ export class AdminSkillsPage implements OnInit {
             this.messageService.add({ severity: 'info', summary: 'Archived', detail: 'Skill was archived.' });
             this.reload();
             this.skillService.getAllSkillsRefreshed().subscribe();
+            this.cdr.markForCheck();
           },
           error: (err) => {
             this.messageService.add({
@@ -185,6 +196,7 @@ export class AdminSkillsPage implements OnInit {
               summary: 'Error',
               detail: err.error?.message ?? err.error?.error ?? 'Could not archive skill.',
             });
+            this.cdr.markForCheck();
           },
         });
       },

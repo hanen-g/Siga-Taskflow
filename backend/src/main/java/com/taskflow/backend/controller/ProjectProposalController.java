@@ -1,9 +1,7 @@
 package com.taskflow.backend.controller;
 
-import com.taskflow.backend.dto.project.ApproveProjectProposalRequest;
 import com.taskflow.backend.dto.project.ProjectProposalRequest;
 import com.taskflow.backend.dto.project.ProjectProposalResponse;
-import com.taskflow.backend.dto.project.ProjectResponse;
 import com.taskflow.backend.security.CustomUserDetails;
 import com.taskflow.backend.service.ProjectProposalService;
 import org.springframework.http.HttpStatus;
@@ -51,20 +49,15 @@ public class ProjectProposalController {
         return projectProposalService.listForProposer(userDetails.getUser());
     }
 
-    @PostMapping("/{id}/approve")
+    @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> approve(
+    public ResponseEntity<?> getOne(
             @PathVariable Long id,
-            @RequestBody(required = false) ApproveProjectProposalRequest body,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         try {
-            if (body == null) {
-                body = new ApproveProjectProposalRequest();
-            }
-            ProjectResponse project = projectProposalService.approve(userDetails.getUser(), id, body);
-            return ResponseEntity.ok(project);
-        } catch (IllegalArgumentException | IllegalStateException e) {
-            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+            return ResponseEntity.ok(projectProposalService.getForAdmin(id));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
         }
     }
 

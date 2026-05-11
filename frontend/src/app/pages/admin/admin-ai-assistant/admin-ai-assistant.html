@@ -1,0 +1,229 @@
+<p-toast />
+<p-confirmDialog />
+
+<div class="admin-ai-root">
+  <div class="admin-ai-shell">
+    <section class="admin-ai-left">
+      <header class="admin-ai-left-header">
+        <div class="admin-ai-title">
+          <span class="pi pi-android admin-ai-android"></span>
+          <span>AI Assistant</span>
+        </div>
+        <div class="admin-ai-header-actions">
+          <button
+            pButton
+            type="button"
+            label="New conversation"
+            icon="pi pi-plus"
+            styleClass="p-button-outlined p-button-sm"
+            (click)="newConversation()"
+          ></button>
+          <button
+            pButton
+            type="button"
+            label="Export"
+            icon="pi pi-download"
+            styleClass="p-button-outlined p-button-sm"
+            (click)="exportChat()"
+          ></button>
+        </div>
+      </header>
+
+      <div class="admin-ai-chat-pane">
+        <p-scrollPanel
+          styleClass="admin-ai-chat-messages admin-ai-chat-scrollpanel"
+          [style]="{ width: '100%', height: '100%' }"
+        >
+          @if (welcomeVisible) {
+            <div class="admin-ai-welcome">
+              <p-avatar icon="pi pi-android" shape="circle" size="xlarge" styleClass="welcome-avatar-android" />
+              <h2 class="admin-ai-welcome-title">Hi, I'm your AI assistant</h2>
+              <p class="admin-ai-welcome-sub">
+                Ask me about projects, tasks, and teams — in plain language.
+              </p>
+              <div class="admin-ai-starter-chips">
+                @for (q of suggestedStarters; track q) {
+                  <p-chip [label]="q" styleClass="starter-chip cursor-pointer" (click)="chipPick(q)" />
+                }
+              </div>
+            </div>
+          }
+
+          @if (!welcomeVisible) {
+            <div class="admin-ai-msg-stack">
+              @for (m of uiMessages; track m.id) {
+                <div class="admin-ai-turn" [class.admin-ai-turn-user]="m.role === 'user'">
+                  @if (m.role === 'assistant') {
+                    <p-avatar icon="pi pi-android" shape="circle" size="normal" styleClass="assistant-avatar-android" />
+                  }
+                  <div class="admin-ai-turn-col">
+                    @if (m.role === 'assistant' && m.isOllamaError) {
+                      <div class="admin-ai-error-assist">
+                        <p-message severity="error" [text]="m.content" />
+                        <button
+                          pButton
+                          type="button"
+                          label="Retry"
+                          icon="pi pi-refresh"
+                          styleClass="p-button-outlined p-button-sm admin-ai-retry-beside"
+                          [disabled]="loading"
+                          (click)="retryLast()"
+                        ></button>
+                      </div>
+                    } @else {
+                      <div
+                        class="admin-ai-bubble"
+                        [class.bubble-user]="m.role === 'user'"
+                        [class.bubble-assistant]="m.role === 'assistant'"
+                      >
+                        <span>{{ m.content }}</span>
+                      </div>
+                    }
+                    <div class="admin-ai-msg-time">{{ m.at | date : 'HH:mm' }}</div>
+                    @if (m.role === 'assistant' && assistantHasFollowUps(m)) {
+                      <div class="admin-ai-followups">
+                        @for (fq of m.followUps!; track fq) {
+                          <p-chip [label]="fq" styleClass="followup-chip" (click)="followUpChip(fq)" />
+                        }
+                      </div>
+                    }
+                  </div>
+                </div>
+              }
+
+              @if (loading) {
+                <div class="admin-ai-turn admin-ai-typing">
+                  <p-avatar icon="pi pi-android" shape="circle" size="normal" styleClass="assistant-avatar-android" />
+                  <div class="admin-ai-bubble bubble-assistant typing-bubble">
+                    <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                  </div>
+                </div>
+              }
+            </div>
+          }
+        </p-scrollPanel>
+      </div>
+
+      <footer class="admin-ai-composer">
+        <textarea
+          pTextarea
+          [(ngModel)]="input"
+          [autoResize]="true"
+          rows="1"
+          class="admin-ai-textarea"
+          placeholder="Type your question..."
+          (keydown)="composerKey($event)"
+        ></textarea>
+        <button
+          pButton
+          type="button"
+          icon="pi pi-send"
+          [disabled]="loading || !input.trim()"
+          (click)="submitInput()"
+        ></button>
+      </footer>
+    </section>
+
+    <section class="admin-ai-right">
+      <header class="admin-ai-results-header">
+        <span class="admin-ai-results-header-inner">
+          <i class="pi pi-list"></i>
+          <span>Results</span>
+        </span>
+      </header>
+      <div class="admin-ai-results-body">
+        @if (suggestionBanner) {
+          <p-message
+            severity="info"
+            [text]="'Assistant suggestion: ' + suggestionBanner"
+            styleClass="admin-ai-banner-msg"
+          />
+        }
+
+        @if (uiMessages.length === 0) {
+          <div class="admin-ai-results-empty">
+            <span class="pi pi-filter admin-ai-empty-ic"></span>
+            <p>Your conversation results will appear here</p>
+          </div>
+        } @else if (loading) {
+          <div class="admin-ai-result-skeletons">
+            @for (_ of [1, 2, 3]; track _) {
+              <p-card styleClass="admin-ai-skel-card">
+                <p-skeleton width="40%" height="1.1rem" />
+                <p-skeleton width="70%" height="0.9rem" styleClass="mt-2" />
+                <p-skeleton width="100%" height="0.5rem" styleClass="mt-2" />
+              </p-card>
+            }
+          </div>
+        } @else if (actionTypeUpper === 'FILTER' && resultCountTotal === 0) {
+          <div class="admin-ai-results-empty soft">
+            <span class="pi pi-filter admin-ai-empty-ic"></span>
+            <p>No results for this filter.</p>
+          </div>
+        } @else if (actionTypeUpper === 'FILTER' && resultCountTotal > 0) {
+          <div class="admin-ai-filter-summary">
+            <span class="admin-ai-filter-count">{{ resultCountTotal }} results</span>
+            <div class="admin-ai-filter-chips">
+              @for (c of activeFilterChips; track c.key + c.valueLabel) {
+                <p-chip [label]="c.label + ': ' + c.valueLabel" [removable]="true" (onRemove)="removeFilterChip(c)" />
+              }
+            </div>
+          </div>
+          <div class="admin-ai-result-cards">
+            @for (r of resultsPaged; track $index) {
+              @if (isProjectRow(r)) {
+                <p-card [header]="r.projectName || 'Project'">
+                  <div class="admin-ai-card-line">
+                    <span>{{ r.projectManagerName || '—' }}</span>
+                    <span>Start: {{ r.startDateIso || 'N/A' }}</span>
+                  </div>
+                  <p-progressBar [value]="r.completionRatePercent ?? 0" [showValue]="true" />
+                  <div class="admin-ai-card-tags">
+                    <p-tag [value]="r.statusLabel || ''" [severity]="statusSeverity(r.statusLabel)" />
+                  </div>
+                  <div class="admin-ai-card-skills">
+                    @for (sk of r.skills || []; track sk) {
+                      <p-chip [label]="sk" />
+                    }
+                  </div>
+                </p-card>
+              } @else {
+                <p-card [header]="r.taskTitle || 'Task'">
+                  <div class="admin-ai-card-line">
+                    <span>{{ r.projectName || '—' }}</span>
+                    <span>{{ r.deadlineIso || 'N/A' }}</span>
+                  </div>
+                  <div class="admin-ai-card-tags">
+                    <p-tag [value]="r.taskStatus || ''" [severity]="taskSev(r.taskStatus)" />
+                    <p-tag [value]="r.priority || ''" severity="secondary" />
+                  </div>
+                  <p class="admin-ai-task-meta">Assignees: {{ r.assigneeNames || '—' }}</p>
+                  @if (r.holdReason) {
+                    <p class="admin-ai-hold">On hold: {{ r.holdReason }}</p>
+                  }
+                </p-card>
+              }
+            }
+          </div>
+          <p-paginator
+            [rows]="resultsRowsPerPage"
+            [first]="resultsFirst"
+            [totalRecords]="resultCountTotal"
+            [rowsPerPageOptions]="[10, 25, 50]"
+            (onPageChange)="paginate($event)"
+          />
+        } @else if (answerBlock && (actionTypeUpper === 'ANSWER' || actionTypeUpper === 'ANALYSIS' || actionTypeUpper === 'CLARIFY')) {
+          <p-panel header="Assistant reply" [toggleable]="false" styleClass="admin-ai-answer-panel">
+            <div class="admin-ai-answer-body">{{ answerBlock.assistantMessage }}</div>
+            <p class="admin-ai-datasnap">{{ answerBlock.dataSnapshot }}</p>
+          </p-panel>
+        } @else {
+          <div class="admin-ai-results-empty soft">
+            <span class="pi pi-comments admin-ai-empty-ic"></span>
+            <p>Ask a question or request a filter to see results here.</p>
+          </div>
+        }
+      </div>
+    </section>
+  </div>
+</div>

@@ -33,15 +33,7 @@
       </div>
       <div class="project-delivered-pill">SUCCESS</div>
     </div>
-    <p-menu *ngIf="showMenu" #menu [popup]="true" [appendTo]="'body'" [model]="menuItems" (onShow)="onMenuShow()"></p-menu>
-    <button
-      *ngIf="showMenu"
-      pButton
-      type="button"
-      icon="pi pi-ellipsis-v"
-      class="project-menu-button"
-      (click)="$event.stopPropagation(); toggleMenu($event)">
-    </button>
+    
   </div>
 
   <div class="project-card-body">
@@ -62,7 +54,7 @@
         pButton
         type="button"
         icon="pi pi-play"
-        label="Disable pause"
+        label="Unpause"
         class="p-button-sm p-button-warning"
         (click)="resumePausedProject($event)">
       </button>

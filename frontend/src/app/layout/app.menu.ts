@@ -1,4 +1,5 @@
 import { Component } from '@angular/core';
+import { ApiService } from '../services/api';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { WebsocketService } from '../services/websocket.service';
@@ -25,19 +26,11 @@ export type AppMenuItem = MenuItem & { iconImg?: string };
 export class AppMenu {
     model: AppMenuItem[] = [];
 
-    constructor(private router: Router, private ws: WebsocketService) {}
-
-    private getRoleFromToken(): string | null {
-        const token = localStorage.getItem('token');
-        if (!token) return null;
-
-        try {
-            const payload = JSON.parse(atob(token.split('.')[1]));
-            return payload.role;
-        } catch {
-            return null;
-        }
-    }
+    constructor(
+        private router: Router,
+        private ws: WebsocketService,
+        private api: ApiService
+    ) {}
 
     logout() {
         this.ws.disconnect();
@@ -46,7 +39,7 @@ export class AppMenu {
     }
 
     ngOnInit() {
-        const role = this.getRoleFromToken();
+        const role = this.api.getResolvedRole();
 
         if (role === 'PROJECT_MANAGER') {
             this.model = [
@@ -128,9 +121,7 @@ export class AppMenu {
             this.model = [
                 {
                     label: 'Home',
-                    items: [
-                        { label: 'Dashboard', icon: 'pi pi-fw pi-home', routerLink: ['/dashboard/admin'] }
-                    ]
+                    items: [{ label: 'Dashboard', icon: 'pi pi-fw pi-home', routerLink: ['/dashboard/admin'] }]
                 },
                 {
                     label: 'Projects & Tasks',
@@ -166,17 +157,17 @@ export class AppMenu {
                                 },
                                 {
                                     label: 'Archived projects',
-                                    iconImg: 'assets/images/archived-hero.png',
+                                    icon: 'pi pi-trash',
                                     routerLink: ['/dashboard/admin/archives']
                                 },
                                 {
                                     label: 'Delivered projects',
-                                    iconImg: 'assets/images/delivery-hero.png',
+                                    icon: 'pi pi-truck',
                                     routerLink: ['/dashboard/admin/delivered']
                                 },
                                 {
                                     label: 'Proposed project ideas',
-                                    iconImg: 'assets/images/proposed-subjects-icon.png',
+                                    icon: 'pi pi-lightbulb',
                                     routerLink: ['/dashboard/admin/project-proposals']
                                 },
                             ]
@@ -186,12 +177,20 @@ export class AppMenu {
                 {
                     label: 'Users',
                     path: '/users',
+                    command: ({ originalEvent }) => {
+                        originalEvent?.preventDefault();
+                        void this.router.navigate(['/dashboard/admin/users']);
+                    },
                     items: [
                         { label: 'Create users', icon: 'pi pi-user-plus', routerLink: ['/dashboard/admin/create-users'] },
                         {
                             label: 'Users',
                             icon: 'pi pi-users',
                             path: '/users-by-role',
+                            command: ({ originalEvent }) => {
+                                originalEvent?.preventDefault();
+                                void this.router.navigate(['/dashboard/admin/users']);
+                            },
                             items: [
                                 { label: 'Admins', icon: 'pi pi-shield', routerLink: ['/dashboard/admin/users'], queryParams: { role: 'ADMIN' } },
                                 { label: 'Collaborators', icon: 'pi pi-users', routerLink: ['/dashboard/admin/users'], queryParams: { role: 'COLLABORATOR' } },
@@ -203,21 +202,30 @@ export class AppMenu {
                 {
                     label: 'Skills',
                     items: [
-                        { label: 'Skills catalog', icon: 'pi pi-list', routerLink: ['/dashboard/admin/skills'] }
+                        { label: 'Skills', icon: 'pi pi-cog', routerLink: ['/dashboard/admin/skills'] }
                     ]
                 },
                 {
                     label: 'Clients',
                     items: [
-                        { label: 'Create client', icon: 'pi pi-user-plus', routerLink: ['/dashboard/admin/create-client'] }
+                        { label: 'Clients', icon: 'pi pi-face-smile', routerLink: ['/dashboard/admin/create-client'] }
                     ]
                 },
                 {
-                    label: 'Tools',
+                    label: 'Data Reporting Tools',
                     items: [
-                        { label: 'IA Chat', icon: 'pi pi-comments', routerLink: ['/dashboard/admin/ia-chat'] }
+                        {
+                            label: 'Advanced filtering',
+                            icon: 'pi pi-filter',
+                            routerLink: ['/dashboard/admin/advanced-filter']
+                        },
+                        {
+                            label: 'AI Assistant',
+                            icon: 'pi pi-microchip-ai',
+                            routerLink: ['/dashboard/admin/ai-chat']
+                        }
                     ]
-                }
+                },
             ];
         }
 
