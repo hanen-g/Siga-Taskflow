@@ -3,6 +3,8 @@ package com.taskflow.backend.entity;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.OnDelete;
+import org.hibernate.annotations.OnDeleteAction;
 
 import java.time.LocalDateTime;
 
@@ -16,21 +18,31 @@ public class Notification {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(optional = false)
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "recipient_id", nullable = false)
     private User recipient;
 
-    @Column(nullable = false, length = 500)
-    private String message;
+    @ManyToOne(optional = false, fetch = FetchType.LAZY)
+    @JoinColumn(name = "actor_id", nullable = false)
+    private User actor;
 
-    @Column(name = "project_name")
-    private String projectName;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "task_id")
+    private Task task;
 
-    @Column(name = "task_title")
-    private String taskTitle;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "project_id")
+    private Project project;
 
-    @Column(name = "manager_name")
-    private String managerName;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "proposal_id")
+    @OnDelete(action = OnDeleteAction.SET_NULL)
+    private ProjectProposal proposal;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "message_id")
+    @OnDelete(action = OnDeleteAction.SET_NULL)
+    private Message message;
 
     @Column(name = "is_read", nullable = false)
     private boolean read = false;

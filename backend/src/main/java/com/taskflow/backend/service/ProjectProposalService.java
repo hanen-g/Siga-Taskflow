@@ -2,9 +2,11 @@ package com.taskflow.backend.service;
 
 import com.taskflow.backend.dto.project.ProjectProposalRequest;
 import com.taskflow.backend.dto.project.ProjectProposalResponse;
-import com.taskflow.backend.dto.project.ProjectResponse;
 import com.taskflow.backend.dto.websocket.Notification;
-import com.taskflow.backend.entity.*;
+import com.taskflow.backend.entity.Project;
+import com.taskflow.backend.entity.ProjectProposal;
+import com.taskflow.backend.entity.User;
+import com.taskflow.backend.entity.UserRole;
 import com.taskflow.backend.repository.ProjectProposalRepository;
 import com.taskflow.backend.repository.ProjectRepository;
 import com.taskflow.backend.repository.UserRepository;
@@ -58,19 +60,19 @@ public class ProjectProposalService {
         p.setClientContact(cc == null ? null : cc.trim().isEmpty() ? null : cc.trim());
         p.setProposer(proposer);
         p = projectProposalRepository.save(p);
-        notifyAdminsOfNewProposal(p.getName(), proposer);
+        notifyAdminsOfNewProposal(p, proposer);
         return toResponse(projectProposalRepository.findByIdWithProposer(p.getId()).orElse(p));
     }
 
     /**
-     * Persist notifications in the DB during the transaction, but push WebSocket payloads only after commit
+     * Persist notifications during the transaction; push WebSocket payloads after commit
      * so clients that refetch immediately see rows and STOMP subscribers receive a consistent payload.
      */
-    private void notifyAdminsOfNewProposal(String proposalName, User submitter) {
+    private void notifyAdminsOfNewProposal(ProjectProposal proposal, User submitter) {
         List<User> admins = new ArrayList<>(userRepository.findByRoleAndActiveIncludingNull(UserRole.ADMIN));
         List<Notification> adminPayloads = new ArrayList<>();
         for (User admin : admins) {
-            adminPayloads.add(notificationService.createProjectProposalSubmittedNotification(admin, proposalName, submitter));
+            adminPayloads.add(notificationService.createProjectProposalSubmittedNotification(admin, submitter, proposal));
         }
 
         Runnable publishWs = () -> {
@@ -92,7 +94,7 @@ public class ProjectProposalService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProjectProposalResponse> listForAdmin() {
+    public List<ProjectProposalResponse> listProposals() {
         return projectProposalRepository.findAllWithProposerOrderByCreatedAtDesc()
                 .stream()
                 .map(this::toResponse)
@@ -100,19 +102,7 @@ public class ProjectProposalService {
     }
 
     @Transactional(readOnly = true)
-    public List<ProjectProposalResponse> listForProposer(User proposer) {
-        if (proposer.getRole() != UserRole.PROJECT_MANAGER && proposer.getRole() != UserRole.COLLABORATOR) {
-            throw new SecurityException("Only project managers and collaborators have proposal submissions.");
-        }
-        return projectProposalRepository
-                .findByProposerWithProposerOrderByCreatedAtDesc(proposer.getId())
-                .stream()
-                .map(this::toResponse)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public ProjectProposalResponse getForAdmin(Long id) {
+    public ProjectProposalResponse getProposal(Long id) {
         return projectProposalRepository.findByIdWithProposer(id)
                 .map(this::toResponse)
                 .orElseThrow(() -> new IllegalArgumentException("Proposal not found"));
@@ -148,13 +138,12 @@ public class ProjectProposalService {
         members.add(proposer);
         projectRepository.save(project);
 
-        notifyProposerOfApprovedProposal(proposer, proposal.getName(), project.getName(), admin);
+        notifyProposerOfApprovedProposal(proposer, project, admin);
         projectProposalRepository.delete(proposal);
     }
 
-    private void notifyProposerOfApprovedProposal(User proposer, String proposalName, String createdProjectName, User admin) {
-        Notification dto = notificationService.createProjectProposalApprovedNotification(
-                proposer, proposalName, createdProjectName, admin);
+    private void notifyProposerOfApprovedProposal(User proposer, Project project, User admin) {
+        Notification dto = notificationService.createProjectAssignedNotification(proposer, admin, project);
         long proposerId = proposer.getId();
         if (TransactionSynchronizationManager.isSynchronizationActive()) {
             TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {

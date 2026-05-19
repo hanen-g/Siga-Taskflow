@@ -1,6 +1,7 @@
 package com.taskflow.backend.repository;
 
 import com.taskflow.backend.entity.Comment;
+import com.taskflow.backend.entity.ProjectStatus;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -81,8 +82,8 @@ public interface CommentRepository extends JpaRepository<Comment, Long> {
             JOIN FETCH t.project p
             JOIN FETCH c.user u
             JOIN p.members m
-            WHERE m.id = :clientId AND p.archived = false
+            WHERE m.id = :clientId AND p.status <> :archivedStatus
             ORDER BY c.createdAt DESC
             """)
-    List<Comment> findRecentForClientPortfolio(@Param("clientId") Long clientId, Pageable pageable);
+    List<Comment> findRecentForClientPortfolio(@Param("clientId") Long clientId, @Param("archivedStatus") ProjectStatus archivedStatus, Pageable pageable);
 }

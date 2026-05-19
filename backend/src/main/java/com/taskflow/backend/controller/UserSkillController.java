@@ -21,13 +21,13 @@ public class UserSkillController {
 
     @GetMapping("/skills")
     public List<SkillResponse> getMySkills(@org.springframework.security.core.annotation.AuthenticationPrincipal CustomUserDetails userDetails) {
-        return userSkillService.getSkillsForUser(userDetails.getUser());
+        return userSkillService.getUserSkills(userDetails.getUser());
     }
 
     @PutMapping("/skills")
     public List<SkillResponse> putMySkills(
             @org.springframework.security.core.annotation.AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestBody SkillIdsRequest request) {
-        return userSkillService.replaceSkillsForUser(userDetails.getUser(), request);
+        return userSkillService.updateUserSkills(userDetails.getUser(), request);
     }
 }

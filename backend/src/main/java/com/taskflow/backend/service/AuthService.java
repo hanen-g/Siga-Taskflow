@@ -3,19 +3,18 @@ package com.taskflow.backend.service;
 import com.taskflow.backend.dto.auth.AdminCreateUserRequest;
 import com.taskflow.backend.dto.auth.AuthResponse;
 import com.taskflow.backend.dto.auth.LoginRequest;
-import com.taskflow.backend.dto.auth.SignupRequest;
-import com.taskflow.backend.entity.Client;
 import com.taskflow.backend.entity.Skill;
 import com.taskflow.backend.entity.User;
 import com.taskflow.backend.entity.UserRole;
 import com.taskflow.backend.exception.BadRequestException;
-import com.taskflow.backend.repository.ClientRepository;
 import com.taskflow.backend.repository.SkillRepository;
 import com.taskflow.backend.repository.UserRepository;
 import com.taskflow.backend.security.JwtService;
+import com.taskflow.backend.util.ClientLabelColors;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -28,7 +27,7 @@ public class AuthService {
     private final JwtService jwtService;
     private final RandomPasswordService randomPasswordService;
     private final SkillRepository skillRepository;
-    private final ClientRepository clientRepository;
+    private final CompanyService companyService;
 
     public AuthService(
             UserRepository userRepository,
@@ -36,14 +35,14 @@ public class AuthService {
             JwtService jwtService,
             RandomPasswordService randomPasswordService,
             SkillRepository skillRepository,
-            ClientRepository clientRepository
+            CompanyService companyService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.randomPasswordService = randomPasswordService;
         this.skillRepository = skillRepository;
-        this.clientRepository = clientRepository;
+        this.companyService = companyService;
     }
 
     public record ProvisioningResult(User user, String temporaryPassword) {}
@@ -51,7 +50,7 @@ public class AuthService {
     /**
      * Creates a user (admin only via API) with a system-generated password. Does not return a session token.
      */
-    public ProvisioningResult createUserByAdmin(AdminCreateUserRequest request) {
+    public ProvisioningResult createUser(AdminCreateUserRequest request) {
         if (request.getRole() == null) {
             throw new IllegalArgumentException("Role is required. Must be PROJECT_MANAGER, COLLABORATOR, CLIENT or ADMIN.");
         }
@@ -75,17 +74,19 @@ public class AuthService {
         user.setActive(request.getActive() == null || request.getActive());
         user.setGender(normalizeGenderCode(trimToNull(request.getGender())));
         user.setSkills(resolveSkillsForRole(role, request.getSkillIds()));
+        user.setPhoneNumber(trimToNull(request.getPhoneNumber()));
+        user.setAddress(trimToNull(request.getAddress()));
+        if (role == UserRole.CLIENT) {
+            String tax = trimToNull(request.getFiscalMatricule());
+            if (tax != null) {
+                user.setCompany(companyService.client_company(tax, trimToNull(request.getCompany())));
+            }
+            user.setClientLabelColor(ClientLabelColors.normalizeOrDefault(request.getClientLabelColor()));
+        }
+
+        user.setCreatedAt(LocalDate.now());
 
         User saved = userRepository.save(user);
-        if (role == UserRole.CLIENT) {
-            Client cp = new Client();
-            cp.setUser(saved);
-            cp.setCompanyName(trimToNull(request.getCompany()));
-            cp.setFiscalMatricule(trimToNull(request.getFiscalMatricule()));
-            cp.setPhoneNumber(trimToNull(request.getPhoneNumber()));
-            cp.setAddress(trimToNull(request.getAddress()));
-            clientRepository.save(cp);
-        }
 
         return new ProvisioningResult(saved, temporaryPassword);
     }
@@ -104,54 +105,6 @@ public class AuthService {
         }
         SkillService.ensureNotArchived(found);
         return new HashSet<>(found);
-    }
-
-    /**
-     * Self-service registration. Cannot create ADMIN users; emails need not receive mail (any unique string works for local testing).
-     */
-    public AuthResponse signup(SignupRequest request) {
-        UserRole role;
-        try {
-            role = request.getRoleAsEnum();
-        } catch (IllegalArgumentException e) {
-            throw new BadRequestException(e.getMessage());
-        }
-        if (role == UserRole.ADMIN) {
-            throw new BadRequestException("Self-registration cannot create administrator accounts.");
-        }
-
-        String email = normalizeEmail(request.getEmail());
-        if (email == null || email.isEmpty()) {
-            throw new BadRequestException("Email is required.");
-        }
-
-        String password = request.getPassword();
-        if (password == null || password.length() < 6) {
-            throw new BadRequestException("Password must be at least 6 characters.");
-        }
-
-        String firstName = request.getFirstName() == null ? "" : request.getFirstName().trim();
-        String lastName = request.getLastName() == null ? "" : request.getLastName().trim();
-        if (firstName.isEmpty() || lastName.isEmpty()) {
-            throw new BadRequestException("First name and last name are required.");
-        }
-
-        if (userRepository.findByEmail(email).isPresent()) {
-            throw new BadRequestException("Email already exists.");
-        }
-
-        User user = new User();
-        user.setFirstName(firstName);
-        user.setLastName(lastName);
-        user.setEmail(email);
-        user.setPassword(passwordEncoder.encode(password));
-        user.setRole(role);
-        user.setActive(true);
-        user.setSkills(new HashSet<>());
-
-        User saved = userRepository.save(user);
-        String token = jwtService.generateToken(saved.getEmail(), saved.getRole().name());
-        return new AuthResponse(token, saved);
     }
 
     public AuthResponse login(LoginRequest request) {

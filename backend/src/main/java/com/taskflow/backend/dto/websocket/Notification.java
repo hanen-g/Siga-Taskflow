@@ -6,27 +6,19 @@ import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
 
+/**
+ * API / WebSocket payload. {@code kind} is derived at read time from which FKs are set (not persisted).
+ */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 public class Notification {
     private Long id;
     private String message;
-    private String projectName;
-    private String taskTitle;
-    private String managerName;
+    /** Derived: {@code PROPOSAL_SUBMITTED}, {@code TASK_ASSIGNED}, {@code PROJECT_ASSIGNED}, {@code PROJECT_MESSAGE}, or {@code UNKNOWN}. */
+    private String kind;
     private boolean read;
     private LocalDateTime createdAt;
-
-    public static Notification fromEntity(com.taskflow.backend.entity.Notification entity) {
-        return new Notification(
-                entity.getId(),
-                entity.getMessage(),
-                entity.getProjectName(),
-                entity.getTaskTitle(),
-                entity.getManagerName(),
-                entity.isRead(),
-                entity.getCreatedAt()
-        );
-    }
+    private Long projectId;
+    private Long taskId;
 }

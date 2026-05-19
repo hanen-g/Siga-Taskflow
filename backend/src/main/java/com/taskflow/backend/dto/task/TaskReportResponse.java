@@ -25,22 +25,29 @@ public class TaskReportResponse {
     private LocalDateTime resolvedAt;
 
     public static TaskReportResponse fromEntity(TaskReport report) {
-        User reporter = report.getReporter();
-        return TaskReportResponse.builder()
+        var builder = TaskReportResponse.builder()
                 .id(report.getId())
                 .taskId(report.getTask().getId())
                 .taskTitle(report.getTask().getTitle())
                 .projectId(report.getTask().getProject().getId())
                 .projectName(report.getTask().getProject().getName())
-                .reporterId(reporter.getId())
-                .reporterName(formatUserName(reporter))
-                .reporterEmail(reporter.getEmail())
                 .reason(report.getReason())
                 .details(report.getDetails())
                 .resolved(report.isResolved())
                 .createdAt(report.getCreatedAt())
-                .resolvedAt(report.getResolvedAt())
-                .build();
+                .resolvedAt(report.getResolvedAt());
+        User reporter = report.getReporter();
+        if (reporter != null) {
+            builder.reporterId(reporter.getId())
+                    .reporterName(formatUserName(reporter))
+                    .reporterEmail(reporter.getEmail());
+        } else {
+            report.getTask().soleAssignedCollaborator().ifPresent(fallback -> builder
+                    .reporterId(fallback.getId())
+                    .reporterName(formatUserName(fallback))
+                    .reporterEmail(fallback.getEmail()));
+        }
+        return builder.build();
     }
 
     private static String formatUserName(User user) {

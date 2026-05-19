@@ -74,7 +74,7 @@ public class TaskService {
 
         // notify the assigned collaborators specifically
         for (User collab : task.getCollaborators()) {
-            Notification notif = notificationService.createTaskAssignedNotification(collab, saved);
+            Notification notif = notificationService.createTaskAssignedNotification(collab, manager, saved);
             messagingTemplate.convertAndSend("/topic/notifications/user/" + collab.getId(), notif);
 
             // inform collaborator-specific task channel as well (useful if they are viewing their list)
@@ -133,7 +133,7 @@ public class TaskService {
 
         for (User collab : saved.getCollaborators()) {
             if (!existingCollaboratorIds.contains(collab.getId())) {
-                Notification notif = notificationService.createTaskAssignedNotification(collab, saved);
+                Notification notif = notificationService.createTaskAssignedNotification(collab, manager, saved);
                 messagingTemplate.convertAndSend("/topic/notifications/user/" + collab.getId(), notif);
             }
             messagingTemplate.convertAndSend("/topic/tasks/user/" + collab.getId(), msg);
@@ -167,25 +167,28 @@ public class TaskService {
         taskRepository.deleteById(taskId);
     }
 
-    public List<TaskResponse> getCollaboratorTasks(User user) {
-        return taskRepository.findByCollaboratorsContaining(user)
-                .stream()
-                .map(TaskResponse::fromTask)
-                .toList();
-    }
-
-    public List<TaskResponse> getManagerTasks(User manager) {
-        return taskRepository.findByProjectManager(manager)
-                .stream()
-                .map(TaskResponse::fromTask)
-                .toList();
-    }
-
-    public List<TaskResponse> getAllTasks() {
-        return taskRepository.findAllFetchingProject()
-                .stream()
-                .map(TaskResponse::fromTask)
-                .toList();
+    /**
+     * Tasks visible in global / cross-project views for the current user:
+     * admin — all tasks; project manager — tasks on managed projects; collaborator — assigned tasks;
+     * client — none (use per-project task APIs).
+     */
+    public List<TaskResponse> listTasksForCurrentUser(User user) {
+        UserRole role = user.getRole();
+        if (role == null) {
+            throw new UnauthorizedException("This account has no role assigned.");
+        }
+        return switch (role) {
+            case ADMIN -> taskRepository.findAllFetchingProject().stream()
+                    .map(TaskResponse::fromTask)
+                    .toList();
+            case PROJECT_MANAGER -> taskRepository.findByProjectManager(user).stream()
+                    .map(TaskResponse::fromTask)
+                    .toList();
+            case COLLABORATOR -> taskRepository.findByCollaboratorsContaining(user).stream()
+                    .map(TaskResponse::fromTask)
+                    .toList();
+            case CLIENT -> List.of();
+        };
     }
 
     public TaskResponse updateStatus(Long taskId, TaskStatusUpdateRequest request, User user) {
@@ -211,6 +214,7 @@ public class TaskService {
         validateCollaboratorTransition(nextStatus);
         applyHoldReasonRules(task, nextStatus, request.getHoldReason());
 
+        task.setStatusBeforeProjectPause(null);
         task.setStatus(nextStatus);
         taskRepository.save(task);
 

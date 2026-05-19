@@ -4,7 +4,10 @@ import com.taskflow.backend.dto.task.TaskResponse;
 import com.taskflow.backend.dto.file.UploadedFileResponse;
 import com.taskflow.backend.dto.skill.SkillResponse;
 import com.taskflow.backend.entity.Project;
+import com.taskflow.backend.entity.ProjectStatus;
 import com.taskflow.backend.entity.TaskStatus;
+import com.taskflow.backend.entity.User;
+import com.taskflow.backend.entity.UserRole;
 import lombok.Getter;
 import lombok.Setter;
 
@@ -30,6 +33,7 @@ public class ProjectResponse {
     private boolean archived;
     private boolean paused;
     private boolean delivered;
+    private ProjectStatus status;
     private boolean readyForDelivery;
     /**
      * Numeric lifecycle code used by the frontend for stable status colors.
@@ -49,6 +53,7 @@ public class ProjectResponse {
     private List<TaskResponse> tasks;
     private List<UploadedFileResponse> files;
     private List<SkillResponse> requiredSkills;
+    private String clientLabelColor;
 
     public static ProjectResponse fromProject(Project project) {
         return fromProject(project, task -> true);
@@ -64,6 +69,7 @@ public class ProjectResponse {
         response.archived = project.isArchived();
         response.setPaused(project.isPaused());
         response.setDelivered(project.isDelivered());
+        response.setStatus(project.getStatus());
         response.setReadyForDelivery(isReadyForDelivery(project));
         response.setProjectStatus(resolveProjectStatusCode(project));
         response.createdAt = project.getCreatedAt();
@@ -96,7 +102,23 @@ public class ProjectResponse {
                     .collect(Collectors.toList());
         }
 
+        response.setClientLabelColor(resolveFirstClientLabelColor(project));
+
         return response;
+    }
+
+    private static String resolveFirstClientLabelColor(Project project) {
+        if (project.getMembers() == null || project.getMembers().isEmpty()) {
+            return null;
+        }
+        return project.getMembers().stream()
+                .filter(m -> m != null && m.getRole() == UserRole.CLIENT)
+                .map(User::getClientLabelColor)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .findFirst()
+                .orElse(null);
     }
 
     private static boolean isReadyForDelivery(Project project) {
@@ -108,15 +130,10 @@ public class ProjectResponse {
     }
 
     private static int resolveProjectStatusCode(Project project) {
-        if (project.isArchived()) {
-            return 3;
-        }
-        if (project.isDelivered()) {
-            return 4;
-        }
-        if (project.isPaused()) {
-            return 5;
-        }
+        if (project.getStatus() == ProjectStatus.ARCHIVED) return 3;
+        if (project.getStatus() == ProjectStatus.COMPLETED) return 4;
+        if (project.getStatus() == ProjectStatus.PAUSED) return 5;
+        if (project.getStatus() == ProjectStatus.NOT_STARTED) return 1;
         LocalDate start = project.getStartDate();
         if (start != null && start.isAfter(LocalDate.now())) {
             return 1;

@@ -1,7 +1,9 @@
 package com.taskflow.backend.service;
 
 import com.taskflow.backend.dto.reporting.AdminDashboardResponse;
+import com.taskflow.backend.dto.reporting.AdminFilterRoleUserOption;
 import com.taskflow.backend.dto.reporting.AdminProjectFilterRequest;
+import com.taskflow.backend.dto.reporting.AdminProjectFilterOptionsResponse;
 import com.taskflow.backend.dto.reporting.AdminProjectFilterResponse;
 import com.taskflow.backend.dto.reporting.ChartSeriesResponse;
 import com.taskflow.backend.dto.reporting.ClientDashboardResponse;
@@ -10,6 +12,7 @@ import com.taskflow.backend.dto.reporting.NamedCountResponse;
 import com.taskflow.backend.dto.reporting.ProjectManagerDashboardResponse;
 import com.taskflow.backend.entity.Comment;
 import com.taskflow.backend.entity.Project;
+import com.taskflow.backend.entity.ProjectStatus;
 import com.taskflow.backend.entity.Task;
 import com.taskflow.backend.entity.TaskStatus;
 import com.taskflow.backend.entity.User;
@@ -26,6 +29,13 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import jakarta.persistence.criteria.CriteriaBuilder;
+import jakarta.persistence.criteria.CriteriaQuery;
+import jakarta.persistence.criteria.Join;
+import jakarta.persistence.criteria.Predicate;
+import jakarta.persistence.criteria.Root;
+import jakarta.persistence.criteria.Subquery;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -59,7 +69,7 @@ public class DashboardReportingService {
         long done = countStatus(myTasks, TaskStatus.DONE);
         long hold = countStatus(myTasks, TaskStatus.ON_HOLD);
         long overdue = myTasks.stream().filter(this::isOverdueActive).count();
-        double completionPct = total == 0 ? 100.0 : (100.0 * done / total);
+        double completionPct = total == 0 ? 0.0 : (100.0 * done / total);
 
         ChartSeriesResponse statusChart = donutFromTasks(myTasks);
         ChartSeriesResponse perProject = tasksPerProjectChart(myTasks);
@@ -165,7 +175,7 @@ public class DashboardReportingService {
                     long oh = countStatus(ts, TaskStatus.ON_HOLD);
                     long rej = revisionCountInProjects(e.getKey(), projectIds);
                     long ovd = ts.stream().filter(this::isOverdueActive).count();
-                    double base = tt == 0 ? 100.0 : (100.0 * d / tt);
+                    double base = tt == 0 ? 0.0 : (100.0 * d / tt);
                     double penalized = base - 6.0 * rej - 4.0 * ovd;
                     int score = (int) Math.round(Math.max(0, Math.min(100, penalized)));
                     return new ProjectManagerDashboardResponse.CollaboratorPerformanceRow(
@@ -235,7 +245,7 @@ public class DashboardReportingService {
         long totalProj = projects.size();
         long totalT = allTasks.size();
         long done = countStatus(allTasks, TaskStatus.DONE);
-        double platPct = totalT == 0 ? 100.0 : (100.0 * done / totalT);
+        double platPct = totalT == 0 ? 0.0 : (100.0 * done / totalT);
         long blocked = countStatus(allTasks, TaskStatus.ON_HOLD);
         long inactive = userRepository.countByIsActive(false);
 
@@ -419,21 +429,56 @@ public class DashboardReportingService {
             });
         }
 
-        if (hasFilterText(filter.collaboratorName())) {
-            String term = "%" + filter.collaboratorName().trim().toLowerCase() + "%";
+        if (hasFilterText(filter.userName())) {
+            String term = "%" + filter.userName().trim().toLowerCase() + "%";
             spec = spec.and((root, query, cb) -> {
                 query.distinct(true);
                 var member = root.joinSet("members");
+                var manager = root.join("manager");
                 var fullName = cb.lower(cb.trim(cb.concat(
                         cb.concat(cb.coalesce(member.get("firstName"), ""), " "),
                         cb.coalesce(member.get("lastName"), "")
                 )));
+                var managerFullName = cb.lower(cb.trim(cb.concat(
+                        cb.concat(cb.coalesce(manager.get("firstName"), ""), " "),
+                        cb.coalesce(manager.get("lastName"), "")
+                )));
                 return cb.or(
                         cb.like(cb.lower(cb.coalesce(member.get("firstName"), "")), term),
                         cb.like(cb.lower(cb.coalesce(member.get("lastName"), "")), term),
-                        cb.like(fullName, term)
+                        cb.like(cb.lower(cb.coalesce(member.get("email"), "")), term),
+                        cb.like(fullName, term),
+                        cb.like(cb.lower(cb.coalesce(manager.get("firstName"), "")), term),
+                        cb.like(cb.lower(cb.coalesce(manager.get("lastName"), "")), term),
+                        cb.like(cb.lower(cb.coalesce(manager.get("email"), "")), term),
+                        cb.like(managerFullName, term)
                 );
             });
+        }
+
+        if (filter.filterPmUserId() != null) {
+            Long pmId = filter.filterPmUserId();
+            spec = spec.and((root, query, cb) -> cb.and(
+                    cb.isNotNull(root.get("manager")),
+                    cb.equal(root.get("manager").get("id"), pmId)
+            ));
+        }
+
+        if (filter.filterCollaboratorUserId() != null) {
+            Long collabId = filter.filterCollaboratorUserId();
+            if (Boolean.TRUE.equals(filter.filterCollaboratorMatchTasks())) {
+                spec = spec.and((root, query, cb) -> cb.or(
+                        projectHasMemberWithUserId(root, query, cb, collabId),
+                        projectHasTaskWithCollaboratorUserId(root, query, cb, collabId)
+                ));
+            } else {
+                spec = spec.and((root, query, cb) -> projectHasMemberWithUserId(root, query, cb, collabId));
+            }
+        }
+
+        if (filter.filterClientUserId() != null) {
+            Long memberId = filter.filterClientUserId();
+            spec = spec.and((root, query, cb) -> projectHasMemberWithUserId(root, query, cb, memberId));
         }
 
         if (hasFilterText(filter.skillName())) {
@@ -459,10 +504,16 @@ public class DashboardReportingService {
         }
         if (hasFilterText(filter.statusLabel())) {
             String normalized = filter.statusLabel().trim().toUpperCase();
-            if ("COMPLETED".equals(normalized)) {
-                spec = spec.and((root, query, cb) -> cb.isTrue(root.get("delivered")));
-            } else if ("ACTIVE".equals(normalized)) {
-                spec = spec.and((root, query, cb) -> cb.isFalse(root.get("delivered")));
+            if ("ACTIVE".equals(normalized)) {
+                // Legacy bucket: any lifecycle status except completed (delivered).
+                spec = spec.and((root, query, cb) -> cb.notEqual(root.get("status"), ProjectStatus.COMPLETED));
+            } else {
+                try {
+                    ProjectStatus wanted = ProjectStatus.valueOf(normalized);
+                    spec = spec.and((root, query, cb) -> cb.equal(root.get("status"), wanted));
+                } catch (IllegalArgumentException ignored) {
+                    // Unknown status token: do not narrow the query.
+                }
             }
         }
 
@@ -486,11 +537,89 @@ public class DashboardReportingService {
     }
 
     @Transactional(readOnly = true)
+    public AdminProjectFilterOptionsResponse adminProjectFilterOptions(User user) {
+        if (user.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Admin only");
+        }
+
+        List<Project> projects = projectRepository.findAllDistinctForReporting();
+        List<User> users = userRepository.findAll();
+
+        List<String> projectNames = projects.stream()
+                .map(Project::getName)
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(name -> !name.isBlank())
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+
+        List<String> managerNames = projects.stream()
+                .map(Project::getManager)
+                .filter(Objects::nonNull)
+                .map(this::collabDisplayName)
+                .filter(name -> !name.isBlank())
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+
+        List<String> userNames = users.stream()
+                .map(this::collabDisplayName)
+                .filter(name -> !name.isBlank())
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+
+        List<String> skillNames = projects.stream()
+                .flatMap(project -> (project.getRequiredSkills() == null ? List.<com.taskflow.backend.entity.Skill>of() : project.getRequiredSkills()).stream())
+                .filter(Objects::nonNull)
+                .map(skill -> skill.getName() == null ? "" : skill.getName().trim())
+                .filter(name -> !name.isBlank())
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+
+        Comparator<AdminFilterRoleUserOption> byLabel =
+                Comparator.comparing(AdminFilterRoleUserOption::label, String.CASE_INSENSITIVE_ORDER);
+
+        List<AdminFilterRoleUserOption> projectManagerUsers = users.stream()
+                .filter(u -> u != null && u.getId() != null && u.getRole() == UserRole.PROJECT_MANAGER && u.isActive())
+                .map(u -> new AdminFilterRoleUserOption(u.getId(), collabDisplayName(u)))
+                .filter(o -> o.label() != null && !o.label().isBlank())
+                .sorted(byLabel)
+                .toList();
+
+        List<AdminFilterRoleUserOption> collaboratorUsers = users.stream()
+                .filter(u -> u != null && u.getId() != null && u.getRole() == UserRole.COLLABORATOR && u.isActive())
+                .map(u -> new AdminFilterRoleUserOption(u.getId(), collabDisplayName(u)))
+                .filter(o -> o.label() != null && !o.label().isBlank())
+                .sorted(byLabel)
+                .toList();
+
+        List<AdminFilterRoleUserOption> clientUsers = users.stream()
+                .filter(u -> u != null && u.getId() != null && u.getRole() == UserRole.CLIENT && u.isActive())
+                .map(u -> new AdminFilterRoleUserOption(u.getId(), collabDisplayName(u)))
+                .filter(o -> o.label() != null && !o.label().isBlank())
+                .sorted(byLabel)
+                .toList();
+
+        return new AdminProjectFilterOptionsResponse(
+                projectNames,
+                managerNames,
+                userNames,
+                skillNames,
+                projectManagerUsers,
+                collaboratorUsers,
+                clientUsers
+        );
+    }
+
+    @Transactional(readOnly = true)
     public ClientDashboardResponse clientDashboard(User client) {
         if (client.getRole() != UserRole.CLIENT) {
             throw new UnauthorizedException("Clients only");
         }
-        List<Project> portfolio = projectRepository.findDistinctActiveByMemberForReporting(client);
+        List<Project> portfolio = projectRepository.findDistinctActiveByMemberForReporting(client, ProjectStatus.ARCHIVED);
         List<Task> allTasks = portfolio.stream().flatMap(p -> safeTasks(p).stream()).toList();
         long atRiskProj = portfolio.stream().filter(p -> atRisk(p, safeTasks(p))).count();
         int overallPct = overallWeightedCompletion(portfolio);
@@ -562,7 +691,7 @@ public class DashboardReportingService {
     ) {
         List<ClientDashboardResponse.ClientActivityItem> rows = new ArrayList<>();
         for (Project p : portfolio) {
-            if (Boolean.TRUE.equals(p.isDelivered())) {
+            if (p.getStatus() == ProjectStatus.COMPLETED) {
                 rows.add(new ClientDashboardResponse.ClientActivityItem(
                         formatActivityTime(LocalDateTime.now()),
                         "Project \"" + p.getName() + "\" marked as delivered.",
@@ -572,7 +701,7 @@ public class DashboardReportingService {
         }
 
         PageRequest pageable = PageRequest.of(0, 40);
-        List<Comment> chunk = commentRepository.findRecentForClientPortfolio(clientUserId, pageable);
+        List<Comment> chunk = commentRepository.findRecentForClientPortfolio(clientUserId, ProjectStatus.ARCHIVED, pageable);
         for (Comment c : chunk) {
             Task t = c.getTask();
             User u = c.getUser();
@@ -636,7 +765,7 @@ public class DashboardReportingService {
 
     private long projectsPastDeadline(List<Project> projects) {
         LocalDate t = LocalDate.now();
-        return projects.stream().filter(p -> !p.isDelivered()
+        return projects.stream().filter(p -> p.getStatus() != ProjectStatus.COMPLETED
                 && p.getDeadline() != null
                 && p.getDeadline().isBefore(t)).count();
     }
@@ -675,7 +804,7 @@ public class DashboardReportingService {
         }
         Map<String, Double> out = new LinkedHashMap<>();
         for (TempAgg tg : agg.values()) {
-            double pct = tg.total == 0 ? 100.0 : (100.0 * tg.done / tg.total);
+            double pct = tg.total == 0 ? 0.0 : (100.0 * tg.done / tg.total);
             out.put(tg.label, pct);
         }
         return out;
@@ -706,7 +835,7 @@ public class DashboardReportingService {
             long doneCnt = ts.stream().filter(t -> t.getStatus() == TaskStatus.DONE).count();
             long overdue = ts.stream().filter(this::isOverdueActive).count();
             long rej = revisionCountInProjects(e.getKey(), allProjectIds);
-            double base = total == 0 ? 100.0 : (100.0 * doneCnt / total);
+            double base = total == 0 ? 0.0 : (100.0 * doneCnt / total);
             int score = (int) Math.round(Math.max(0, Math.min(100, base - 6 * rej - 4 * overdue)));
             rows.add(new AdminDashboardResponse.NamedLongScoreRow(collabDisplayName(u), score));
         }
@@ -736,7 +865,7 @@ public class DashboardReportingService {
     private int overallWeightedCompletion(List<Project> projects) {
         long tot = projects.stream().mapToLong(p -> safeTasks(p).size()).sum();
         long don = projects.stream().mapToLong(p -> countStatus(safeTasks(p), TaskStatus.DONE)).sum();
-        return tot == 0 ? 100 : (int) Math.round((100.0 * don / tot));
+        return tot == 0 ? 0 : (int) Math.round((100.0 * don / tot));
     }
 
     private ChartSeriesResponse progressPerProjectSeries(List<Project> projects) {
@@ -866,7 +995,7 @@ public class DashboardReportingService {
     }
 
     private int progressPercent(long total, long done) {
-        return total <= 0 ? 100 : (int) Math.round((100.0 * done / total));
+        return total <= 0 ? 0 : (int) Math.round((100.0 * done / total));
     }
 
     private boolean atRisk(Project p, List<Task> ts) {
@@ -938,6 +1067,41 @@ public class DashboardReportingService {
         return s.length() <= 200 ? s : s.substring(0, 200);
     }
 
+    private Predicate projectHasMemberWithUserId(
+            Root<Project> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder cb,
+            Long userId
+    ) {
+        Subquery<Long> sub = query.subquery(Long.class);
+        Root<Project> subRoot = sub.from(Project.class);
+        Join<Project, User> members = subRoot.join("members");
+        sub.select(subRoot.get("id"));
+        sub.where(cb.and(
+                cb.equal(subRoot.get("id"), root.get("id")),
+                cb.equal(members.get("id"), userId)
+        ));
+        return cb.exists(sub);
+    }
+
+    /** Project has at least one task where {@code userId} is in {@link Task#getCollaborators()}. */
+    private Predicate projectHasTaskWithCollaboratorUserId(
+            Root<Project> root,
+            CriteriaQuery<?> query,
+            CriteriaBuilder cb,
+            Long userId
+    ) {
+        Subquery<Long> sub = query.subquery(Long.class);
+        Root<Task> taskRoot = sub.from(Task.class);
+        var collaborators = taskRoot.joinSet("collaborators");
+        sub.select(taskRoot.get("id"));
+        sub.where(cb.and(
+                cb.equal(taskRoot.get("project").get("id"), root.get("id")),
+                cb.equal(collaborators.get("id"), userId)
+        ));
+        return cb.exists(sub);
+    }
+
     private boolean hasFilterText(String s) {
         return s != null && !s.trim().isEmpty();
     }
@@ -965,8 +1129,7 @@ public class DashboardReportingService {
                 .sorted()
                 .toList();
 
-        boolean completedLabel = p.isDelivered() || (total > 0 && completed == total);
-        String statusLabel = completedLabel ? "COMPLETED" : "ACTIVE";
+        String persistedStatus = p.getStatus() != null ? p.getStatus().name() : "";
 
         return new AdminProjectFilterResponse.ProjectRow(
                 optionalStr(p.getName()),
@@ -979,7 +1142,7 @@ public class DashboardReportingService {
                 overdue,
                 collaborators,
                 skills,
-                statusLabel
+                persistedStatus
         );
     }
 }

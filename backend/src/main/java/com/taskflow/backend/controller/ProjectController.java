@@ -10,6 +10,7 @@ import com.taskflow.backend.dto.project.ProjectResponse;
 import com.taskflow.backend.dto.skill.ProjectSkillMatchResponse;
 import com.taskflow.backend.dto.skill.SkillIdsRequest;
 import com.taskflow.backend.entity.Project;
+import com.taskflow.backend.entity.ProjectStatus;
 import com.taskflow.backend.entity.User;
 import com.taskflow.backend.entity.UserRole;
 import com.taskflow.backend.exception.BadRequestException;
@@ -185,14 +186,16 @@ public class ProjectController {
         return projectService.myProjects(userDetails.getUser());
     }
 
-    @GetMapping("/archived")
+    /**
+     * Lists projects for a persisted lifecycle/archival status.
+     * Admins: all projects with that status. Project managers: only projects they manage.
+     */
+    @GetMapping("/by-status")
     @PreAuthorize("hasAnyRole('PROJECT_MANAGER', 'ADMIN')")
-    public List<ProjectResponse> myArchivedProjects(
+    public List<ProjectResponse> listProjectsByStatus(
+            @RequestParam("status") ProjectStatus status,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
-        if (userDetails.getUser().getRole() == UserRole.ADMIN) {
-            return projectService.getAllArchivedForAdmin();
-        }
-        return projectService.myArchivedProjects(userDetails.getUser());
+        return projectService.listProjectsByStatus(status, userDetails.getUser());
     }
 
     @GetMapping("/{id}")
@@ -235,7 +238,7 @@ public class ProjectController {
     }
 
     @PutMapping("/{id}/lifecycle")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasAnyRole('ADMIN', 'PROJECT_MANAGER')")
     public ProjectResponse setProjectLifecycle(
             @PathVariable Long id,
             @RequestBody ProjectLifecycleRequest request,
@@ -266,14 +269,5 @@ public class ProjectController {
 
         return projectService.addAttachment(id, file, userDetails.getUser());
     }
-
-    @DeleteMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public void deleteProject(
-            @PathVariable Long id,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
-        projectService.deleteProject(id, userDetails.getUser());
-    }
-
 
 }
