@@ -63,4 +63,18 @@ public interface UserRepository extends JpaRepository<User, Long> {
               AND (u.isActive = true OR u.isActive IS null)
             """)
     List<User> findActiveByRolesWithSkills(@Param("roles") Set<UserRole> roles);
+
+    List<User> findFirst10ByRoleOrderByIdDesc(UserRole role);
+
+    @Query("""
+            SELECT COUNT(u) FROM User u
+            WHERE (u.isActive = true OR u.isActive IS NULL)
+            """)
+    long countActiveUsers();
+
+    @Query("""
+            SELECT COUNT(u) FROM User u
+            WHERE u.role = :role AND (u.isActive = true OR u.isActive IS NULL)
+            """)
+    long countActiveByRole(@Param("role") UserRole role);
 }

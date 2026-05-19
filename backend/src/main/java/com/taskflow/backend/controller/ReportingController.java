@@ -2,6 +2,7 @@ package com.taskflow.backend.controller;
 
 import com.taskflow.backend.dto.reporting.AdminDashboardResponse;
 import com.taskflow.backend.dto.reporting.AdminProjectFilterRequest;
+import com.taskflow.backend.dto.reporting.AdminProjectFilterOptionsResponse;
 import com.taskflow.backend.dto.reporting.AdminProjectFilterResponse;
 import com.taskflow.backend.dto.reporting.ClientDashboardResponse;
 import com.taskflow.backend.dto.reporting.CollaboratorDashboardResponse;
@@ -51,13 +52,17 @@ public class ReportingController {
             @AuthenticationPrincipal CustomUserDetails userDetails,
             @RequestParam(required = false) String projectName,
             @RequestParam(required = false) String managerName,
-            @RequestParam(required = false) String collaboratorName,
+            @RequestParam(required = false) String userName,
             @RequestParam(required = false) String skillName,
             @RequestParam(required = false) String statusLabel,
             @RequestParam(required = false) LocalDate startDateFrom,
             @RequestParam(required = false) LocalDate startDateTo,
             @RequestParam(required = false) LocalDate deadlineFrom,
             @RequestParam(required = false) LocalDate deadlineTo,
+            @RequestParam(required = false) Long filterPmUserId,
+            @RequestParam(required = false) Long filterCollaboratorUserId,
+            @RequestParam(required = false) Boolean filterCollaboratorMatchTasks,
+            @RequestParam(required = false) Long filterClientUserId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
@@ -66,17 +71,29 @@ public class ReportingController {
                 new AdminProjectFilterRequest(
                         projectName,
                         managerName,
-                        collaboratorName,
+                        userName,
                         skillName,
                         statusLabel,
                         startDateFrom,
                         startDateTo,
                         deadlineFrom,
-                        deadlineTo
+                        deadlineTo,
+                        filterPmUserId,
+                        filterCollaboratorUserId,
+                        filterCollaboratorMatchTasks,
+                        filterClientUserId
                 ),
                 page,
                 size
         );
+    }
+
+    @GetMapping("/admin/advanced-filter/options")
+    @PreAuthorize("hasRole('ADMIN')")
+    public AdminProjectFilterOptionsResponse adminAdvancedFilterOptions(
+            @AuthenticationPrincipal CustomUserDetails userDetails
+    ) {
+        return dashboardReportingService.adminProjectFilterOptions(userDetails.getUser());
     }
 
     @GetMapping("/client")

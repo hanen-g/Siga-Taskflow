@@ -25,7 +25,6 @@ public class TaskReportService {
 
     private final TaskReportRepository taskReportRepository;
     private final TaskRepository taskRepository;
-    private final NotificationService notificationService;
     private final SimpMessagingTemplate messagingTemplate;
 
     @Transactional
@@ -33,7 +32,10 @@ public class TaskReportService {
         Task task = taskRepository.findById(taskId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task", taskId));
 
-        if (!isAssignedCollaborator(task, reporter)) {
+        User assignee = task.soleAssignedCollaborator()
+                .orElseThrow(() -> new BadRequestException(
+                        "Task must have exactly one assigned collaborator to submit a report."));
+        if (!assignee.getId().equals(reporter.getId())) {
             throw new UnauthorizedException("You are not assigned to this task");
         }
 
@@ -50,7 +52,6 @@ public class TaskReportService {
         if (task.getProject() == null || task.getProject().getManager() == null) {
             throw new BadRequestException("Task project has no assigned manager");
         }
-        User manager = task.getProject().getManager();
 
         TaskReport report = new TaskReport();
         report.setTask(task);
@@ -59,9 +60,6 @@ public class TaskReportService {
         report.setDetails(details);
 
         TaskReport saved = taskReportRepository.save(report);
-        Notification notification = notificationService.createTaskReportNotification(manager, saved);
-        messagingTemplate.convertAndSend("/topic/notifications/user/" + manager.getId(), notification);
-
         return TaskReportResponse.fromEntity(saved);
     }
 
@@ -75,7 +73,7 @@ public class TaskReportService {
 
     @Transactional
     public void resolveReport(Long reportId, User manager) {
-        TaskReport report = taskReportRepository.findById(reportId)
+        TaskReport report = taskReportRepository.findDetailedById(reportId)
                 .orElseThrow(() -> new ResourceNotFoundException("Task report", reportId));
 
         User projectManager = report.getTask() != null
@@ -94,17 +92,35 @@ public class TaskReportService {
         report.setResolvedAt(LocalDateTime.now());
         taskReportRepository.save(report);
 
-        Notification notification = notificationService.createTaskReportResolvedNotification(report.getReporter(), report);
-        messagingTemplate.convertAndSend("/topic/notifications/user/" + report.getReporter().getId(), notification);
+        User reporter = report.getReporter();
+        if (reporter != null && reporter.getId() != null) {
+            Task task = report.getTask();
+            String taskTitle = task != null && task.getTitle() != null && !task.getTitle().isBlank()
+                    ? task.getTitle()
+                    : "a task";
+            String managerName = formatUserDisplayName(manager);
+            String message = "Your problem report for \"" + taskTitle + "\" was marked resolved by \""
+                    + managerName + "\".";
+            Notification wsPayload = new Notification(
+                    null,
+                    message,
+                    NotificationService.KIND_UNKNOWN,
+                    false,
+                    LocalDateTime.now(),
+                    null,
+                    null);
+            messagingTemplate.convertAndSend("/topic/notifications/user/" + reporter.getId(), wsPayload);
+        }
     }
 
-    private boolean isAssignedCollaborator(Task task, User user) {
-        if (task.getCollaborators() == null || user == null) {
-            return false;
+    private static String formatUserDisplayName(User user) {
+        if (user == null) {
+            return "Unknown";
         }
-        return task.getCollaborators().stream().anyMatch(collaborator ->
-                collaborator != null && collaborator.getId() != null && collaborator.getId().equals(user.getId())
-        );
+        String firstName = user.getFirstName() == null ? "" : user.getFirstName().trim();
+        String lastName = user.getLastName() == null ? "" : user.getLastName().trim();
+        String fullName = (firstName + " " + lastName).trim();
+        return fullName.isBlank() ? (user.getEmail() != null ? user.getEmail() : "Unknown") : fullName;
     }
 
     private String trimToNull(String value) {

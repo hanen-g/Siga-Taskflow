@@ -2,18 +2,19 @@ package com.taskflow.backend.controller;
 
 import com.taskflow.backend.dto.auth.AdminCreateUserRequest;
 import com.taskflow.backend.dto.project.ClientOptionResponse;
-import com.taskflow.backend.entity.Client;
 import com.taskflow.backend.entity.Skill;
 import com.taskflow.backend.entity.User;
 import com.taskflow.backend.entity.UserRole;
-import com.taskflow.backend.repository.ClientRepository;
 import com.taskflow.backend.repository.SkillRepository;
 import com.taskflow.backend.repository.UserRepository;
 import org.springframework.data.domain.PageRequest;
 import com.taskflow.backend.security.JwtService;
 import com.taskflow.backend.service.AccountEmailService;
 import com.taskflow.backend.service.AuthService;
+import com.taskflow.backend.service.CompanyService;
+import com.taskflow.backend.service.ProjectService;
 import com.taskflow.backend.service.SkillService;
+import com.taskflow.backend.util.ClientLabelColors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -31,7 +32,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 @RestController
@@ -45,7 +45,8 @@ public class UserController {
     private final AuthService authService;
     private final AccountEmailService accountEmailService;
     private final SkillRepository skillRepository;
-    private final ClientRepository clientRepository;
+    private final CompanyService companyService;
+    private final ProjectService projectService;
 
     public UserController(
             UserRepository userRepository,
@@ -54,7 +55,8 @@ public class UserController {
             AuthService authService,
             AccountEmailService accountEmailService,
             SkillRepository skillRepository,
-            ClientRepository clientRepository
+            CompanyService companyService,
+            ProjectService projectService
     ) {
         this.userRepository = userRepository;
         this.jwtService = jwtService;
@@ -62,12 +64,13 @@ public class UserController {
         this.authService = authService;
         this.accountEmailService = accountEmailService;
         this.skillRepository = skillRepository;
-        this.clientRepository = clientRepository;
+        this.companyService = companyService;
+        this.projectService = projectService;
     }
 
     @GetMapping("/admin/project-managers")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<ProjectManagerOption>> getProjectManagersForAdmin() {
+    public ResponseEntity<List<ProjectManagerOption>> getProjectManager() {
         /*
          * JOIN FETCH on a collection duplicates the same User in the JDBC result; without merging,
          * each row can carry an incomplete skills bag and skillIds sent to the client look wrong/empty.
@@ -123,34 +126,32 @@ public class UserController {
 
     @GetMapping("/admin/clients")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<ClientOptionResponse>> getClientsForAdmin() {
+    public ResponseEntity<List<ClientOptionResponse>> getClients() {
         List<User> users = userRepository.findByRoleAndActiveIncludingNull(UserRole.CLIENT);
-        Map<Long, Client> profiles = clientProfileMapForUsers(users);
         List<ClientOptionResponse> out = users.stream()
                 .sorted(Comparator
                         .comparing((User u) -> {
-                            Client cp = profiles.get(u.getId());
-                            String company = cp == null || cp.getCompanyName() == null ? "" : cp.getCompanyName();
+                            String company = u.getCompany() == null || u.getCompany().getCompanyName() == null
+                                    ? ""
+                                    : u.getCompany().getCompanyName();
                             return company.toLowerCase(Locale.ROOT);
                         })
                         .thenComparing(u -> ((u.getFirstName() == null ? "" : u.getFirstName())
                                 + " " + (u.getLastName() == null ? "" : u.getLastName())).toLowerCase(Locale.ROOT)))
-                .map(u -> {
-                    Client cp = profiles.get(u.getId());
-                    return new ClientOptionResponse(
-                            u.getId(),
-                            u.getFirstName(),
-                            u.getLastName(),
-                            u.getEmail(),
-                            cp == null ? null : cp.getCompanyName()
-                    );
-                })
+                .map(u -> new ClientOptionResponse(
+                        u.getId(),
+                        u.getFirstName(),
+                        u.getLastName(),
+                        u.getEmail(),
+                        u.getCompany() == null ? null : u.getCompany().getCompanyName(),
+                        u.getClientLabelColor()
+                ))
                 .toList();
         return ResponseEntity.ok(out);
     }
 
     @GetMapping("/collaborators")
-    public ResponseEntity<List<String>> getCollaboratorEmails(
+    public ResponseEntity<List<String>> getCollabEmail(
             @RequestParam(name = "q", defaultValue = "") String query
     ) {
         String normalizedQuery = query.trim();
@@ -169,26 +170,30 @@ public class UserController {
 
     @PostMapping("/admin/users")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> createUserByAdmin(@RequestBody AdminCreateUserRequest request) {
+    public ResponseEntity<?> createUser(@RequestBody AdminCreateUserRequest request) {
         try {
-            AuthService.ProvisioningResult result = authService.createUserByAdmin(request);
+            AuthService.ProvisioningResult result = authService.createUser(request);
             User user = result.user();
             String plainPassword = result.temporaryPassword();
-            boolean emailSent;
-            String emailMessage;
+            AccountEmailService.WelcomeEmailResult emailResult;
             try {
-                emailSent = accountEmailService.sendWelcomeWithCredentials(
+                emailResult = accountEmailService.sendWelcomeWithCredentials(
                         user.getEmail(),
                         user.getFirstName() == null ? "there" : user.getFirstName(),
                         user.getRole() == null ? "User" : user.getRole().name().replace('_', ' '),
                         plainPassword
                 );
-                emailMessage = emailSent
-                        ? "A welcome email with sign-in details was sent."
-                        : "Account created. Outgoing mail is not configured: set MAIL_HOST (e.g. smtp.gmail.com) and MAIL_PASSWORD, or share credentials manually. When mail is disabled, the same details are written to the server log.";
             } catch (Exception e) {
-                emailSent = false;
-                emailMessage = "Account created, but the welcome email could not be sent. Share credentials manually or check mail configuration.";
+                emailResult = AccountEmailService.WelcomeEmailResult.sendFailed();
+            }
+            boolean emailSent = emailResult.sent();
+            String emailMessage;
+            if (emailSent) {
+                emailMessage = "A welcome email with sign-in details was sent.";
+            } else if (emailResult.skippedBecauseNotConfigured()) {
+                emailMessage = "Account created. Outgoing mail is not configured: set MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD, and optionally MAIL_FROM (or leave MAIL_FROM unset to use the SMTP username as the sender). Credentials are written to the server log when mail is disabled.";
+            } else {
+                emailMessage = "Account created, but the welcome email could not be delivered (SMTP error). Check spring.mail.* settings, App Passwords for Gmail, and the server log.";
             }
             return ResponseEntity.status(HttpStatus.CREATED)
                     .body(new AdminUserCreatedResponse(adminUserResponse(user), emailSent, emailMessage));
@@ -210,7 +215,7 @@ public class UserController {
 
     @GetMapping("/admin/users")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<List<AdminUserResponse>> getUsersForAdmin(
+    public ResponseEntity<List<AdminUserResponse>> getUsers(
             @RequestParam(name = "search", defaultValue = "") String search,
             @RequestParam(name = "role", defaultValue = "ALL") String role,
             @RequestParam(name = "status", defaultValue = "active") String status
@@ -226,13 +231,11 @@ public class UserController {
             users = activeOnly ? userRepository.findByRoleAndActiveIncludingNull(roleEnum) : userRepository.findByRoleAndIsActive(roleEnum, false);
         }
 
-        Map<Long, Client> clientProfiles = clientProfileMapForUsers(users);
-
         List<AdminUserResponse> result = users.stream()
                 .filter(user -> searchValue.isBlank()
-                        || userMatchesSearch(user, searchValue, clientProfiles.get(user.getId())))
+                        || userMatchesSearch(user, searchValue))
                 .sorted(Comparator.comparing((User u) -> (u.getFirstName() + " " + u.getLastName()).toLowerCase(Locale.ROOT)))
-                .map(user -> new AdminUserResponse(user, clientProfiles.get(user.getId())))
+                .map(AdminUserResponse::new)
                 .toList();
 
         return ResponseEntity.ok(result);
@@ -240,7 +243,7 @@ public class UserController {
 
     @PutMapping("/admin/users/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> updateAdminUser(
+    public ResponseEntity<?> updateUser(
             @PathVariable Long id,
             @RequestBody AdminUserUpdateRequest request
     ) {
@@ -252,7 +255,7 @@ public class UserController {
             if (request.getRole() != null) {
                 UserRole newRole = UserRole.valueOf(request.getRole().toUpperCase(Locale.ROOT));
                 if (roleBefore == UserRole.CLIENT && newRole != UserRole.CLIENT) {
-                    clientRepository.deleteByUser_Id(user.getId());
+                    user.setCompany(null);
                 }
                 user.setRole(newRole);
             }
@@ -289,28 +292,39 @@ public class UserController {
                     }
                 }
             }
+            if (request.getPhoneNumber() != null) {
+                user.setPhoneNumber(trimToNull(request.getPhoneNumber()));
+            }
+            if (request.getAddress() != null) {
+                user.setAddress(trimToNull(request.getAddress()));
+            }
+
+            boolean clientLabelColorChanged = false;
+            if (user.getRole() == UserRole.CLIENT) {
+                if (request.getFiscalMatricule() != null) {
+                    String f = trimToNull(request.getFiscalMatricule());
+                    if (f == null) {
+                        user.setCompany(null);
+                    } else {
+                        user.setCompany(companyService.client_company(
+                                f,
+                                request.getCompany() != null ? trimToNull(request.getCompany()) : null
+                        ));
+                    }
+                } else if (request.getCompany() != null) {
+                    companyService.renameCompany(user, request.getCompany());
+                }
+                if (request.getClientLabelColor() != null) {
+                    String previousColor = user.getClientLabelColor();
+                    String nextColor = ClientLabelColors.normalizeOrDefault(request.getClientLabelColor());
+                    user.setClientLabelColor(nextColor);
+                    clientLabelColorChanged = !nextColor.equalsIgnoreCase(previousColor == null ? "" : previousColor.trim());
+                }
+            }
 
             userRepository.save(user);
-
-            if (user.getRole() == UserRole.CLIENT) {
-                Client cp = clientRepository.findByUser_Id(user.getId()).orElseGet(() -> {
-                    Client created = new Client();
-                    created.setUser(user);
-                    return created;
-                });
-                if (request.getPhoneNumber() != null) {
-                    cp.setPhoneNumber(trimToNull(request.getPhoneNumber()));
-                }
-                if (request.getAddress() != null) {
-                    cp.setAddress(trimToNull(request.getAddress()));
-                }
-                if (request.getCompany() != null) {
-                    cp.setCompanyName(trimToNull(request.getCompany()));
-                }
-                if (request.getFiscalMatricule() != null) {
-                    cp.setFiscalMatricule(trimToNull(request.getFiscalMatricule()));
-                }
-                clientRepository.save(cp);
+            if (clientLabelColorChanged) {
+                projectService.publishProjectUpdatesForClientColor(user.getId());
             }
 
             return ResponseEntity.ok(adminUserResponse(user));
@@ -381,6 +395,12 @@ public class UserController {
             if (updateRequest.getProfilePicture() != null) {
                 user.setProfilePicture(updateRequest.getProfilePicture());
             }
+            if (updateRequest.getPhoneNumber() != null) {
+                user.setPhoneNumber(trimToNull(updateRequest.getPhoneNumber()));
+            }
+            if (updateRequest.getAddress() != null) {
+                user.setAddress(trimToNull(updateRequest.getAddress()));
+            }
 
             if (updateRequest.getPassword() != null && !updateRequest.getPassword().isEmpty()) {
                 if (updateRequest.getCurrentPassword() == null || updateRequest.getCurrentPassword().isEmpty()) {
@@ -409,6 +429,9 @@ public class UserController {
         private String lastName;
         private String role;
         private String profilePicture;
+        private String createdAt;
+        private String phoneNumber;
+        private String address;
 
         public UserResponse(User user) {
             this.id = user.getId();
@@ -417,6 +440,9 @@ public class UserController {
             this.lastName = user.getLastName();
             this.role = user.getRole().name();
             this.profilePicture = user.getProfilePicture();
+            this.createdAt = user.getCreatedAt() == null ? null : user.getCreatedAt().toString();
+            this.phoneNumber = user.getPhoneNumber();
+            this.address = user.getAddress();
         }
 
         public Long getId() { return id; }
@@ -425,6 +451,9 @@ public class UserController {
         public String getLastName() { return lastName; }
         public String getRole() { return role; }
         public String getProfilePicture() { return profilePicture; }
+        public String getCreatedAt() { return createdAt; }
+        public String getPhoneNumber() { return phoneNumber; }
+        public String getAddress() { return address; }
     }
 
     static class AdminUserResponse {
@@ -444,8 +473,9 @@ public class UserController {
         private String fiscalMatricule;
         private String createdAt;
         private List<SkillOption> skills;
+        private String clientLabelColor;
 
-        public AdminUserResponse(User user, Client clientProfile) {
+        public AdminUserResponse(User user) {
             this.id = user.getId();
             this.email = user.getEmail();
             this.firstName = user.getFirstName();
@@ -453,14 +483,12 @@ public class UserController {
             this.role = user.getRole().name();
             this.profilePicture = user.getProfilePicture();
             this.isActive = user.isActive();
-            if (user.getRole() == UserRole.CLIENT && clientProfile != null) {
-                this.phoneNumber = clientProfile.getPhoneNumber();
-                this.address = clientProfile.getAddress();
-                this.company = clientProfile.getCompanyName();
-                this.fiscalMatricule = clientProfile.getFiscalMatricule();
+            this.phoneNumber = user.getPhoneNumber();
+            this.address = user.getAddress();
+            if (user.getRole() == UserRole.CLIENT && user.getCompany() != null) {
+                this.company = user.getCompany().getCompanyName();
+                this.fiscalMatricule = user.getCompany().getTaxRegistrationNumber();
             } else {
-                this.phoneNumber = null;
-                this.address = null;
                 this.company = null;
                 this.fiscalMatricule = null;
             }
@@ -475,6 +503,7 @@ public class UserController {
                     .map(skill -> new SkillOption(skill.getId(), skill.getName()))
                     .sorted(Comparator.comparing(SkillOption::getName, String.CASE_INSENSITIVE_ORDER))
                     .toList();
+            this.clientLabelColor = user.getClientLabelColor();
         }
 
         public Long getId() { return id; }
@@ -493,6 +522,7 @@ public class UserController {
         public String getFiscalMatricule() { return fiscalMatricule; }
         public String getCreatedAt() { return createdAt; }
         public List<SkillOption> getSkills() { return skills; }
+        public String getClientLabelColor() { return clientLabelColor; }
     }
 
     static class AdminUserCreatedResponse {
@@ -574,6 +604,8 @@ public class UserController {
         private String password;
         private String currentPassword;
         private String profilePicture;
+        private String phoneNumber;
+        private String address;
 
         public String getFirstName() {
             return firstName;
@@ -614,6 +646,22 @@ public class UserController {
         public void setProfilePicture(String profilePicture) {
             this.profilePicture = profilePicture;
         }
+
+        public String getPhoneNumber() {
+            return phoneNumber;
+        }
+
+        public void setPhoneNumber(String phoneNumber) {
+            this.phoneNumber = phoneNumber;
+        }
+
+        public String getAddress() {
+            return address;
+        }
+
+        public void setAddress(String address) {
+            this.address = address;
+        }
     }
 
     static class AdminUserUpdateRequest {
@@ -629,6 +677,7 @@ public class UserController {
         private LocalDate recruitmentDate;
         private String company;
         private String fiscalMatricule;
+        private String clientLabelColor;
 
         public String getFirstName() { return firstName; }
         public void setFirstName(String firstName) { this.firstName = firstName; }
@@ -654,6 +703,8 @@ public class UserController {
         public void setCompany(String company) { this.company = company; }
         public String getFiscalMatricule() { return fiscalMatricule; }
         public void setFiscalMatricule(String fiscalMatricule) { this.fiscalMatricule = fiscalMatricule; }
+        public String getClientLabelColor() { return clientLabelColor; }
+        public void setClientLabelColor(String clientLabelColor) { this.clientLabelColor = clientLabelColor; }
     }
 
     static class SkillOption {
@@ -677,42 +728,20 @@ public class UserController {
     }
 
     private AdminUserResponse adminUserResponse(User user) {
-        Client cp = null;
-        if (user.getRole() == UserRole.CLIENT) {
-            cp = clientRepository.findByUser_Id(user.getId()).orElse(null);
-        }
-        return new AdminUserResponse(user, cp);
+        return new AdminUserResponse(user);
     }
 
-    private Map<Long, Client> clientProfileMapForUsers(List<User> users) {
-        List<Long> clientIds = users.stream()
-                .filter(u -> u.getRole() == UserRole.CLIENT)
-                .map(User::getId)
-                .filter(Objects::nonNull)
-                .toList();
-        if (clientIds.isEmpty()) {
-            return Map.of();
-        }
-        Map<Long, Client> map = new LinkedHashMap<>();
-        for (Client cp : clientRepository.findAllByUser_IdIn(clientIds)) {
-            map.put(cp.getUser().getId(), cp);
-        }
-        return map;
-    }
-
-    private boolean userMatchesSearch(User user, String searchValue, Client clientProfile) {
+    private boolean userMatchesSearch(User user, String searchValue) {
         String fullName = ((user.getFirstName() == null ? "" : user.getFirstName()) + " " + (user.getLastName() == null ? "" : user.getLastName()))
                 .toLowerCase(Locale.ROOT);
         String email = user.getEmail() == null ? "" : user.getEmail().toLowerCase(Locale.ROOT);
-        String phone = "";
-        String addr = "";
+        String phone = user.getPhoneNumber() == null ? "" : user.getPhoneNumber().toLowerCase(Locale.ROOT);
+        String addr = user.getAddress() == null ? "" : user.getAddress().toLowerCase(Locale.ROOT);
         String company = "";
         String fiscal = "";
-        if (user.getRole() == UserRole.CLIENT && clientProfile != null) {
-            phone = clientProfile.getPhoneNumber() == null ? "" : clientProfile.getPhoneNumber().toLowerCase(Locale.ROOT);
-            addr = clientProfile.getAddress() == null ? "" : clientProfile.getAddress().toLowerCase(Locale.ROOT);
-            company = clientProfile.getCompanyName() == null ? "" : clientProfile.getCompanyName().toLowerCase(Locale.ROOT);
-            fiscal = clientProfile.getFiscalMatricule() == null ? "" : clientProfile.getFiscalMatricule().toLowerCase(Locale.ROOT);
+        if (user.getRole() == UserRole.CLIENT && user.getCompany() != null) {
+            company = user.getCompany().getCompanyName() == null ? "" : user.getCompany().getCompanyName().toLowerCase(Locale.ROOT);
+            fiscal = user.getCompany().getTaxRegistrationNumber() == null ? "" : user.getCompany().getTaxRegistrationNumber().toLowerCase(Locale.ROOT);
         }
         return fullName.contains(searchValue) || email.contains(searchValue) || phone.contains(searchValue)
                 || addr.contains(searchValue) || company.contains(searchValue) || fiscal.contains(searchValue);

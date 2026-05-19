@@ -6,6 +6,7 @@ import lombok.Setter;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 
 @Getter
@@ -25,6 +26,14 @@ public class Task {
         columnDefinition = "ENUM('TODO','IN_PROGRESS','ON_HOLD','IN_REVIEW','DONE')"
     )
     private TaskStatus status;
+
+    /**
+     * When a project is paused, non-done tasks that are not already on hold store their prior status here
+     * so they can be restored when the project is resumed.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column
+    private TaskStatus statusBeforeProjectPause;
 
     @Column
     private String holdReason;
@@ -54,4 +63,19 @@ public class Task {
             inverseJoinColumns = @JoinColumn(name = "skill_id")
     )
     private Set<Skill> skills = new HashSet<>();
+
+    /**
+     * Task reports and similar flows assume at most one assigned collaborator.
+     * When there is exactly one assignee, that user is the reporter for reports on this task.
+     */
+    public Optional<User> soleAssignedCollaborator() {
+        if (collaborators == null || collaborators.isEmpty()) {
+            return Optional.empty();
+        }
+        if (collaborators.size() != 1) {
+            return Optional.empty();
+        }
+        User u = collaborators.iterator().next();
+        return u == null || u.getId() == null ? Optional.empty() : Optional.of(u);
+    }
 }

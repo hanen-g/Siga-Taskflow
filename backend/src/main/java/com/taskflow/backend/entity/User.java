@@ -29,6 +29,16 @@ public class User {
     @Column(length = 32)
     private String gender;
 
+    @Column(length = 40)
+    private String phoneNumber;
+
+    @Column(length = 1024)
+    private String address;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "company_id", referencedColumnName = "tax_registration_number")
+    private Company company;
+
     @Column(name = "created_at", updatable = false)
     private LocalDate createdAt;
 
@@ -37,6 +47,8 @@ public class User {
     @Enumerated(EnumType.STRING)
     private UserRole role;
 
+    @Column(name = "client_label_color", length = 16)
+    private String clientLabelColor;
 
     @ManyToMany(mappedBy = "members")
     private Set<Project> projects;

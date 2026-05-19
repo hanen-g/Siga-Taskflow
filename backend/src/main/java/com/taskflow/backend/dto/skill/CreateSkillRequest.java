@@ -7,6 +7,6 @@ import lombok.Setter;
 @Setter
 public class CreateSkillRequest {
     private String name;
-    /** Optional grouping label shown in catalog (Programming, Language, …). */
-    private String category;
+    /** Optional free-form description shown in the catalog. */
+    private String description;
 }

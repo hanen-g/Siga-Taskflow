@@ -39,23 +39,15 @@ public class ProjectProposalController {
 
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public List<ProjectProposalResponse> listPending(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        return projectProposalService.listForAdmin();
-    }
-
-    @GetMapping("/mine")
-    @PreAuthorize("hasAnyRole('PROJECT_MANAGER', 'COLLABORATOR')")
-    public List<ProjectProposalResponse> listMine(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        return projectProposalService.listForProposer(userDetails.getUser());
+    public List<ProjectProposalResponse> listProposals() {
+        return projectProposalService.listProposals();
     }
 
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<?> getOne(
-            @PathVariable Long id,
-            @AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<?> getProposal(@PathVariable Long id) {
         try {
-            return ResponseEntity.ok(projectProposalService.getForAdmin(id));
+            return ResponseEntity.ok(projectProposalService.getProposal(id));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.notFound().build();
         }

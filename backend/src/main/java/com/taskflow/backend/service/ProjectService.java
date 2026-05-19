@@ -9,8 +9,8 @@ import com.taskflow.backend.dto.skill.ProjectSkillMatchResponse;
 import com.taskflow.backend.dto.skill.SkillResponse;
 import com.taskflow.backend.dto.skill.UserSkillMatchResponse;
 import com.taskflow.backend.dto.task.TaskResponse;
-import com.taskflow.backend.entity.Client;
 import com.taskflow.backend.entity.Project;
+import com.taskflow.backend.entity.ProjectStatus;
 import com.taskflow.backend.entity.Skill;
 import com.taskflow.backend.entity.Task;
 import com.taskflow.backend.entity.TaskStatus;
@@ -19,7 +19,6 @@ import com.taskflow.backend.entity.UserRole;
 import com.taskflow.backend.exception.BadRequestException;
 import com.taskflow.backend.exception.ResourceNotFoundException;
 import com.taskflow.backend.exception.UnauthorizedException;
-import com.taskflow.backend.repository.ClientRepository;
 import com.taskflow.backend.repository.ProjectRepository;
 import com.taskflow.backend.repository.SkillRepository;
 import com.taskflow.backend.repository.TaskRepository;
@@ -29,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
+import com.taskflow.backend.dto.websocket.Notification;
 import com.taskflow.backend.dto.websocket.ProjectMessage;
 import com.taskflow.backend.dto.websocket.TaskMessage;
 
@@ -37,9 +37,7 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
-import java.util.LinkedHashMap;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -53,14 +51,16 @@ public class ProjectService {
     private final SkillRepository skillRepository;
     private final TaskRepository taskRepository;
     private final UserRepository userRepository;
-    private final ClientRepository clientRepository;
+    private final NotificationService notificationService;
 
     private static final List<TaskStatus> ACTIVE_ASSIGNEE_STATUSES = List.of(
             TaskStatus.IN_PROGRESS,
             TaskStatus.ON_HOLD,
             TaskStatus.IN_REVIEW
     );
-    private static final String PROJECT_PAUSED_HOLD_REASON = "Project paused by admin.";
+    private static final String PROJECT_PAUSED_HOLD_REASON = "Project paused.";
+    /** Legacy message from older builds; still recognized when resuming. */
+    private static final String LEGACY_PROJECT_PAUSED_HOLD_REASON = "Project paused by admin.";
 
     public ProjectService(ProjectRepository projectRepository,
                           SimpMessagingTemplate messagingTemplate,
@@ -68,18 +68,25 @@ public class ProjectService {
                           SkillRepository skillRepository,
                           TaskRepository taskRepository,
                           UserRepository userRepository,
-                          ClientRepository clientRepository) {
+                          NotificationService notificationService) {
         this.projectRepository = projectRepository;
         this.messagingTemplate = messagingTemplate;
         this.uploadedFileService = uploadedFileService;
         this.skillRepository = skillRepository;
         this.taskRepository = taskRepository;
         this.userRepository = userRepository;
-        this.clientRepository = clientRepository;
+        this.notificationService = notificationService;
     }
 
     @Transactional
     public ProjectResponse createProject(Project project) {
+        if (project.getStatus() == null) {
+            if (project.getStartDate() != null && project.getStartDate().isAfter(java.time.LocalDate.now())) {
+                project.setStatus(ProjectStatus.NOT_STARTED);
+            } else {
+                project.setStatus(ProjectStatus.IN_PROGRESS);
+            }
+        }
         project.setRequiredSkills(resolveRequiredSkills(project.getRequiredSkills()));
         Project saved = projectRepository.save(project);
         ProjectMessage msg = new ProjectMessage("CREATED", ProjectResponse.fromProject(saved));
@@ -88,12 +95,12 @@ public class ProjectService {
     }
 
     /**
-     * All non-archived projects (for the main admin list). Archived items are listed via
-     * {@link #getAllArchivedForAdmin()} or {@link #myArchivedProjects}.
+     * All non-archived projects (for the main admin list). Archived or other lifecycle buckets
+     * are listed via {@link #listProjectsByStatus(ProjectStatus, User)}.
      */
     @Transactional(readOnly = true)
     public List<ProjectResponse> getAllProjects() {
-        return projectRepository.findByArchived(false)
+        return projectRepository.findByStatusNot(ProjectStatus.ARCHIVED)
                 .stream()
                 .map(ProjectResponse::fromProject)
                 .toList();
@@ -193,7 +200,7 @@ public class ProjectService {
      * Future start dates stay visible so they match the “not started” column in the UI.
      */
     private boolean collaboratorSeesListableProject(Project project, User collaborator) {
-        if (project.isArchived() || project.isDelivered()) {
+        if (project.getStatus() == ProjectStatus.ARCHIVED || project.getStatus() == ProjectStatus.COMPLETED) {
             return false;
         }
         return collaboratorCanAccessProject(project, collaborator);
@@ -222,7 +229,7 @@ public class ProjectService {
         if (!userCanViewProject(project, user)) {
             throw new UnauthorizedException("You cannot access this project");
         }
-       if (user.getRole() != UserRole.ADMIN && !isActorManagerOfThisProject(project, user)) {
+        if (user.getRole() != UserRole.ADMIN && !isActorManagerOfThisProject(project, user)) {
             throw new UnauthorizedException("Only the project manager or an administrator can load assignee suggestions");
         }
 
@@ -321,9 +328,28 @@ public class ProjectService {
         return out;
     }
 
-    public List<Project> getProjectsForManager(User manager) {
-        return projectRepository.findByManager(manager);
+    /**
+     * Lists projects in a given persisted {@link ProjectStatus}.
+     * Administrators see every project with that status; project managers only see projects they manage.
+     */
+    @Transactional(readOnly = true)
+    public List<ProjectResponse> listProjectsByStatus(ProjectStatus status, User user) {
+        if (user.getRole() != UserRole.ADMIN && user.getRole() != UserRole.PROJECT_MANAGER) {
+            throw new UnauthorizedException("Only administrators and project managers can list projects by status");
+        }
+        if (status == null) {
+            throw new BadRequestException("status is required");
+        }
+        if (user.getRole() == UserRole.ADMIN) {
+            return projectRepository.findByStatus(status).stream()
+                    .map(ProjectResponse::fromProject)
+                    .toList();
+        }
+        return projectRepository.findByManagerAndStatus(user, status).stream()
+                .map(ProjectResponse::fromProject)
+                .toList();
     }
+
     @Transactional
     public Project updateProject(Long id, Project details, User actor) {
         Project project = projectRepository.findById(id)
@@ -347,22 +373,10 @@ public class ProjectService {
         return updated;
     }
 
-    public void deleteProject(Long projectId, User actor) {
-        if (actor.getRole() != UserRole.ADMIN) {
-            throw new UnauthorizedException("Only administrators can delete projects");
-        }
-        Project project = projectRepository.findById(projectId)
-                .orElseThrow(() -> new ResourceNotFoundException("Project", projectId));
-
-        ProjectMessage msg = new ProjectMessage("DELETED", ProjectResponse.fromProject(project));
-        messagingTemplate.convertAndSend("/topic/projects", msg);
-
-        projectRepository.delete(project);
-    }
     @Transactional(readOnly = true)
     public List<ProjectResponse> myProjects(User manager) {
         if (manager.getRole() == UserRole.ADMIN) {
-            return projectRepository.findByArchived(false).stream()
+            return projectRepository.findByStatusNot(ProjectStatus.ARCHIVED).stream()
                     .map(ProjectResponse::fromProject)
                     .toList();
         }
@@ -382,28 +396,13 @@ public class ProjectService {
         }
         if (manager.getRole() == UserRole.CLIENT) {
             return projectRepository.findAll().stream()
-                    .filter(project -> !project.isArchived())
+                    .filter(project -> project.getStatus() != ProjectStatus.ARCHIVED)
                     .filter(project -> userCanViewProject(project, manager))
                     .map(ProjectResponse::fromProjectForClient)
                     .toList();
         }
-        return projectRepository.findByManagerAndArchived(manager, false)
-                .stream()
-                .map(ProjectResponse::fromProject)
-                .toList();
-    }
-
-    public List<ProjectResponse> myArchivedProjects(User manager) {
-        return projectRepository.findByManagerAndArchived(manager, true)
-                .stream()
-                .map(ProjectResponse::fromProject)
-                .toList();
-    }
-
-    @Transactional(readOnly = true)
-    public List<ProjectResponse> getAllArchivedForAdmin() {
-        return projectRepository.findByArchived(true)
-                .stream()
+        return projectRepository.findByManager(manager).stream()
+                .filter(project -> project.getStatus() != ProjectStatus.ARCHIVED)
                 .map(ProjectResponse::fromProject)
                 .toList();
     }
@@ -416,7 +415,7 @@ public class ProjectService {
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", projectId));
 
-        project.setArchived(archived);
+        project.setStatus(archived ? ProjectStatus.ARCHIVED : ProjectStatus.IN_PROGRESS);
         Project saved = projectRepository.save(project);
 
         ProjectMessage msg = new ProjectMessage(archived ? "ARCHIVED" : "UNARCHIVED", ProjectResponse.fromProject(saved));
@@ -426,36 +425,35 @@ public class ProjectService {
     }
 
     /**
-     * Updates lifecycle fields. Only {@link UserRole#ADMIN} may call this.
+     * Updates lifecycle fields (pause, resume, delivered, reopen).
+     * Administrators may update any project; project managers may update only projects they manage.
      */
     @Transactional
     public ProjectResponse setProjectLifecycle(Long projectId, ProjectLifecycleRequest request, User actor) {
-        if (actor.getRole() != UserRole.ADMIN) {
-            throw new UnauthorizedException("Only administrators can change project lifecycle state");
-        }
         if (request == null) {
             throw new BadRequestException("Request body is required");
         }
         Project project = projectRepository.findDetailedById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", projectId));
-        if (request.getArchived() != null) {
-            project.setArchived(request.getArchived());
+        assertCanChangeProjectLifecycle(project, actor);
+        ProjectStatus requestedStatus = request.getStatus();
+        if (requestedStatus == null) {
+            throw new BadRequestException("status is required");
         }
-        if (request.getPaused() != null) {
-            project.setPaused(request.getPaused());
-            if (request.getPaused()) {
-                pauseUnfinishedTasks(project);
-            }
-        }
-        if (request.getDelivered() != null) {
-            if (request.getDelivered() && !isReadyForDelivery(project)) {
+        if (requestedStatus == ProjectStatus.COMPLETED && !isReadyForDelivery(project)) {
                 throw new BadRequestException("All project tasks must be done before delivery.");
-            }
-            project.setDelivered(request.getDelivered());
+        }
+        ProjectStatus previousStatus = project.getStatus();
+        project.setStatus(requestedStatus);
+        List<Task> tasksToBroadcast = new ArrayList<>();
+        if (requestedStatus == ProjectStatus.PAUSED) {
+            tasksToBroadcast.addAll(pauseUnfinishedTasks(project));
+        } else if (previousStatus == ProjectStatus.PAUSED) {
+            tasksToBroadcast.addAll(resumeTasksAfterProjectUnpause(project));
         }
         Project saved = projectRepository.save(project);
-        if (request.getPaused() != null && request.getPaused()) {
-            broadcastTaskUpdates(project.getTasks());
+        for (Task task : tasksToBroadcast) {
+            broadcastSingleTaskUpdate(task);
         }
         ProjectMessage msg = new ProjectMessage("UPDATED", ProjectResponse.fromProject(saved));
         messagingTemplate.convertAndSend("/topic/projects", msg);
@@ -465,44 +463,89 @@ public class ProjectService {
         );
     }
 
+    private void assertCanChangeProjectLifecycle(Project project, User actor) {
+        if (actor.getRole() == UserRole.ADMIN) {
+            return;
+        }
+        if (actor.getRole() == UserRole.PROJECT_MANAGER
+                && project.getManager() != null
+                && project.getManager().getId().equals(actor.getId())) {
+            return;
+        }
+        throw new UnauthorizedException("Only administrators and the assigned project manager can change project lifecycle state");
+    }
+
     private boolean isReadyForDelivery(Project project) {
         List<Task> tasks = project.getTasks() != null ? project.getTasks() : List.of();
         return !tasks.isEmpty() && tasks.stream()
                 .allMatch(task -> task != null && task.getStatus() == TaskStatus.DONE);
     }
 
-    private void pauseUnfinishedTasks(Project project) {
+    private List<Task> pauseUnfinishedTasks(Project project) {
+        List<Task> affected = new ArrayList<>();
         if (project.getTasks() == null) {
-            return;
+            return affected;
         }
         for (Task task : project.getTasks()) {
             if (task == null || task.getStatus() == TaskStatus.DONE) {
                 continue;
             }
-            task.setStatus(TaskStatus.ON_HOLD);
-            if (task.getHoldReason() == null || task.getHoldReason().isBlank()) {
-                task.setHoldReason(PROJECT_PAUSED_HOLD_REASON);
+            if (task.getStatus() == TaskStatus.ON_HOLD) {
+                continue;
             }
+            task.setStatusBeforeProjectPause(task.getStatus());
+            task.setStatus(TaskStatus.ON_HOLD);
+            task.setHoldReason(PROJECT_PAUSED_HOLD_REASON);
+            affected.add(task);
         }
+        return affected;
     }
 
-    private void broadcastTaskUpdates(List<Task> tasks) {
-        if (tasks == null) {
+    private List<Task> resumeTasksAfterProjectUnpause(Project project) {
+        List<Task> affected = new ArrayList<>();
+        if (project.getTasks() == null) {
+            return affected;
+        }
+        for (Task task : project.getTasks()) {
+            if (task == null || task.getStatus() != TaskStatus.ON_HOLD) {
+                continue;
+            }
+            if (!isProjectPauseHold(task)) {
+                continue;
+            }
+            TaskStatus restore = task.getStatusBeforeProjectPause();
+            if (restore == null) {
+                restore = TaskStatus.IN_PROGRESS;
+            }
+            task.setStatus(restore);
+            task.setStatusBeforeProjectPause(null);
+            task.setHoldReason(null);
+            affected.add(task);
+        }
+        return affected;
+    }
+
+    private boolean isProjectPauseHold(Task task) {
+        String r = task.getHoldReason();
+        if (r == null) {
+            return false;
+        }
+        String t = r.trim();
+        return PROJECT_PAUSED_HOLD_REASON.equals(t) || LEGACY_PROJECT_PAUSED_HOLD_REASON.equals(t);
+    }
+
+    private void broadcastSingleTaskUpdate(Task task) {
+        if (task == null || task.getId() == null || task.getProject() == null) {
             return;
         }
-        for (Task task : tasks) {
-            if (task == null || task.getId() == null || task.getProject() == null || task.getStatus() != TaskStatus.ON_HOLD) {
-                continue;
-            }
-            TaskMessage msg = new TaskMessage("UPDATED", TaskResponse.fromTask(task));
-            messagingTemplate.convertAndSend("/topic/tasks/project/" + task.getProject().getId(), msg);
-            if (task.getCollaborators() == null) {
-                continue;
-            }
-            for (User collaborator : task.getCollaborators()) {
-                if (collaborator != null && collaborator.getId() != null) {
-                    messagingTemplate.convertAndSend("/topic/tasks/user/" + collaborator.getId(), msg);
-                }
+        TaskMessage msg = new TaskMessage("UPDATED", TaskResponse.fromTask(task));
+        messagingTemplate.convertAndSend("/topic/tasks/project/" + task.getProject().getId(), msg);
+        if (task.getCollaborators() == null) {
+            return;
+        }
+        for (User collaborator : task.getCollaborators()) {
+            if (collaborator != null && collaborator.getId() != null) {
+                messagingTemplate.convertAndSend("/topic/tasks/user/" + collaborator.getId(), msg);
             }
         }
     }
@@ -666,7 +709,7 @@ public class ProjectService {
         if (client.getRole() != UserRole.CLIENT) {
             throw new BadRequestException("User is not a client account.");
         }
-        return projectRepository.findByMembersContainingAndArchived(client, false).stream()
+        return projectRepository.findByMembersContainingAndStatusNot(client, ProjectStatus.ARCHIVED).stream()
                 .sorted(Comparator
                         .comparing(Project::getDeadline, Comparator.nullsLast(Comparator.naturalOrder()))
                         .reversed()
@@ -697,14 +740,18 @@ public class ProjectService {
         for (Long pid : uniqueIds) {
             Project project = projectRepository.findById(pid)
                     .orElseThrow(() -> new ResourceNotFoundException("Project", pid));
-            if (project.isArchived()) {
+            if (project.getStatus() == ProjectStatus.ARCHIVED) {
                 throw new BadRequestException("Cannot add clients to an archived project.");
             }
             if (project.getMembers() == null) {
                 project.setMembers(new HashSet<>());
             }
-            project.getMembers().add(client);
+            boolean added = project.getMembers().add(client);
             Project saved = projectRepository.save(project);
+            if (added) {
+                Notification n = notificationService.createProjectAssignedNotification(client, actor, saved);
+                messagingTemplate.convertAndSend("/topic/notifications/user/" + client.getId(), n);
+            }
             projectRepository.findDetailedById(saved.getId()).ifPresent(detailed -> {
                 ProjectMessage msg = new ProjectMessage("UPDATED", ProjectResponse.fromProject(detailed));
                 messagingTemplate.convertAndSend("/topic/projects", msg);
@@ -737,7 +784,7 @@ public class ProjectService {
             for (Long pid : targetIds) {
                 Project project = projectRepository.findById(pid)
                         .orElseThrow(() -> new ResourceNotFoundException("Project", pid));
-                if (project.isArchived()) {
+                if (project.getStatus() == ProjectStatus.ARCHIVED) {
                     throw new BadRequestException("Cannot add clients to an archived project.");
                 }
                 if (project.getMembers() == null) {
@@ -745,12 +792,15 @@ public class ProjectService {
                 }
                 if (project.getMembers().stream().noneMatch(m -> m.getId().equals(client.getId()))) {
                     project.getMembers().add(client);
-                    affected.add(projectRepository.save(project));
+                    Project saved = projectRepository.save(project);
+                    affected.add(saved);
+                    Notification n = notificationService.createProjectAssignedNotification(client, actor, saved);
+                    messagingTemplate.convertAndSend("/topic/notifications/user/" + client.getId(), n);
                 }
             }
         }
 
-        for (Project current : projectRepository.findByMembersContainingAndArchived(client, false)) {
+        for (Project current : projectRepository.findByMembersContainingAndStatusNot(client, ProjectStatus.ARCHIVED)) {
             if (targetIds.contains(current.getId())) {
                 continue;
             }
@@ -792,7 +842,7 @@ public class ProjectService {
         }
         Project project = projectRepository.findById(projectId)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", projectId));
-        if (project.isArchived()) {
+        if (project.getStatus() == ProjectStatus.ARCHIVED) {
             throw new BadRequestException("Cannot change clients on an archived project.");
         }
 
@@ -817,59 +867,63 @@ public class ProjectService {
             project.setMembers(new HashSet<>());
         }
         project.getMembers().removeIf(m -> m.getRole() == UserRole.CLIENT && !wanted.contains(m.getId()));
+        List<User> newlyAssignedClients = new ArrayList<>();
         for (User client : resolved) {
             if (project.getMembers().stream().noneMatch(m -> m.getId().equals(client.getId()))) {
                 project.getMembers().add(client);
+                newlyAssignedClients.add(client);
             }
         }
 
         Project saved = projectRepository.save(project);
+        for (User client : newlyAssignedClients) {
+            Notification n = notificationService.createProjectAssignedNotification(client, actor, saved);
+            messagingTemplate.convertAndSend("/topic/notifications/user/" + client.getId(), n);
+        }
         projectRepository.findDetailedById(saved.getId()).ifPresent(detailed -> {
             ProjectMessage msg = new ProjectMessage("UPDATED", ProjectResponse.fromProject(detailed));
             messagingTemplate.convertAndSend("/topic/projects", msg);
         });
     }
 
+    @Transactional(readOnly = true)
+    public void publishProjectUpdatesForClientColor(Long clientId) {
+        User client = userRepository.findById(clientId)
+                .orElseThrow(() -> new ResourceNotFoundException("User", clientId));
+        if (client.getRole() != UserRole.CLIENT) {
+            return;
+        }
+
+        for (Project project : projectRepository.findByMembersContainingAndStatusNot(client, ProjectStatus.ARCHIVED)) {
+            projectRepository.findDetailedById(project.getId()).ifPresent(detailed -> {
+                ProjectMessage msg = new ProjectMessage("UPDATED", ProjectResponse.fromProject(detailed));
+                messagingTemplate.convertAndSend("/topic/projects", msg);
+            });
+        }
+    }
+
     private List<ClientOptionResponse> mapClientsToOptions(List<User> clients) {
         if (clients == null || clients.isEmpty()) {
             return List.of();
         }
-        Map<Long, Client> profiles = clientProfileMapForUsers(clients);
         return clients.stream()
                 .sorted(Comparator
                         .comparing((User u) -> {
-                            Client cp = profiles.get(u.getId());
-                            String company = cp == null || cp.getCompanyName() == null ? "" : cp.getCompanyName();
+                            String company = u.getCompany() == null || u.getCompany().getCompanyName() == null
+                                    ? ""
+                                    : u.getCompany().getCompanyName();
                             return company.toLowerCase(Locale.ROOT);
                         })
                         .thenComparing(u -> ((u.getFirstName() == null ? "" : u.getFirstName())
                                 + " " + (u.getLastName() == null ? "" : u.getLastName())).toLowerCase(Locale.ROOT)))
-                .map(u -> {
-                    Client cp = profiles.get(u.getId());
-                    return new ClientOptionResponse(
-                            u.getId(),
-                            u.getFirstName(),
-                            u.getLastName(),
-                            u.getEmail(),
-                            cp == null ? null : cp.getCompanyName()
-                    );
-                })
+                .map(u -> new ClientOptionResponse(
+                        u.getId(),
+                        u.getFirstName(),
+                        u.getLastName(),
+                        u.getEmail(),
+                        u.getCompany() == null ? null : u.getCompany().getCompanyName(),
+                        u.getClientLabelColor()
+                ))
                 .toList();
-    }
-
-    private Map<Long, Client> clientProfileMapForUsers(List<User> users) {
-        List<Long> clientIds = users.stream()
-                .filter(u -> u.getRole() == UserRole.CLIENT)
-                .map(User::getId)
-                .filter(Objects::nonNull)
-                .toList();
-        if (clientIds.isEmpty()) {
-            return Map.of();
-        }
-        Map<Long, Client> map = new LinkedHashMap<>();
-        for (Client cp : clientRepository.findAllByUser_IdIn(clientIds)) {
-            map.put(cp.getUser().getId(), cp);
-        }
-        return map;
     }
 }

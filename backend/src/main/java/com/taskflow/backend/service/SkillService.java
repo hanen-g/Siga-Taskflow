@@ -47,8 +47,7 @@ public class SkillService {
                 .map(s -> SkillResponse.adminTableRow(
                         s.getId(),
                         s.getName(),
-                        s.getCategory(),
-                        s.getCreatedAt(),
+                        s.getDescription(),
                         usageBySkillId.getOrDefault(s.getId(), 0L)))
                 .toList();
     }
@@ -101,18 +100,18 @@ public class SkillService {
             }
             /** Same name as an archived row — reactivate instead of INSERT (avoids unique-key 400 on MySQL). */
             existing.setArchived(false);
-            if (request.getCategory() != null) {
-                existing.setCategory(normalizeCategory(request.getCategory()));
+            if (request.getDescription() != null) {
+                existing.setDescription(normalizeDescription(request.getDescription()));
             }
             Skill saved = skillRepository.save(existing);
             long usage = totalAssignmentsForSkill(saved.getId());
-            return SkillResponse.fromEntity(saved, saved.getCreatedAt(), usage);
+            return SkillResponse.fromEntity(saved, usage);
         }
         Skill skill = new Skill();
         skill.setName(name);
-        skill.setCategory(normalizeCategory(request.getCategory()));
+        skill.setDescription(normalizeDescription(request.getDescription()));
         skill.setArchived(false);
-        return SkillResponse.fromEntity(skillRepository.save(skill), null, 0L);
+        return SkillResponse.fromEntity(skillRepository.save(skill), 0L);
     }
 
     @Transactional
@@ -131,12 +130,12 @@ public class SkillService {
             throw new ConflictException("A skill with this name already exists");
         }
         skill.setName(newName);
-        if (request.getCategory() != null) {
-            skill.setCategory(normalizeCategory(request.getCategory()));
+        if (request.getDescription() != null) {
+            skill.setDescription(normalizeDescription(request.getDescription()));
         }
         Skill saved = skillRepository.save(skill);
         long usage = totalAssignmentsForSkill(saved.getId());
-        return SkillResponse.fromEntity(saved, saved.getCreatedAt(), usage);
+        return SkillResponse.fromEntity(saved, usage);
     }
 
     @Transactional
@@ -165,12 +164,18 @@ public class SkillService {
         }
     }
 
-    private String normalizeCategory(String category) {
-        if (category == null) {
+    private String normalizeDescription(String description) {
+        if (description == null) {
             return null;
         }
-        String t = category.trim();
-        return t.isEmpty() ? null : t;
+        String t = description.trim();
+        if (t.isEmpty()) {
+            return null;
+        }
+        if (t.length() > 1000) {
+            t = t.substring(0, 1000);
+        }
+        return t;
     }
 
     public static String normalizeName(String name) {

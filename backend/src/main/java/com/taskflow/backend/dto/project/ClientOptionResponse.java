@@ -8,5 +8,7 @@ public record ClientOptionResponse(
         String firstName,
         String lastName,
         String email,
-        String company
+        String company,
+        /** Hex #rrggbb for admin UI; null means default. */
+        String clientLabelColor
 ) {}

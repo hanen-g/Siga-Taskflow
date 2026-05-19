@@ -28,9 +28,9 @@ public class Project {
     private LocalDate startDate;
     private LocalDate deadline;
 
-    private boolean archived = false;
-    private boolean paused = false;
-    private boolean delivered = false;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ProjectStatus status = ProjectStatus.IN_PROGRESS;
 
     @CreationTimestamp
     @Column(updatable = false)
@@ -60,4 +60,51 @@ public class Project {
     @Transient
     @JsonProperty(value = "consumedProposalId", access = Access.WRITE_ONLY)
     private Long consumedProposalId;
+
+    @Transient
+    public boolean isArchived() {
+        return getStatus() == ProjectStatus.ARCHIVED;
+    }
+
+    public void setArchived(boolean archived) {
+        if (archived) {
+            this.status = ProjectStatus.ARCHIVED;
+        } else if (getStatus() == ProjectStatus.ARCHIVED) {
+            this.status = ProjectStatus.IN_PROGRESS;
+        }
+    }
+
+    @Transient
+    public boolean isPaused() {
+        return getStatus() == ProjectStatus.PAUSED;
+    }
+
+    public void setPaused(boolean paused) {
+        if (paused) {
+            this.status = ProjectStatus.PAUSED;
+        } else if (getStatus() == ProjectStatus.PAUSED) {
+            this.status = ProjectStatus.IN_PROGRESS;
+        }
+    }
+
+    @Transient
+    public boolean isDelivered() {
+        return getStatus() == ProjectStatus.COMPLETED;
+    }
+
+    public void setDelivered(boolean delivered) {
+        if (delivered) {
+            this.status = ProjectStatus.COMPLETED;
+        } else if (getStatus() == ProjectStatus.COMPLETED) {
+            this.status = ProjectStatus.IN_PROGRESS;
+        }
+    }
+
+    public ProjectStatus getStatus() {
+        return status == null ? ProjectStatus.IN_PROGRESS : status;
+    }
+
+    public void setStatus(ProjectStatus status) {
+        this.status = status == null ? ProjectStatus.IN_PROGRESS : status;
+    }
 }

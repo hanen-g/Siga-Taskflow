@@ -20,14 +20,6 @@ public interface ProjectProposalRepository extends JpaRepository<ProjectProposal
     @Query("""
             SELECT DISTINCT pp FROM ProjectProposal pp
             JOIN FETCH pp.proposer
-            WHERE pp.proposer.id = :proposerId
-            ORDER BY pp.createdAt DESC
-            """)
-    List<ProjectProposal> findByProposerWithProposerOrderByCreatedAtDesc(@Param("proposerId") Long proposerId);
-
-    @Query("""
-            SELECT DISTINCT pp FROM ProjectProposal pp
-            JOIN FETCH pp.proposer
             WHERE pp.id = :id
             """)
     Optional<ProjectProposal> findByIdWithProposer(@Param("id") Long id);

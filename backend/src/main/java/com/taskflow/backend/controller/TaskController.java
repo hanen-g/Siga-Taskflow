@@ -28,6 +28,15 @@ public class TaskController {
         return TaskResponse.fromTask(savedTask);
     }
 
+    /**
+     * Cross-project task list for the signed-in user (role-based: admin / PM / collaborator / client empty).
+     */
+    @GetMapping
+    public List<TaskResponse> listTasksForCurrentUser(
+            @AuthenticationPrincipal CustomUserDetails userDetails) {
+        return taskService.listTasksForCurrentUser(userDetails.getUser());
+    }
+
     @GetMapping("/project/{projectId:\\d+}")
     public List<TaskResponse> getTasksByProject(
             @PathVariable Long projectId,
@@ -40,23 +49,6 @@ public class TaskController {
             @PathVariable Long id,
             @AuthenticationPrincipal CustomUserDetails userDetails) {
         taskService.deleteTask(id, userDetails.getUser());
-    }
-
-    @GetMapping("/my-tasks")
-    public List<TaskResponse> myTasks(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        return taskService.getCollaboratorTasks(userDetails.getUser());
-    }
-
-    @GetMapping("/manager-tasks")
-    @PreAuthorize("hasRole('PROJECT_MANAGER')")
-    public List<TaskResponse> managerTasks(@AuthenticationPrincipal CustomUserDetails userDetails) {
-        return taskService.getManagerTasks(userDetails.getUser());
-    }
-
-    @GetMapping("/all")
-    @PreAuthorize("hasRole('ADMIN')")
-    public List<TaskResponse> getAllTasks() {
-        return taskService.getAllTasks();
     }
 
     @PutMapping("/{id:\\d+}")

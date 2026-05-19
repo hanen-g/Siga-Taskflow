@@ -34,7 +34,7 @@ public class UserSkillService {
     }
 
     @Transactional(readOnly = true)
-    public List<SkillResponse> getSkillsForUser(User user) {
+    public List<SkillResponse> getUserSkills(User user) {
         user = userRepository.findById(user.getId()).orElse(user);
         if (user.getSkills() == null) {
             return List.of();
@@ -48,7 +48,7 @@ public class UserSkillService {
     }
 
     @Transactional
-    public List<SkillResponse> replaceSkillsForUser(User actor, SkillIdsRequest request) {
+    public List<SkillResponse> updateUserSkills(User actor, SkillIdsRequest request) {
         if (actor.getRole() == null || !ROLES_MAY_SET_SKILLS.contains(actor.getRole())) {
             throw new com.taskflow.backend.exception.UnauthorizedException("Only project managers, collaborators, and administrators can set skills");
         }
@@ -67,6 +67,6 @@ public class UserSkillService {
             user.setSkills(new HashSet<>(found));
         }
         userRepository.save(user);
-        return getSkillsForUser(user);
+        return getUserSkills(user);
     }
 }

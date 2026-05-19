@@ -31,6 +31,9 @@ public class AdminCreateUserRequest {
     private String company;
     private String fiscalMatricule;
 
+    /** CLIENT only: hex from admin palette (#rrggbb). */
+    private String clientLabelColor;
+
     public UserRole getRoleAsEnum() {
         if (role == null) {
             throw new IllegalArgumentException("Role is required");
