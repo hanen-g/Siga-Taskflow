@@ -86,16 +86,51 @@ export interface AdminDashboard {
   topProjectManagers: { name: string; score: number }[];
 }
 
+/** Matches backend `ProjectStatus` names, plus `ACTIVE` (not completed) and '' for any. */
+export type AdminProjectAdvancedFilterStatus =
+  | ''
+  | 'ACTIVE'
+  | 'NOT_STARTED'
+  | 'IN_PROGRESS'
+  | 'PAUSED'
+  | 'ARCHIVED'
+  | 'COMPLETED';
+
 export interface AdminProjectAdvancedFilter {
   projectName?: string;
   managerName?: string;
+  userName?: string;
   collaboratorName?: string;
   skillName?: string;
-  statusLabel?: 'ACTIVE' | 'COMPLETED' | '';
+  statusLabel?: AdminProjectAdvancedFilterStatus;
   startDateFrom?: string;
   startDateTo?: string;
   deadlineFrom?: string;
   deadlineTo?: string;
+  /** When set, project manager must be this user (id). */
+  filterPmUserId?: number;
+  filterCollaboratorUserId?: number;
+  /**
+   * When true with `filterCollaboratorUserId`, include projects where the user is on a task’s
+   * collaborator list (as well as project members). When false/omitted: members only.
+   */
+  filterCollaboratorMatchTasks?: boolean;
+  filterClientUserId?: number;
+}
+
+export interface AdminFilterRoleUserOption {
+  id: number;
+  label: string;
+}
+
+export interface AdminProjectAdvancedFilterOptions {
+  projectNames: string[];
+  managerNames: string[];
+  userNames: string[];
+  skillNames: string[];
+  projectManagerUsers: AdminFilterRoleUserOption[];
+  collaboratorUsers: AdminFilterRoleUserOption[];
+  clientUsers: AdminFilterRoleUserOption[];
 }
 
 export interface AdminProjectAdvancedFilterRow {
@@ -109,7 +144,8 @@ export interface AdminProjectAdvancedFilterRow {
   overdueTasksCount: number;
   collaboratorNames: string[];
   skills: string[];
-  projectStatusLabel: 'ACTIVE' | 'COMPLETED';
+  /** Persisted `ProjectStatus` enum name from the API (e.g. IN_PROGRESS). */
+  projectStatusLabel: string;
 }
 
 export interface AdminProjectAdvancedFilterResponse {

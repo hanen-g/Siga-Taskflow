@@ -6,9 +6,9 @@ import { WebsocketService } from '../../services/websocket.service';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { Notification } from '../../models/notification.model';
-import { CollaboratorReportingPage } from '../reporting/collaborator-reporting.component';
-import { PmReportingPage } from '../reporting/pm-reporting.component';
-import { AdminReportingPage } from '../reporting/admin-reporting.component';
+import { CollaboratorReportingPage } from './reporting/collaborator-reporting.component';
+import { PmReportingPage } from './reporting/pm-reporting.component';
+import { AdminReportingPage } from './reporting/admin-reporting.component';
 
 @Component({
   standalone: true,

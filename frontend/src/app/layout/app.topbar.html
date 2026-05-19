@@ -49,21 +49,15 @@
           </div>
           <div class="notification-panel-content">
             @if (notifications.length > 0) {
-              <div *ngFor="let notif of notifications" class="notification-item">
+              <div
+                *ngFor="let notif of notifications"
+                class="notification-item"
+                (click)="onNotificationClick(notif, $event)">
                 <div class="notification-icon">
                   <i class="pi pi-info-circle"></i>
                 </div>
                 <div class="notification-body">
                   <p class="notification-message">{{ notif.message }}</p>
-                  @if (notif.projectName) {
-                    <small class="notification-meta">Projet / idée : {{ notif.projectName }}</small>
-                  }
-                  @if (notif.taskTitle) {
-                    <small class="notification-meta">{{ notif.taskTitle }}</small>
-                  }
-                  @if (notif.managerName) {
-                    <small class="notification-meta">Par : {{ notif.managerName }}</small>
-                  }
                 </div>
               </div>
             } @else {

@@ -1,0 +1,46 @@
+<div class="project-chat-panel">
+  <div *ngIf="loading" class="project-chat-status">Loading messages…</div>
+  <p *ngIf="error" class="project-chat-error">{{ error }}</p>
+
+  <div
+    #messagesContainer
+    class="project-chat-messages"
+    role="log"
+    aria-live="polite"
+    aria-relevant="additions">
+    <p *ngIf="!loading && !messages.length" class="project-chat-empty">
+      No messages yet. Start the conversation below.
+    </p>
+    <div
+      *ngFor="let message of messages"
+      class="project-chat-bubble-row"
+      [class.is-mine]="message.fromCurrentUser"
+      [class.is-theirs]="!message.fromCurrentUser">
+      <div class="project-chat-bubble">
+        <span class="project-chat-sender">{{ message.senderLabel }}</span>
+        <p class="project-chat-text">{{ message.content }}</p>
+        <time class="project-chat-time">{{ formatTimestamp(message.createdAt) }}</time>
+      </div>
+    </div>
+  </div>
+
+  <form class="project-chat-composer" (ngSubmit)="send()">
+    <input
+      pInputText
+      type="text"
+      class="project-chat-input"
+      [(ngModel)]="draft"
+      name="chatDraft"
+      placeholder="Type a message…"
+      [disabled]="sending"
+      (keydown)="onEnter($event)"
+      autocomplete="off" />
+    <button
+      pButton
+      type="submit"
+      label="Send"
+      [disabled]="sending || !draft.trim()"
+      [loading]="sending">
+    </button>
+  </form>
+</div>

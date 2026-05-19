@@ -63,4 +63,6 @@ export interface AiChatUIMessage extends AiConversationMessage {
   pendingRetry?: boolean;
   isTimeout?: boolean;
   isOllamaError?: boolean;
+  /** Placeholder row while waiting for Ollama main response */
+  isThinking?: boolean;
 }

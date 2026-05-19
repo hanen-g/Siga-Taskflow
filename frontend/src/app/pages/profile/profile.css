@@ -207,6 +207,23 @@
   color: #1f2a3f;
 }
 
+.field-shell-textarea i {
+  top: 1.1rem;
+  transform: none;
+}
+
+.field-shell textarea {
+  width: 100%;
+  min-height: 6.5rem;
+  padding: 0.85rem 1rem 0.85rem 2.7rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(141, 154, 178, 0.7);
+  background: linear-gradient(90deg, rgba(245, 248, 252, 0.95), rgba(234, 240, 247, 0.9));
+  color: #1f2a3f;
+  resize: vertical;
+  line-height: 1.45;
+}
+
 /* --- Footer & Buttons --- */
 .profile-footer-row {
   display: flex;

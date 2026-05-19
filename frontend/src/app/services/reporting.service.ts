@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import type {
   AdminDashboard,
   AdminProjectAdvancedFilter,
+  AdminProjectAdvancedFilterOptions,
   AdminProjectAdvancedFilterResponse,
   ClientDashboard,
   CollaboratorDashboard,
@@ -39,10 +40,21 @@ export class ReportingService {
         params.set(key, value.trim());
       }
     };
+    const appendIfNumber = (key: string, value: number | null | undefined) => {
+      if (value != null && !Number.isNaN(Number(value))) {
+        params.set(key, String(value));
+      }
+    };
     appendIfValue('projectName', filters.projectName);
     appendIfValue('managerName', filters.managerName);
-    appendIfValue('collaboratorName', filters.collaboratorName);
+    appendIfValue('userName', filters.userName ?? filters.collaboratorName);
     appendIfValue('skillName', filters.skillName);
+    appendIfNumber('filterPmUserId', filters.filterPmUserId);
+    appendIfNumber('filterCollaboratorUserId', filters.filterCollaboratorUserId);
+    if (filters.filterCollaboratorMatchTasks === true) {
+      params.set('filterCollaboratorMatchTasks', 'true');
+    }
+    appendIfNumber('filterClientUserId', filters.filterClientUserId);
     if (filters.statusLabel) {
       appendIfValue('statusLabel', filters.statusLabel);
     }
@@ -55,6 +67,10 @@ export class ReportingService {
     return this.http.get<AdminProjectAdvancedFilterResponse>(
       `${this.base}/admin/advanced-filter?${params.toString()}`
     );
+  }
+
+  adminAdvancedFilterOptions(): Observable<AdminProjectAdvancedFilterOptions> {
+    return this.http.get<AdminProjectAdvancedFilterOptions>(`${this.base}/admin/advanced-filter/options`);
   }
 
   client(): Observable<ClientDashboard> {

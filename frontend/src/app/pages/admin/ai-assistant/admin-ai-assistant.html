@@ -1,0 +1,121 @@
+﻿<p-toast />
+<p-confirmDialog />
+
+<div class="admin-ai-root">
+  <section class="admin-ai-chat-shell">
+    <header class="admin-ai-left-header">
+      <div class="admin-ai-title">
+        <span class="pi pi-android admin-ai-android"></span>
+        <span>AI Assistant</span>
+      </div>
+      <div class="admin-ai-header-actions">
+        <button
+          pButton
+          type="button"
+          label="New conversation"
+          icon="pi pi-plus"
+          styleClass="p-button-outlined p-button-sm"
+          (click)="newConversation()"
+        ></button>
+        <button
+          pButton
+          type="button"
+          label="Export"
+          icon="pi pi-download"
+          styleClass="p-button-outlined p-button-sm"
+          (click)="exportChat()"
+        ></button>
+      </div>
+    </header>
+
+    <div class="admin-ai-chat-pane">
+      <p-scrollPanel
+        styleClass="admin-ai-chat-messages admin-ai-chat-scrollpanel"
+        [style]="{ width: '100%', height: '100%' }"
+      >
+        @if (welcomeVisible) {
+          <div class="admin-ai-welcome">
+            <p-avatar icon="pi pi-android" shape="circle" size="xlarge" styleClass="welcome-avatar-android" />
+            <h2 class="admin-ai-welcome-title">Hi, I'm your AI assistant</h2>
+            <p class="admin-ai-welcome-sub">Ask me about projects, tasks, and teams.</p>
+            <div class="admin-ai-starter-chips">
+              @for (q of suggestedStarters; track q) {
+                <p-chip [label]="q" styleClass="starter-chip cursor-pointer" (click)="chipPick(q)" />
+              }
+            </div>
+          </div>
+        }
+
+        @if (!welcomeVisible) {
+          <div class="admin-ai-msg-stack">
+            @for (m of uiMessages; track m.id) {
+              <div class="admin-ai-turn" [class.admin-ai-turn-user]="m.role === 'user'">
+                @if (m.role === 'assistant') {
+                  <p-avatar icon="pi pi-android" shape="circle" size="normal" styleClass="assistant-avatar-android" />
+                }
+                <div class="admin-ai-turn-col">
+                  @if (m.role === 'assistant' && m.isOllamaError) {
+                    <div class="admin-ai-error-assist">
+                      <p-message severity="error" [text]="m.content" />
+                      <button
+                        pButton
+                        type="button"
+                        label="Retry"
+                        icon="pi pi-refresh"
+                        styleClass="p-button-outlined p-button-sm admin-ai-retry-beside"
+                        [disabled]="loading"
+                        (click)="retryLast()"
+                      ></button>
+                    </div>
+                  } @else {
+                    <div
+                      class="admin-ai-bubble"
+                      [class.bubble-user]="m.role === 'user'"
+                      [class.bubble-assistant]="m.role === 'assistant'"
+                      [class.bubble-thinking]="m.isThinking"
+                    >
+                      @if (m.isThinking) {
+                        <p-progressSpinner strokeWidth="4" [style]="{ width: '28px', height: '28px' }" />
+                      } @else {
+                        <span>{{ m.content }}</span>
+                      }
+                    </div>
+                  }
+                  <div class="admin-ai-msg-time">{{ m.at | date : 'HH:mm' }}</div>
+                </div>
+              </div>
+            }
+
+            @if (loading && !uiMessages.some((m) => m.isThinking)) {
+              <div class="admin-ai-turn admin-ai-typing">
+                <p-avatar icon="pi pi-android" shape="circle" size="normal" styleClass="assistant-avatar-android" />
+                <div class="admin-ai-bubble bubble-assistant typing-bubble">
+                  <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </p-scrollPanel>
+    </div>
+
+    <footer class="admin-ai-composer">
+      <textarea
+        pTextarea
+        [(ngModel)]="input"
+        [autoResize]="true"
+        rows="1"
+        class="admin-ai-textarea"
+        placeholder="Type your question..."
+        (keydown)="composerKey($event)"
+      ></textarea>
+      <button
+        pButton
+        type="button"
+        icon="pi pi-send"
+        [disabled]="loading || !input.trim()"
+        (click)="submitInput()"
+      ></button>
+    </footer>
+  </section>
+</div>

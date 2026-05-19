@@ -22,10 +22,6 @@ login(email: string, password: string) {
   );
 }
 
-signup(payload: SignupRequest) {
-  return this.http.post<AuthResponse>(`${this.baseUrl}/auth/signup`, payload);
-}
-
 getProfile() {
   return this.http.get<UserProfile>(`${this.baseUrl}/user/me`);
 }
@@ -71,14 +67,6 @@ getResolvedRole(): string | null {
 
 }
 
-export interface SignupRequest {
-  firstName: string;
-  lastName: string;
-  email: string;
-  password: string;
-  role: string;
-}
-
 export interface AuthResponse {
   token: string;
   id: number;
@@ -95,6 +83,10 @@ export interface UserProfile {
   lastName: string;
   role: string;
   profilePicture?: string;
+  /** ISO calendar date `yyyy-MM-dd` from the server when known. */
+  createdAt?: string | null;
+  phoneNumber?: string | null;
+  address?: string | null;
 }
 
 export interface UpdateProfileRequest {
@@ -103,6 +95,8 @@ export interface UpdateProfileRequest {
   password?: string;
   currentPassword?: string;
   profilePicture?: string;
+  phoneNumber?: string;
+  address?: string;
 }
 
 /** Matches backend {@code UploadedFileResponse} for POST /api/files/upload. */

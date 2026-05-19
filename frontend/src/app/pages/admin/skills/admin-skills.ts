@@ -3,17 +3,15 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
+import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
 import { MessageService, ConfirmationService } from 'primeng/api';
 import { TableModule } from 'primeng/table';
-import { SelectModule } from 'primeng/select';
 import { DialogModule } from 'primeng/dialog';
 import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { SkillService } from '../../../services/skill.service';
 import { Skill } from '../../../models/skill.model';
 import { AppLoaderComponent } from '../../../layout/app-loader';
-
-type CategoryOpt = { label: string; value: string };
 
 @Component({
   selector: 'app-admin-skills',
@@ -25,9 +23,9 @@ type CategoryOpt = { label: string; value: string };
     FormsModule,
     ButtonModule,
     InputTextModule,
+    TextareaModule,
     ToastModule,
     TableModule,
-    SelectModule,
     DialogModule,
     ConfirmDialogModule,
     AppLoaderComponent,
@@ -37,21 +35,16 @@ type CategoryOpt = { label: string; value: string };
 export class AdminSkillsPage implements OnInit {
   skills: Skill[] | null = null;
   newSkillName = '';
-  newCategory: string | null = null;
+  newDescription: string | null = null;
   saving = false;
 
-  readonly categoryPresetOptions: CategoryOpt[] = [
-    { label: 'Programming', value: 'Programming' },
-    { label: 'Design', value: 'Design' },
-    { label: 'Management', value: 'Management' },
-    { label: 'Language', value: 'Language' },
-  ];
+  readonly descriptionMaxLength = 1000;
 
   editOpen = false;
-  editForm: { id: number; name: string; category: string | null } = {
+  editForm: { id: number; name: string; description: string | null } = {
     id: 0,
     name: '',
-    category: null,
+    description: null,
   };
   editSaving = false;
 
@@ -109,11 +102,11 @@ export class AdminSkillsPage implements OnInit {
       return;
     }
     this.saving = true;
-    this.skillService.createSkill(name, this.newCategory).subscribe({
+    this.skillService.createSkill(name, this.newDescription).subscribe({
       next: () => {
         this.saving = false;
         this.newSkillName = '';
-        this.newCategory = null;
+        this.newDescription = null;
         this.messageService.add({ severity: 'success', summary: 'Created', detail: 'Skill added.' });
         this.reload();
         this.skillService.getAllSkillsRefreshed().subscribe();
@@ -135,7 +128,7 @@ export class AdminSkillsPage implements OnInit {
     this.editForm = {
       id: skill.id,
       name: skill.name,
-      category: skill.category ?? null,
+      description: skill.description ?? null,
     };
     this.editOpen = true;
   }
@@ -147,11 +140,11 @@ export class AdminSkillsPage implements OnInit {
       return;
     }
     this.editSaving = true;
-    const catNullToClear = this.editForm.category === null || this.editForm.category === '';
+    const descNullToClear = this.editForm.description === null || this.editForm.description === '';
     this.skillService
       .updateSkill(this.editForm.id, {
         name,
-        category: catNullToClear ? '' : this.editForm.category,
+        description: descNullToClear ? '' : this.editForm.description,
       })
       .subscribe({
         next: () => {
@@ -203,21 +196,11 @@ export class AdminSkillsPage implements OnInit {
     });
   }
 
-  categoryLabel(skill: Skill): string {
-    return skill.category?.trim() ? skill.category : '—';
+  descriptionLabel(skill: Skill): string {
+    return skill.description?.trim() ? skill.description : '—';
   }
 
   usageCount(skill: Skill): number {
     return skill.usageCount ?? 0;
-  }
-
-  /** Preserve categories not present in presets (legacy / custom rows). */
-  editCategoryDropdownOptions(): CategoryOpt[] {
-    const opts = [...this.categoryPresetOptions];
-    const c = this.editForm.category?.trim();
-    if (c && !opts.some((o) => o.value === c)) {
-      return [{ label: c, value: c }, ...opts];
-    }
-    return opts;
   }
 }

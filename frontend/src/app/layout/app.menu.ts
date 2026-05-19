@@ -61,12 +61,6 @@ export class AppMenu {
                         { label: 'Tasks List', icon: 'pi pi-check-square', routerLink: ['/dashboard/pm/tasks'] },
                         { label: 'Task Reports', icon: 'pi pi-flag', routerLink: ['/dashboard/pm/task-reports'] }
                     ]
-                },
-                {
-                    label: 'Tools',
-                    items: [
-                        { label: 'IA Chat', icon: 'pi pi-comments', routerLink: ['/dashboard/pm/ia-chat'] }
-                    ]
                 }
             ];
         }
@@ -90,12 +84,6 @@ export class AppMenu {
                     items: [
                         { label: 'My Tasks', icon: 'pi pi-check-square', routerLink: ['/dashboard/collab/tasks'] }
                     ]
-                },
-                {
-                    label: 'Tools',
-                    items: [
-                        { label: 'IA Chat', icon: 'pi pi-comments', routerLink: ['/dashboard/collab/ia-chat'] }
-                    ]
                 }
             ];
         }
@@ -106,12 +94,6 @@ export class AppMenu {
                     label: 'Home',
                     items: [
                         { label: 'My projects', icon: 'pi pi-folder', routerLink: ['/dashboard/client'] }
-                    ]
-                },
-                {
-                    label: 'Account',
-                    items: [
-                        { label: 'My profile', icon: 'pi pi-user', routerLink: ['/dashboard/profile'] }
                     ]
                 }
             ];

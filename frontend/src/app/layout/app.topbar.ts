@@ -353,13 +353,50 @@ export class AppTopbar implements OnInit, OnDestroy {
         }
     }
 
+    onNotificationClick(notification: Notification, event: Event): void {
+        event.stopPropagation();
+        if (notification.kind !== 'PROJECT_MESSAGE' || notification.projectId == null) {
+            return;
+        }
+
+        const role = this.readStoredRole();
+        const base =
+            role === 'ADMIN'
+                ? '/dashboard/admin/projects'
+                : role === 'CLIENT'
+                  ? '/dashboard/client/projects'
+                  : null;
+        if (!base) {
+            return;
+        }
+
+        this.showNotificationPanel = false;
+        this.closeTopbarMenu();
+        void this.router.navigate([`${base}/${notification.projectId}`], {
+            queryParams: { tab: 'chat' }
+        });
+    }
+
+    private readStoredRole(): string | null {
+        const userData = localStorage.getItem('user');
+        if (!userData) {
+            return null;
+        }
+        try {
+            return JSON.parse(userData)?.role ?? null;
+        } catch {
+            return null;
+        }
+    }
+
     private loadStoredNotifications() {
         this.notificationService.getMyNotifications()
             .pipe(takeUntil(this.destroy$))
             .subscribe({
                 next: (notifications) => {
-                    this.notifications = notifications;
-                    this.unreadCount = notifications.filter(notification => !notification.read).length;
+                    const ephemeral = this.notifications.filter(n => n.id == null);
+                    this.notifications = [...ephemeral, ...notifications];
+                    this.unreadCount = this.notifications.filter(notification => !notification.read).length;
                     this.cdr.detectChanges();
                 },
                 error: (error) => {

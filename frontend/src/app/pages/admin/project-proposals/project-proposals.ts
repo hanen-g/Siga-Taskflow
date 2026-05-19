@@ -79,7 +79,7 @@ export class ProjectProposalsPage implements OnInit {
     this.loading = true;
     this.error = null;
     this.cdr.markForCheck();
-    this.projectService.listPendingProposals().subscribe({
+    this.projectService.listProposals().subscribe({
       next: (list) => {
         this.proposals = list ?? [];
         this.loading = false;

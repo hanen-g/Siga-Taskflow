@@ -23,7 +23,7 @@ export class SkillService {
     return this.listCache$;
   }
 
-  /** Admin view with category, created date, usage counts. */
+  /** Admin view with description, created date, usage counts. */
   getAdminSkills(): Observable<Skill[]> {
     return this.http.get<Skill[]>(`${this.base}/admin/skills/list`);
   }
@@ -37,21 +37,21 @@ export class SkillService {
     return this.http.put<Skill[]>(`${this.base}/user/me/skills`, { skillIds });
   }
 
-  createSkill(name: string, category?: string | null): Observable<Skill> {
+  createSkill(name: string, description?: string | null): Observable<Skill> {
     this.listCache$ = undefined;
-    const body: { name: string; category?: string } = { name };
-    const c = category?.trim();
-    if (c) {
-      body.category = c;
+    const body: { name: string; description?: string } = { name };
+    const d = description?.trim();
+    if (d) {
+      body.description = d;
     }
     return this.http.post<Skill>(`${this.base}/admin/skills`, body);
   }
 
-  updateSkill(id: number, payload: { name: string; category?: string | null }): Observable<Skill> {
+  updateSkill(id: number, payload: { name: string; description?: string | null }): Observable<Skill> {
     this.listCache$ = undefined;
-    const body: { name: string; category?: string } = { name: payload.name.trim() };
-    if (payload.category !== undefined) {
-      body.category = payload.category?.trim() ?? '';
+    const body: { name: string; description?: string } = { name: payload.name.trim() };
+    if (payload.description !== undefined) {
+      body.description = payload.description?.trim() ?? '';
     }
     return this.http.put<Skill>(`${this.base}/admin/skills/${id}`, body);
   }

@@ -81,12 +81,42 @@
                 readonly />
             </div>
           </div>
+
+          <div class="field-group">
+            <label for="phoneNumber">Phone number</label>
+            <div class="field-shell" [class.readonly-shell]="!isEditingProfile">
+              <i class="pi pi-phone"></i>
+              <input
+                id="phoneNumber"
+                type="text"
+                pInputText
+                [(ngModel)]="phoneNumber"
+                maxlength="40"
+                [readonly]="!isEditingProfile"
+                autocomplete="tel" />
+            </div>
+          </div>
+
+          <div class="field-group">
+            <label for="address">Address</label>
+            <div class="field-shell field-shell-textarea" [class.readonly-shell]="!isEditingProfile">
+              <i class="pi pi-map-marker"></i>
+              <textarea
+                id="address"
+                pInputTextarea
+                [(ngModel)]="address"
+                rows="4"
+                maxlength="1024"
+                [readonly]="!isEditingProfile"
+                autocomplete="street-address"></textarea>
+            </div>
+          </div>
         </div>
 
         <section *ngIf="showSkillsSection" class="skills-card surface-card p-3 mb-3">
           <h3>Your skills</h3>
           <p class="text-600 text-sm mb-3">
-            These skills are used to match you with project needs. They are read-only here; contact an administrator if updates are needed.
+            These skills are read-only; contact an administrator if updates are needed.
           </p>
           <div *ngIf="skillsUiLoading" class="py-3">
             <i class="pi pi-spin pi-spinner"></i> Loading…
@@ -132,7 +162,7 @@
               <i class="pi pi-verified"></i>
             </div>
             <p>Role: {{ roleLabel }}</p>
-            <p>Member since: March 2026</p>
+            <p>{{ memberSinceStatusLine }}</p>
           </section>
         </div>
       </div>

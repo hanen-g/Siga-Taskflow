@@ -53,10 +53,10 @@
   min-width: 0;
 }
 
-.create-field-category {
+.create-field-description {
   flex: 1;
-  min-width: 220px;
-  max-width: 280px;
+  min-width: 260px;
+  max-width: 420px;
 }
 
 .create-field-submit {
@@ -82,10 +82,12 @@
   width: 100%;
 }
 
-:host ::ng-deep .category-select.p-select,
-:host ::ng-deep .category-select .p-select {
+.description-input {
   width: 100%;
   border-radius: 0.65rem;
+  resize: vertical;
+  font-family: inherit;
+  line-height: 1.4;
 }
 
 .btn-add-skill {
@@ -160,6 +162,14 @@
 .td-name {
   font-weight: 600;
   color: #0f172a;
+}
+
+.td-description {
+  color: #475569;
+  max-width: 28rem;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
 .th-numeric,

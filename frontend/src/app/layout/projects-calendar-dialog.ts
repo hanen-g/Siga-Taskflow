@@ -167,41 +167,9 @@ export class ProjectsCalendarDialog implements OnChanges {
     });
   }
 
-  /** Tasks shown on the calendar by role (clients: none). */
+  /** Tasks on the calendar; server returns the appropriate list by role (clients: []). */
   private tasksForRole$() {
-    const role = this.readStoredRole();
-    if (role === 'ADMIN') {
-      return this.taskService.getAllTasks();
-    }
-    if (role === 'PROJECT_MANAGER') {
-      return this.taskService.getManagerTasks();
-    }
-    if (role === 'COLLABORATOR') {
-      return this.taskService.getMyTasks();
-    }
-    return of<Task[]>([]);
-  }
-
-  private readStoredRole(): string | null {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      try {
-        const user = JSON.parse(userData);
-        if (user?.role) return user.role;
-      } catch {
-        /* fallback */
-      }
-    }
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        const payload = JSON.parse(atob(token.split('.')[1]));
-        return payload.role ?? null;
-      } catch {
-        return null;
-      }
-    }
-    return null;
+    return this.taskService.getTasksForCurrentUser();
   }
 
   private rebuildCalendars(): void {

@@ -24,20 +24,18 @@
           (keydown.enter)="$event.preventDefault(); addSkill()"
         />
       </div>
-      <div class="create-field create-field-category">
-        <label for="skill-category" class="field-label">Category <span class="optional">(optional)</span></label>
-        <p-select
-          inputId="skill-category"
-          [options]="categoryPresetOptions"
-          [(ngModel)]="newCategory"
-          optionLabel="label"
-          optionValue="value"
-          placeholder="Optional"
-          [showClear]="true"
-          appendTo="body"
-          styleClass="category-select"
+      <div class="create-field create-field-description">
+        <label for="skill-description" class="field-label">Description <span class="optional">(optional)</span></label>
+        <textarea
+          pTextarea
+          id="skill-description"
+          class="field-input description-input"
+          [(ngModel)]="newDescription"
+          [rows]="2"
+          [maxlength]="descriptionMaxLength"
+          placeholder="Briefly describe what this skill covers"
           [disabled]="saving"
-        />
+        ></textarea>
       </div>
       <div class="create-field create-field-submit">
         <span class="field-label spacer" aria-hidden="true">&nbsp;</span>
@@ -70,24 +68,14 @@
       <ng-template pTemplate="header">
         <tr>
           <th>Name</th>
-          <th>Category</th>
-          <th>Created Date</th>
-          <th class="th-numeric">Count</th>
+          <th>Description</th>
           <th class="th-actions">Actions</th>
         </tr>
       </ng-template>
       <ng-template pTemplate="body" let-s>
         <tr>
           <td class="td-name">{{ s.name }}</td>
-          <td>{{ categoryLabel(s) }}</td>
-          <td>
-            {{
-              s.createdAt
-                ? (s.createdAt | date : 'dd/MM/yyyy' : 'UTC')
-                : '—'
-            }}
-          </td>
-          <td class="td-numeric">{{ usageCount(s) }}</td>
+          <td class="td-description">{{ descriptionLabel(s) }}</td>
           <td class="td-actions">
             <div class="actions-cell">
               <button
@@ -116,7 +104,7 @@
       </ng-template>
       <ng-template pTemplate="emptymessage">
         <tr>
-          <td colspan="5" class="empty-row">No skills yet. Create the first one above.</td>
+          <td colspan="4" class="empty-row">No skills yet. Create the first one above.</td>
         </tr>
       </ng-template>
     </p-table>
@@ -127,7 +115,7 @@
   header="Edit skill"
   [(visible)]="editOpen"
   [modal]="true"
-  [style]="{ width: 'min(28rem, 94vw)' }"
+  [style]="{ width: 'min(32rem, 94vw)' }"
   [draggable]="false"
   [resizable]="false"
   (onHide)="editSaving = false"
@@ -136,19 +124,17 @@
     <label for="edit-name" class="field-label block mb-2">Name</label>
     <input pInputText id="edit-name" class="w-full mb-4" [(ngModel)]="editForm.name" [disabled]="editSaving" />
 
-    <label for="edit-category" class="field-label block mb-2">Category <span class="optional">(optional)</span></label>
-    <p-select
-      inputId="edit-category"
-      [options]="editCategoryDropdownOptions()"
-      [(ngModel)]="editForm.category"
-      optionLabel="label"
-      optionValue="value"
-      placeholder="Optional"
-      [showClear]="true"
-      appendTo="body"
-      styleClass="w-full"
+    <label for="edit-description" class="field-label block mb-2">Description <span class="optional">(optional)</span></label>
+    <textarea
+      pTextarea
+      id="edit-description"
+      class="w-full description-input"
+      [(ngModel)]="editForm.description"
+      [rows]="4"
+      [maxlength]="descriptionMaxLength"
+      placeholder="Briefly describe what this skill covers"
       [disabled]="editSaving"
-    />
+    ></textarea>
   </div>
   <ng-template pTemplate="footer">
     <button

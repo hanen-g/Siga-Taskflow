@@ -1,10 +1,11 @@
-import { Component, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { Subject, of } from 'rxjs';
+import { EMPTY, Subject, of } from 'rxjs';
 import { map, switchMap, takeUntil } from 'rxjs/operators';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
+import { TextareaModule } from 'primeng/textarea';
 import { PasswordModule } from 'primeng/password';
 import { CardModule } from 'primeng/card';
 import { DialogModule } from 'primeng/dialog';
@@ -23,6 +24,7 @@ import { Skill } from '../../models/skill.model';
     FormsModule,
     ButtonModule,
     InputTextModule,
+    TextareaModule,
     PasswordModule,
     CardModule,
     DialogModule,
@@ -55,6 +57,8 @@ export class ProfilePage implements OnInit, OnDestroy {
   firstName = '';
   lastName = '';
   email = '';
+  phoneNumber = '';
+  address = '';
   profilePicture = '';
   profilePicturePreview = '';
   selectedProfileImage: File | null = null;
@@ -72,7 +76,7 @@ export class ProfilePage implements OnInit, OnDestroy {
   password = '';
   confirmPassword = '';
 
-  /** Skills assigned to this user (PM / collaborator / admin only; clients never see this block). */
+  /** Skills assigned to this user (PM / collaborator only; admins and clients never see this block). */
   mySkills: Skill[] = [];
   skillsUiLoading = false;
 
@@ -83,12 +87,13 @@ export class ProfilePage implements OnInit, OnDestroy {
     private messageService: MessageService,
     private fileAccessService: FileAccessService,
     private skillService: SkillService,
+    private cdr: ChangeDetectorRef,
   ) {
     this.picturePath$
       .pipe(
         switchMap((path) => {
-          if (!path || this.isDirectUrl(path)) return [];
-          if (this.profilePictureObjectUrl && this.profilePictureBlobSourcePath === path) return [];
+          if (!path || this.isDirectUrl(path)) return EMPTY;
+          if (this.profilePictureObjectUrl && this.profilePictureBlobSourcePath === path) return EMPTY;
           this.revokePictureObjectUrl();
           return this.fileAccessService.fetchFileBlob(path).pipe(
             map((blob) => ({ path, blob })),
@@ -101,9 +106,11 @@ export class ProfilePage implements OnInit, OnDestroy {
           this.profilePictureObjectUrl = URL.createObjectURL(blob);
           this.profilePictureBlobSourcePath = path;
           this.profilePictureDisplaySrc = this.profilePictureObjectUrl;
+          this.cdr.detectChanges();
         },
         error: () => {
           this.profilePictureDisplaySrc = '';
+          this.cdr.detectChanges();
         },
       });
   }
@@ -114,10 +121,10 @@ export class ProfilePage implements OnInit, OnDestroy {
     this.loadProfile();
   }
 
-  /** Skills are shown for staff roles only; clients do not see skills on this page. */
+  /** Skills are shown for PM and collaborator; admins and clients do not see skills on this page. */
   get showSkillsSection(): boolean {
     const r = this.user?.role;
-    return r === 'PROJECT_MANAGER' || r === 'COLLABORATOR' || r === 'ADMIN';
+    return r === 'PROJECT_MANAGER' || r === 'COLLABORATOR';
   }
 
   ngOnDestroy(): void {
@@ -140,6 +147,7 @@ export class ProfilePage implements OnInit, OnDestroy {
       error: (err) => {
         console.error('Failed to load profile:', err);
         this.showError('Unable to load profile information.');
+        this.cdr.detectChanges();
       },
     });
   }
@@ -203,10 +211,31 @@ export class ProfilePage implements OnInit, OnDestroy {
       return;
     }
 
+    if (this.phoneNumber.length > 40) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Validation',
+        detail: 'Phone number must be at most 40 characters.',
+        life: 3000,
+      });
+      return;
+    }
+    if (this.address.length > 1024) {
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Validation',
+        detail: 'Address must be at most 1024 characters.',
+        life: 3000,
+      });
+      return;
+    }
+
     const basePayload: UpdateProfileRequest = {
       firstName: this.firstName,
       lastName: this.lastName,
       profilePicture: this.profilePicture,
+      phoneNumber: this.phoneNumber.trim(),
+      address: this.address.trim(),
     };
 
     const upload$ = this.selectedProfileImage
@@ -257,6 +286,24 @@ export class ProfilePage implements OnInit, OnDestroy {
     return this.user?.role?.replaceAll('_', ' ') ?? 'Member';
   }
 
+  get memberSinceStatusLine(): string {
+    const formatted = this.formatProfileCreatedDate(this.user?.createdAt);
+    if (!formatted) return 'Member since';
+    return `Member since : ${formatted}`;
+  }
+
+  /** Parses `yyyy-MM-dd` as a local calendar date for display (avoids UTC off-by-one). */
+  private formatProfileCreatedDate(isoDate: string | null | undefined): string {
+    if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return '';
+    const [y, m, d] = isoDate.split('-').map((x) => parseInt(x, 10));
+    if (!y || !m || !d) return '';
+    return new Intl.DateTimeFormat(undefined, {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    }).format(new Date(y, m - 1, d));
+  }
+
   private loadSkillsUi(): void {
     if (!this.showSkillsSection) {
       this.mySkills = [];
@@ -267,10 +314,12 @@ export class ProfilePage implements OnInit, OnDestroy {
       next: (mine) => {
         this.mySkills = mine ?? [];
         this.skillsUiLoading = false;
+        this.cdr.detectChanges();
       },
       error: () => {
         this.skillsUiLoading = false;
         this.showError('Could not load your skills.');
+        this.cdr.detectChanges();
       },
     });
   }
@@ -293,11 +342,14 @@ export class ProfilePage implements OnInit, OnDestroy {
     this.firstName = profile.firstName;
     this.lastName = profile.lastName;
     this.email = profile.email;
+    this.phoneNumber = profile.phoneNumber ?? '';
+    this.address = profile.address ?? '';
     this.selectedProfileImage = null;
     this.revokePictureObjectUrl();
     this.revokePicturePreviewBlob();
     this.profilePicture = profile.profilePicture ?? '';
     this.syncPictureDisplay();
+    this.cdr.detectChanges();
   }
 
   private updateProfile(payload: UpdateProfileRequest, successMessage: string): void {

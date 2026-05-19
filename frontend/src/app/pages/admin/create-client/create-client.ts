@@ -13,6 +13,8 @@ import { TextareaModule } from 'primeng/textarea';
 import { ToastModule } from 'primeng/toast';
 import { UserService, AdminUser } from '../../../services/user.service';
 import { ClientProjectRow, ProjectService } from '../../../services/project.service';
+import { ClientLabelColorPickerComponent } from './client-label-color-picker';
+import { DEFAULT_CLIENT_LABEL_COLOR, resolvedClientLabelColor } from './client-label-colors';
 
 type ClientGender = 'FEMALE' | 'MALE' | 'OTHER' | '';
 
@@ -32,6 +34,7 @@ type ListStatusFilter = 'all' | 'active' | 'inactive';
     TextareaModule,
     MultiSelectModule,
     SelectModule,
+    ClientLabelColorPickerComponent,
   ],
   templateUrl: './create-client.html',
   styleUrls: ['./create-client.css'],
@@ -51,7 +54,9 @@ export class CreateClientPage implements OnInit {
     email: '',
     phoneNumber: '',
     address: '',
+    gender: '' as ClientGender,
     active: true,
+    clientLabelColor: DEFAULT_CLIENT_LABEL_COLOR,
   };
   selectedProjectIds: number[] = [];
   projectOptions: { label: string; value: number }[] = [];
@@ -89,6 +94,7 @@ export class CreateClientPage implements OnInit {
     company: '',
     fiscalMatricule: '',
     address: '',
+    clientLabelColor: DEFAULT_CLIENT_LABEL_COLOR,
   };
   /** Project ids selected for the currently-edited client (active projects only). */
   detailEditProjectIds: number[] = [];
@@ -204,6 +210,10 @@ export class CreateClientPage implements OnInit {
     this.profileProjects = [];
   }
 
+  clientLabelColorFor(c: Pick<AdminUser, 'clientLabelColor'>): string {
+    return resolvedClientLabelColor(c.clientLabelColor);
+  }
+
   selectClient(c: AdminUser): void {
     this.detailEditing = false;
     this.detailEditError = null;
@@ -277,7 +287,9 @@ export class CreateClientPage implements OnInit {
       email: '',
       phoneNumber: '',
       address: '',
+      gender: '' as ClientGender,
       active: true,
+      clientLabelColor: DEFAULT_CLIENT_LABEL_COLOR,
     };
     this.selectedProjectIds = [];
     this.createError = null;
@@ -335,13 +347,6 @@ export class CreateClientPage implements OnInit {
     return s || '?';
   }
 
-  profileCompanyTitle(): string {
-    const c = this.selectedClient;
-    if (!c) {
-      return '';
-    }
-    return (c.company ?? '').trim() || `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim() || 'Client';
-  }
 
   profileBannerName(): string {
     const c = this.selectedClient;
@@ -379,6 +384,7 @@ export class CreateClientPage implements OnInit {
       company: d.company ?? '',
       fiscalMatricule: d.fiscalMatricule ?? '',
       address: d.address ?? '',
+      clientLabelColor: resolvedClientLabelColor(d.clientLabelColor),
     };
     const projectIds = (this.profileProjects ?? [])
       .map((p) => p.id)
@@ -418,7 +424,7 @@ export class CreateClientPage implements OnInit {
 
     this.detailSaveLoading = true;
     this.userService
-      .updateAdminUser(d.id, {
+      .updateUser(d.id, {
         firstName: f.firstName.trim(),
         lastName: f.lastName.trim(),
         email: f.email.trim().toLowerCase(),
@@ -430,6 +436,7 @@ export class CreateClientPage implements OnInit {
         recruitmentDate: f.recruitmentDate?.trim() || undefined,
         company: f.company?.trim() || undefined,
         fiscalMatricule: f.fiscalMatricule?.trim() || undefined,
+        clientLabelColor: f.clientLabelColor,
       })
       .subscribe({
         next: (updated) => {
@@ -558,6 +565,8 @@ export class CreateClientPage implements OnInit {
         address: this.form.address.trim(),
         active: this.form.active,
         company: this.form.company.trim(),
+        clientLabelColor: this.form.clientLabelColor,
+        ...(this.form.gender ? { gender: this.form.gender } : {}),
         ...(fiscal ? { fiscalMatricule: fiscal } : {}),
       })
       .subscribe({
@@ -567,10 +576,10 @@ export class CreateClientPage implements OnInit {
           const finishSuccess = (assignOk: boolean, assignErr?: string) => {
             this.createLoading = false;
             this.messageService.add({
-              severity: 'success',
-              summary: 'Client created',
+              severity: res.emailSent ? 'success' : 'warn',
+              summary: res.emailSent ? 'Client created' : 'Client created (email not sent)',
               detail: res?.message ?? 'Account saved.',
-              life: 2400,
+              life: res.emailSent ? 3200 : 12000,
             });
             if (projectIds.length && !assignOk) {
               this.messageService.add({
