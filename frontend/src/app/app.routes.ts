@@ -1,8 +1,7 @@
 import { Routes } from '@angular/router';
 import { Login } from './pages/login/login';
-import { Signup } from './pages/signup/signup';
 import { Dashboard } from './pages/dashboard/dashboard';
-import { ProjectsPage } from './pages/project_manager/projects/projects';
+import { ProjectsPage } from './pages/projects/projects';
 
 import { AuthGuard } from './guards/auth.guard';
 import { AppLayout } from './layout/app.layout';
@@ -11,7 +10,6 @@ export const routes: Routes = [
   { path: '', redirectTo: 'login', pathMatch: 'full' },
 
   { path: 'login', component: Login },
-  { path: 'signup', component: Signup },
 
   {
     path: '',
@@ -26,7 +24,7 @@ export const routes: Routes = [
       {
         path: 'dashboard/pm/projects/:projectId',
         loadComponent: () =>
-          import('./pages/project_manager/projects/project-detail').then(m => m.ProjectDetailPage),
+          import('./pages/projects/project-detail').then(m => m.ProjectDetailPage),
         data: { roles: ['PROJECT_MANAGER', 'COLLABORATOR'] }
       },
       {
@@ -42,22 +40,22 @@ export const routes: Routes = [
       {
         path: 'dashboard/collab/projects/:projectId',
         loadComponent: () =>
-          import('./pages/project_manager/projects/project-detail').then(m => m.ProjectDetailPage),
+          import('./pages/projects/project-detail').then(m => m.ProjectDetailPage),
         data: { roles: ['COLLABORATOR'] }
       },
       {
         path: 'dashboard/pm/archives',
-        loadComponent: () => import('./pages/project_manager/archived-projects/archived-projects').then(m => m.ArchivedProjectsPage),
+        loadComponent: () => import('./pages/projects/archived-projects/archived-projects').then(m => m.ArchivedProjectsPage),
         data: { roles: ['PROJECT_MANAGER'] }
       },
       {
         path: 'dashboard/admin/archives',
-        loadComponent: () => import('./pages/project_manager/archived-projects/archived-projects').then(m => m.ArchivedProjectsPage),
+        loadComponent: () => import('./pages/projects/archived-projects/archived-projects').then(m => m.ArchivedProjectsPage),
         data: { roles: ['ADMIN'], mode: 'archived' }
       },
       {
         path: 'dashboard/admin/delivered',
-        loadComponent: () => import('./pages/project_manager/archived-projects/archived-projects').then(m => m.ArchivedProjectsPage),
+        loadComponent: () => import('./pages/projects/archived-projects/archived-projects').then(m => m.ArchivedProjectsPage),
         data: { roles: ['ADMIN'], mode: 'delivered' }
       },
       {
@@ -73,22 +71,28 @@ export const routes: Routes = [
       {
         path: 'dashboard/client/projects/:projectId',
         loadComponent: () =>
-          import('./pages/project_manager/projects/project-detail').then(m => m.ProjectDetailPage),
+          import('./pages/projects/project-detail').then(m => m.ProjectDetailPage),
         data: { roles: ['CLIENT'] }
       },
       {
         path: 'dashboard/pm/tasks',
-        loadComponent: () => import('./pages/tasks/tasks-page').then(m => m.TasksPage),
+        loadComponent: () =>
+          import('./pages/tasks/components/task-kanban-board/task-kanban-board.component').then(
+            (m) => m.TaskKanbanBoardComponent
+          ),
         data: { roles: ['PROJECT_MANAGER'] }
       },
       {
         path: 'dashboard/pm/task-reports',
-        loadComponent: () => import('./pages/project_manager/task-reports/task-reports').then(m => m.TaskReportsPage),
+        loadComponent: () => import('./pages/tasks/task-reports/task-reports').then(m => m.TaskReportsPage),
         data: { roles: ['PROJECT_MANAGER'] }
       },
       {
         path: 'dashboard/collab/tasks',
-        loadComponent: () => import('./pages/tasks/tasks-page').then(m => m.TasksPage),
+        loadComponent: () =>
+          import('./pages/tasks/components/task-kanban-board/task-kanban-board.component').then(
+            (m) => m.TaskKanbanBoardComponent
+          ),
         data: { roles: ['COLLABORATOR'] }
       },
       {
@@ -104,13 +108,13 @@ export const routes: Routes = [
       {
         path: 'dashboard/admin/advanced-filter',
         loadComponent: () =>
-          import('./pages/admin/admin-advanced-filter/admin-advanced-filter').then((m) => m.AdminAdvancedFilterPage),
+          import('./pages/admin/advanced-filtering/admin-advanced-filter').then((m) => m.AdminAdvancedFilterPage),
         data: { roles: ['ADMIN'] }
       },
       {
         path: 'dashboard/admin/ai-chat',
         loadComponent: () =>
-          import('./pages/admin/admin-ai-assistant/admin-ai-assistant').then((m) => m.AdminAiAssistantPage),
+          import('./pages/admin/ai-assistant/admin-ai-assistant').then((m) => m.AdminAiAssistantPage),
         data: { roles: ['ADMIN'] }
       },
       {
@@ -121,12 +125,12 @@ export const routes: Routes = [
       {
         path: 'dashboard/admin/projects/:projectId',
         loadComponent: () =>
-          import('./pages/project_manager/projects/project-detail').then(m => m.ProjectDetailPage),
+          import('./pages/projects/project-detail').then(m => m.ProjectDetailPage),
         data: { roles: ['ADMIN'] }
       },
       {
         path: 'dashboard/admin/projects',
-        loadComponent: () => import('./pages/project_manager/projects/projects').then(m => m.ProjectsPage),
+        loadComponent: () => import('./pages/projects/projects').then(m => m.ProjectsPage),
         data: { roles: ['ADMIN'] }
       },
       {
@@ -137,7 +141,10 @@ export const routes: Routes = [
       },
       {
         path: 'dashboard/admin/tasks',
-        loadComponent: () => import('./pages/tasks/tasks-page').then(m => m.TasksPage),
+        loadComponent: () =>
+          import('./pages/tasks/components/task-kanban-board/task-kanban-board.component').then(
+            (m) => m.TaskKanbanBoardComponent
+          ),
         data: { roles: ['ADMIN'] }
       },
       {
@@ -147,7 +154,7 @@ export const routes: Routes = [
       },
       {
         path: 'dashboard/admin/create-users',
-        loadComponent: () => import('./pages/admin/create-users/create-users').then(m => m.CreateUsersPage),
+        loadComponent: () => import('./pages/admin/user-management/create-users/create-users').then(m => m.CreateUsersPage),
         data: { roles: ['ADMIN'] }
       },
       {

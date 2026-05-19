@@ -1,119 +1,196 @@
 <div class="user-management-page">
-  <div class="page-header">
-    <div>
-      <h1>User Management</h1>
-      <p>Search, filter, and update employee access from one place.</p>
-    </div>
+  <header class="page-header">
+    <h1>User management</h1>
+    <p class="page-subtitle">Search, filter, and update employee access from one place.</p>
+  </header>
+
+  <div class="controls-bar">
+    <label class="search-wrap">
+      <span class="sr-only">Search users</span>
+      <input
+        type="search"
+        class="um-input um-input--search"
+        placeholder="Search by name or email…"
+        [(ngModel)]="searchTerm"
+        (ngModelChange)="onSearchChange()"
+        autocomplete="off"
+      />
+    </label>
+    <select
+      class="um-input um-select"
+      [(ngModel)]="listStatusFilter"
+      (ngModelChange)="onFiltersChange()"
+      aria-label="Filter by account status"
+    >
+      @for (opt of listFilterOptions; track opt.value) {
+        <option [ngValue]="opt.value">{{ opt.label }}</option>
+      }
+    </select>
   </div>
 
-  <div class="management-shell">
-    @let usersList = (users$ | async);
-    <div class="toolbar-panel">
-      <div class="toolbar-grid">
-        <label class="search-control">
-          <i class="pi pi-search"></i>
-          <input
-            pInputText
-            type="text"
-            placeholder="Search by Name or Email..."
-            [(ngModel)]="searchTerm"
-            (keyup.enter)="loadUsers()"
-            (blur)="loadUsers()"
-          />
-        </label>
+  @if (error) {
+    <div class="error-banner">{{ error }}</div>
+  }
 
-        <div class="filter-control">
-          <p-select
-            [options]="statusOptions"
-            [(ngModel)]="selectedStatus"
-            optionLabel="label"
-            optionValue="value"
-            appendTo="body"
-            styleClass="filter-select"
-            (onChange)="onFiltersChange()"
-          ></p-select>
+  @if (loadingUsers) {
+    <div class="loading-state">Loading users…</div>
+  } @else {
+    <div class="card-grid">
+      @for (user of users; track user.id) {
+        <article class="user-card" (click)="openUserDetail(user)" (keydown.enter)="openUserDetail(user)" tabindex="0" role="button">
+          <div
+            class="user-card__avatar"
+            [class.user-card__avatar--green]="avatarFamily(user) === 'green'"
+            [class.user-card__avatar--blue]="avatarFamily(user) === 'blue'"
+            [class.user-card__avatar--purple]="avatarFamily(user) === 'purple'"
+            [class.user-card__avatar--amber]="avatarFamily(user) === 'amber'"
+          >
+            @if (getProfilePictureSrc(user.profilePicture); as src) {
+              <img [src]="src" alt="" class="user-card__avatar-img" />
+            } @else {
+              <span class="user-card__avatar-initials">{{ getUserInitials(user) }}</span>
+            }
+          </div>
+          <div class="user-card__name">{{ user.firstName }} {{ user.lastName }}</div>
+          <div class="user-card__email">{{ user.email }}</div>
+          <span
+            class="role-badge"
+            [class.role-badge--collaborator]="user.role === 'COLLABORATOR'"
+            [class.role-badge--admin]="user.role === 'ADMIN'"
+            [class.role-badge--pm]="user.role === 'PROJECT_MANAGER'"
+          >
+            {{ roleLabel(user.role) }}
+          </span>
+          <div class="status-row">
+            <span class="status-dot" [class.status-dot--active]="user.active" [class.status-dot--inactive]="!user.active"></span>
+            <span class="status-label">{{ user.active ? 'Active' : 'Inactive' }}</span>
+          </div>
+          <button
+            type="button"
+            class="view-details-btn"
+            (click)="openUserDetail(user); $event.stopPropagation()"
+          >
+            <i class="pi pi-user" aria-hidden="true"></i>
+            View details
+          </button>
+        </article>
+      } @empty {
+        <p class="empty-state">No users matched the current filters.</p>
+      }
+    </div>
+  }
+
+  <!-- Detail modal -->
+  @if (detailUser) {
+    <div class="um-modal-backdrop" (click)="onDetailBackdrop($event)">
+      <div class="um-modal" role="dialog" aria-modal="true" aria-labelledby="um-detail-title" (click)="$event.stopPropagation()">
+        <button type="button" class="um-modal-close" (click)="closeUserDetail()" aria-label="Close">✕</button>
+
+        <div class="um-modal-header">
+          <div
+            class="um-modal-avatar"
+            [class.um-modal-avatar--green]="avatarFamily(detailUser) === 'green'"
+            [class.um-modal-avatar--blue]="avatarFamily(detailUser) === 'blue'"
+            [class.um-modal-avatar--purple]="avatarFamily(detailUser) === 'purple'"
+            [class.um-modal-avatar--amber]="avatarFamily(detailUser) === 'amber'"
+          >
+            @if (getProfilePictureSrc(detailUser.profilePicture); as dsrc) {
+              <img [src]="dsrc" alt="" class="um-modal-avatar-img" />
+            } @else {
+              <span class="um-modal-avatar-initials">{{ getUserInitials(detailUser) }}</span>
+            }
+          </div>
+          <div class="um-modal-header-text">
+            <h2 id="um-detail-title" class="um-modal-name">{{ detailUser.firstName }} {{ detailUser.lastName }}</h2>
+            <span
+              class="role-badge"
+              [class.role-badge--collaborator]="detailUser.role === 'COLLABORATOR'"
+              [class.role-badge--admin]="detailUser.role === 'ADMIN'"
+              [class.role-badge--pm]="detailUser.role === 'PROJECT_MANAGER'"
+            >
+              {{ roleLabel(detailUser.role) }}
+            </span>
+          </div>
+        </div>
+
+        <ul class="um-detail-rows">
+          <li class="um-detail-row">
+            <i class="pi pi-envelope um-detail-icon" aria-hidden="true"></i>
+            <div class="um-detail-block">
+              <span class="um-detail-label">Email</span>
+              <span class="um-detail-value">{{ detailUser.email }}</span>
+            </div>
+          </li>
+          <li class="um-detail-row">
+            <i class="pi pi-phone um-detail-icon" aria-hidden="true"></i>
+            <div class="um-detail-block">
+              <span class="um-detail-label">Phone</span>
+              <span class="um-detail-value">{{ detailUser.phoneNumber?.trim() || '—' }}</span>
+            </div>
+          </li>
+          <li class="um-detail-row">
+            <i class="pi pi-map-marker um-detail-icon" aria-hidden="true"></i>
+            <div class="um-detail-block">
+              <span class="um-detail-label">Address</span>
+              <span class="um-detail-value">{{ detailUser.address?.trim() || '—' }}</span>
+            </div>
+          </li>
+          <li class="um-detail-row">
+            <i class="pi pi-user um-detail-icon" aria-hidden="true"></i>
+            <div class="um-detail-block">
+              <span class="um-detail-label">Gender</span>
+              <span class="um-detail-value">{{ genderLabel(detailUser.gender) }}</span>
+            </div>
+          </li>
+          <li class="um-detail-row">
+            <i class="pi pi-tags um-detail-icon" aria-hidden="true"></i>
+            <div class="um-detail-block">
+              <span class="um-detail-label">Skills</span>
+              <span class="um-detail-value">{{ skillsSummary(detailUser) }}</span>
+            </div>
+          </li>
+          <li class="um-detail-row">
+            <i class="pi pi-calendar um-detail-icon" aria-hidden="true"></i>
+            <div class="um-detail-block">
+              <span class="um-detail-label">Account created</span>
+              <span class="um-detail-value">{{ memberSinceLabel(detailUser) }}</span>
+            </div>
+          </li>
+          <li class="um-detail-row um-detail-row--last">
+            <i class="pi pi-shield um-detail-icon" aria-hidden="true"></i>
+            <div class="um-detail-block">
+              <span class="um-detail-label">Status</span>
+              <span
+                class="um-detail-value um-status-value"
+                [class.um-status-value--active]="detailUser.active"
+                [class.um-status-value--inactive]="!detailUser.active"
+              >
+                {{ detailUser.active ? 'Active' : 'Inactive' }}
+              </span>
+            </div>
+          </li>
+        </ul>
+
+        <div class="um-modal-actions">
+          <button type="button" class="um-btn um-btn--edit" (click)="fromDetailEdit()">
+            <i class="pi pi-pencil" aria-hidden="true"></i>
+            Edit
+          </button>
+          @if (detailUser.active) {
+            <button type="button" class="um-btn um-btn--deactivate" (click)="fromDetailDeactivate()">
+              <i class="pi pi-lock" aria-hidden="true"></i>
+              Deactivate
+            </button>
+          } @else {
+            <button type="button" class="um-btn um-btn--reactivate" (click)="fromDetailDeactivate()">
+              <i class="pi pi-lock-open" aria-hidden="true"></i>
+              Reactivate
+            </button>
+          }
         </div>
       </div>
     </div>
-
-    <div class="table-panel">
-      <p-table
-        [value]="usersList ?? []"
-        [loading]="usersList === undefined && !error"
-        [tableStyle]="{ 'min-width': '100%' }"
-        styleClass="user-table"
-      >
-        <ng-template pTemplate="header">
-          <tr>
-            <th>User</th>
-            <th>Email</th>
-            <th>Role</th>
-            <th>Account created</th>
-            <th>Actions</th>
-          </tr>
-        </ng-template>
-
-        <ng-template pTemplate="body" let-user>
-          <tr>
-            <td>
-              <div class="identity-cell">
-                <p-avatar
-                  [image]="getProfilePictureSrc(user.profilePicture)"
-                  [label]="!user.profilePicture ? getUserInitials(user) : undefined"
-                  shape="circle"
-                  styleClass="user-avatar"
-                ></p-avatar>
-                <div class="identity-name">
-                  <span>{{ user.firstName }} {{ user.lastName }}</span>
-                </div>
-              </div>
-            </td>
-            <td class="email-cell">{{ user.email }}</td>
-            <td>
-              <p-tag
-                [value]="roleLabel(user.role)"
-                [severity]="roleSeverity(user.role)"
-                styleClass="role-tag"
-              ></p-tag>
-            </td>
-            <td class="member-since-cell">{{ memberSinceLabel(user) }}</td>
-            <td>
-              <div class="action-buttons">
-                <button
-                  pButton
-                  type="button"
-                  icon="pi pi-pencil"
-                  class="action-button edit-button"
-                  (click)="openEditDialog(user)"
-                ></button>
-
-                <button
-                  pButton
-                  type="button"
-                  [icon]="user.active ? 'pi pi-lock' : 'pi pi-lock-open'"
-                  [label]="user.active ? 'Deactivate' : 'Reactivate'"
-                  class="deactivate-button"
-                  [class.deactivate-button]="user.active"
-                  [class.reactivate-button]="!user.active"
-                  (click)="openStatusDialog(user)"
-                ></button>
-              </div>
-            </td>
-          </tr>
-        </ng-template>
-
-        <ng-template pTemplate="emptymessage">
-          <tr>
-            <td colspan="5">
-              <div class="empty-state">No users matched the current filters.</div>
-            </td>
-          </tr>
-        </ng-template>
-      </p-table>
-    </div>
-
-    <div *ngIf="error" class="error-banner">{{ error }}</div>
-  </div>
+  }
 
   <p-dialog
     header="Edit User Information"
@@ -147,9 +224,6 @@
         <label>Phone</label>
         <input pInputText type="tel" [(ngModel)]="editForm.phoneNumber" />
 
-        <label>Date of birth</label>
-        <input pInputText type="date" [(ngModel)]="editForm.dateOfBirth" />
-
         <label>Gender</label>
         <p-select
           [options]="genderOptions"
@@ -159,9 +233,6 @@
           appendTo="body"
           styleClass="w-full"
         ></p-select>
-
-        <label>Recruitment date</label>
-        <input pInputText type="date" [(ngModel)]="editForm.recruitmentDate" />
 
         <label class="dialog-span-2">Address</label>
         <textarea

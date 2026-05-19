@@ -1,9 +1,8 @@
 export interface Skill {
   id: number;
   name: string;
-  category?: string | null;
-  /** ISO 8601 instant from API (admin table). */
-  createdAt?: string | null;
+  description?: string | null;
+  /** Admin table: assignments referencing this skill. */
   usageCount?: number | null;
   archived?: boolean | null;
 }

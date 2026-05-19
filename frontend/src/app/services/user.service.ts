@@ -8,8 +8,8 @@ export type CreateUserRole = 'PROJECT_MANAGER' | 'COLLABORATOR' | 'CLIENT' | 'AD
 export type EmployeeStatusFilter = 'active' | 'former';
 
 /**
- * Admin list/detail row from GET/PUT `/admin/users` — matches persisted `users` columns plus,
- * when `role === 'CLIENT'`, contact fields loaded from the linked `clients` row (not `users` columns).
+ * Admin list/detail row from GET/PUT `/admin/users` — persisted `users` columns; for `role === 'CLIENT'`,
+ * `company` and `fiscalMatricule` come from the linked `company` row (tax id + name); phone and address are on `users`.
  */
 export interface AdminUser {
   id: number;
@@ -24,14 +24,16 @@ export interface AdminUser {
   recruitmentDate?: string | null;
   createdAt?: string;
   skills?: Skill[];
-  /** `clients.phone_number` — only for CLIENT */
+  /** Only for CLIENT; from `users.phone_number`. */
   phoneNumber?: string | null;
-  /** `clients.address` */
+  /** From `users.address`. */
   address?: string | null;
-  /** `clients.company_name` */
+  /** CLIENT: linked `company.company_name`. */
   company?: string | null;
-  /** `clients.fiscal_matricule` */
+  /** CLIENT: linked `company.tax_registration_number` (same JSON field name as before). */
   fiscalMatricule?: string | null;
+  /** CLIENT: hex #rrggbb for admin UI (name label). */
+  clientLabelColor?: string | null;
 }
 
 export interface AdminUserCreatedResponse {
@@ -56,6 +58,8 @@ export interface ClientAccountOption {
   email: string;
   /** Optional company name from the linked client profile. */
   company: string | null;
+  /** Hex #rrggbb when set. */
+  clientLabelColor?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -64,16 +68,16 @@ export class UserService {
 
   constructor(private http: HttpClient) {}
 
-  getProjectManagersForAdmin(): Observable<ProjectManagerOption[]> {
+  getProjectManager(): Observable<ProjectManagerOption[]> {
     return this.http.get<ProjectManagerOption[]>(`${this.apiUrl}/admin/project-managers`);
   }
 
   /** Active client accounts for admin project assignment dropdowns. */
-  getClientsForAdmin(): Observable<ClientAccountOption[]> {
+  getClients(): Observable<ClientAccountOption[]> {
     return this.http.get<ClientAccountOption[]>(`${this.apiUrl}/admin/clients`);
   }
 
-  searchCollaboratorEmails(query: string): Observable<string[]> {
+  getCollabEmail(query: string): Observable<string[]> {
     const params = new HttpParams().set('q', query.trim());
     return this.http.get<string[]>(`${this.apiUrl}/collaborators`, { params });
   }
@@ -87,7 +91,7 @@ export class UserService {
     return this.http.get<AdminUser[]>(`${this.apiUrl}/admin/users`, { params });
   }
 
-  updateAdminUser(
+  updateUser(
     id: number,
     payload: {
       firstName: string;
@@ -103,6 +107,7 @@ export class UserService {
       recruitmentDate?: string;
       company?: string;
       fiscalMatricule?: string;
+      clientLabelColor?: string;
     }
   ) {
     return this.http.put<AdminUser>(`${this.apiUrl}/admin/users/${id}`, payload);
@@ -128,6 +133,7 @@ export class UserService {
     recruitmentDate?: string;
     company?: string;
     fiscalMatricule?: string;
+    clientLabelColor?: string;
   }) {
     return this.http.post<AdminUserCreatedResponse>(`${this.apiUrl}/admin/users`, payload);
   }

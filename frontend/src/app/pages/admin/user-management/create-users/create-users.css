@@ -1,0 +1,318 @@
+.create-users-page {
+  min-height: 100%;
+  padding: 1.5rem;
+}
+
+.page-header {
+  margin-bottom: 1rem;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.page-header p {
+  margin: 0.45rem 0 0;
+  max-width: 40rem;
+  color: #64748b;
+  font-size: 0.98rem;
+}
+
+.shell {
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.84);
+  box-shadow:
+    0 20px 45px rgba(15, 23, 42, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.role-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.role-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  color: #334155;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    background 0.18s ease;
+}
+
+.role-card:hover {
+  border-color: #cbd5e1;
+  background: #f1f5f9;
+}
+
+.role-card.is-selected {
+  border-color: #3b82f6;
+  background: #eff6ff;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.35);
+}
+
+.role-card-icon-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 10px;
+  background: rgba(148, 163, 184, 0.2);
+  color: #475569;
+  font-size: 1.05rem;
+}
+
+.role-card.is-selected .role-card-icon-wrap {
+  background: rgba(59, 130, 246, 0.15);
+  color: #1d4ed8;
+}
+
+.role-card-title {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.role-card-desc {
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.password-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 12px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1e3a5f;
+}
+
+.password-banner-icon {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+  font-size: 1.1rem;
+  color: #2563eb;
+}
+
+.password-banner-text {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+}
+
+:host ::ng-deep .msg {
+  margin: 0;
+}
+
+:host ::ng-deep .section-card.p-card {
+  border-radius: 18px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 8px 22px rgba(148, 163, 184, 0.12);
+  overflow: hidden;
+}
+
+:host ::ng-deep .section-card .p-card-header {
+  padding: 0.85rem 1.15rem;
+  background: #f8fafc;
+  border-bottom: 1px solid #e8ecf1;
+}
+
+.section-card-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.section-card-heading-icon {
+  font-size: 1.1rem;
+  color: #64748b;
+}
+
+.section-card-heading-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+:host ::ng-deep .section-card .p-card-body {
+  padding: 1.1rem 1.15rem 1.15rem;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.2rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.field label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #334155;
+}
+
+.label-optional {
+  font-weight: 500;
+  color: #94a3b8;
+}
+
+.field-wide {
+  grid-column: 1 / -1;
+}
+
+.native-select {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid #cbd5e1;
+  padding: 0.65rem 0.75rem;
+  font-size: 1rem;
+  color: #334155;
+  background: #fff;
+}
+
+.native-select:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.skills-catalog-note {
+  margin: 0 0 0.75rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #64748b;
+}
+
+.skills-catalog-loading {
+  min-height: 2.75rem;
+  display: flex;
+  align-items: center;
+  padding: 0.35rem 0 0.5rem;
+}
+
+.skills-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.65rem;
+  align-items: center;
+}
+
+:host ::ng-deep .skills-chips-row .p-chip {
+  max-width: 100%;
+}
+
+:host ::ng-deep .p-inputtext,
+:host ::ng-deep .p-textarea,
+:host ::ng-deep .p-multiselect,
+:host ::ng-deep .p-select {
+  border-radius: 12px;
+}
+
+:host ::ng-deep .skills-multiselect {
+  width: 100%;
+}
+
+:host ::ng-deep .p-button {
+  border-radius: 12px;
+}
+
+.skills-catalog-row {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.skills-catalog-input {
+  flex: 1 1 12rem;
+  min-width: 0;
+  width: auto;
+}
+
+.skills-catalog-btn {
+  flex: 0 0 auto;
+  align-self: center;
+  white-space: nowrap;
+}
+
+.page-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding-top: 0.15rem;
+}
+
+.submit-create-btn {
+  min-width: 10.5rem;
+}
+
+@media (max-width: 900px) {
+  .role-cards {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 700px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .field-wide {
+    grid-column: auto;
+  }
+
+  .skills-catalog-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .skills-catalog-btn {
+    align-self: stretch;
+    width: 100%;
+  }
+
+  .page-footer-actions {
+    justify-content: stretch;
+  }
+
+  .submit-create-btn {
+    width: 100%;
+    min-width: 0;
+  }
+}

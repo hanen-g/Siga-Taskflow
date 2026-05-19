@@ -29,6 +29,18 @@
       >
         <i class="pi pi-paperclip"></i>
       </button>
+      <button
+        *ngIf="showReportButton"
+        type="button"
+        class="report-btn"
+        pTooltip="Report a problem to the project manager"
+        tooltipPosition="left"
+        (click)="openReportDialog()"
+        [disabled]="!task.id || isReporting"
+        aria-label="Report task problem"
+      >
+        <i class="pi pi-flag"></i>
+      </button>
       <button type="button" class="close-btn" (click)="close.emit()">
         <i class="pi pi-times"></i>
       </button>

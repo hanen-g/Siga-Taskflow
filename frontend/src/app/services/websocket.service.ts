@@ -4,6 +4,7 @@ import { Observable, Subject, BehaviorSubject } from 'rxjs';
 import { Notification } from '../models/notification.model';
 import { TaskMessage } from '../models/task-message.model';
 import { ProjectMessage } from '../models/project-message.model';
+import { ProjectChatMessage } from '../models/project-chat.model';
 @Injectable({ providedIn: 'root' })
 export class WebsocketService implements OnDestroy {
 
@@ -24,6 +25,10 @@ export class WebsocketService implements OnDestroy {
   // ─── Task Comments Subscriptions ────────────────────────────────────────────
   private taskCommentSubjects         = new Map<number, Subject<any>>();
   private pendingTaskCommentSubscriptions = new Set<number>();
+
+  // ─── Project Chat Subscriptions ─────────────────────────────────────────────
+  private projectChatSubjects = new Map<number, Subject<ProjectChatMessage>>();
+  private pendingProjectChatSubscriptions = new Set<number>();
 
   // ─── Connect ─────────────────────────────────────────────────────────────────
 
@@ -117,6 +122,14 @@ export class WebsocketService implements OnDestroy {
         this._subscribeToTaskCommentsTopic(id);
       });
       this.pendingTaskCommentSubscriptions.clear();
+
+      this.projectChatSubjects.forEach((_, projectId) => {
+        this._subscribeToProjectChatTopic(projectId);
+      });
+      this.pendingProjectChatSubscriptions.forEach(id => {
+        this._subscribeToProjectChatTopic(id);
+      });
+      this.pendingProjectChatSubscriptions.clear();
     };
 
     // ─── On Disconnect ─────────────────────────────────────────────────────────
@@ -162,6 +175,9 @@ export class WebsocketService implements OnDestroy {
     this.taskCommentSubjects.forEach(s => s.complete());
     this.taskCommentSubjects.clear();
     this.pendingTaskCommentSubscriptions.clear();
+    this.projectChatSubjects.forEach(s => s.complete());
+    this.projectChatSubjects.clear();
+    this.pendingProjectChatSubscriptions.clear();
 
     // Reinitialize subjects for future reconnections
     this.notifications$  = new Subject<Notification>();
@@ -231,6 +247,17 @@ export class WebsocketService implements OnDestroy {
     });
   }
 
+  private _subscribeToProjectChatTopic(projectId: number): void {
+    this.client?.subscribe(`/topic/projects/chat/${projectId}`, (msg: IMessage) => {
+      try {
+        const payload = JSON.parse(msg.body) as ProjectChatMessage;
+        this.projectChatSubjects.get(projectId)?.next(payload);
+      } catch (e) {
+        console.error(`WebsocketService: Failed to parse project chat message for project ${projectId}`, e);
+      }
+    });
+  }
+
   // ─── Public API ──────────────────────────────────────────────────────────────
 
   /**
@@ -271,6 +298,24 @@ export class WebsocketService implements OnDestroy {
    * Subscribe to comment updates for a specific task.
    * Safe to call before or after connect().
    */
+  subscribeToProjectChat(projectId: number): Observable<ProjectChatMessage> {
+    let subject = this.projectChatSubjects.get(projectId);
+    const isFirstSubscription = !subject;
+
+    if (!subject) {
+      subject = new Subject<ProjectChatMessage>();
+      this.projectChatSubjects.set(projectId, subject);
+    }
+
+    if (this.client?.connected && isFirstSubscription) {
+      this._subscribeToProjectChatTopic(projectId);
+    } else if (!this.client?.connected) {
+      this.pendingProjectChatSubscriptions.add(projectId);
+    }
+
+    return subject.asObservable();
+  }
+
   subscribeToTaskComments(taskId: number): Observable<any> {
     let subject = this.taskCommentSubjects.get(taskId);
     const isFirstSubscription = !subject;

@@ -1,0 +1,159 @@
+<p-toast />
+
+<div class="advanced-filter-page">
+  <h1 class="page-title">Advanced data filtering</h1>
+  <div class="advanced-filter-layout">
+    <aside class="filter-panel">
+      <h3 class="panel-title">Filters</h3>
+
+      <label for="af-project">Project name</label>
+      <input id="af-project" pInputText type="text" [(ngModel)]="filter.projectName" list="af-project-options" />
+      <datalist id="af-project-options">
+        <option *ngFor="let option of projectSuggestions()" [value]="option"></option>
+      </datalist>
+
+      <label for="af-user">User</label>
+      <input
+        id="af-user"
+        pInputText
+        type="text"
+        [(ngModel)]="filter.userName"
+        list="af-user-options"
+        [disabled]="useRoleUserFilter"
+      />
+      <datalist id="af-user-options">
+        <option *ngFor="let option of userSuggestions()" [value]="option"></option>
+      </datalist>
+      <small class="hint-text" *ngIf="useRoleUserFilter">Free-text user search is off while role filters are on.</small>
+
+      <div class="role-filter-toggle">
+        <label class="checkbox-row" for="af-role-user-mode">
+          <input
+            id="af-role-user-mode"
+            type="checkbox"
+            [(ngModel)]="useRoleUserFilter"
+            (ngModelChange)="onRoleUserFilterChange($event)"
+          />
+          <span>Filter users by role</span>
+        </label>
+      </div>
+
+      <div *ngIf="useRoleUserFilter" class="role-user-expand" role="region" aria-label="User filters by role">
+        <label for="af-pm-role-user">Project manager</label>
+        <select id="af-pm-role-user" [(ngModel)]="rolePmUserId" class="filter-select">
+          <option [ngValue]="null">Any project manager</option>
+          <option *ngFor="let u of projectManagerUserOptions" [ngValue]="u.id">{{ u.label }}</option>
+        </select>
+
+        <label for="af-collab-role-user">Collaborator</label>
+        <select id="af-collab-role-user" [(ngModel)]="roleCollaboratorUserId" class="filter-select">
+          <option [ngValue]="null">Any collaborator</option>
+          <option *ngFor="let u of collaboratorUserOptions" [ngValue]="u.id">{{ u.label }}</option>
+        </select>
+
+        <label class="checkbox-row" for="af-collab-match-tasks">
+          <input id="af-collab-match-tasks" type="checkbox" [(ngModel)]="roleCollaboratorMatchTasks" />
+          <span>Include projects where they have tasks assigned</span>
+        </label>
+        <small class="hint-text">Matches project membership and/or task collaborators for the selected user.</small>
+
+        <label for="af-client-role-user">Client</label>
+        <select id="af-client-role-user" [(ngModel)]="roleClientUserId" class="filter-select">
+          <option [ngValue]="null">Any client</option>
+          <option *ngFor="let u of clientUserOptions" [ngValue]="u.id">{{ u.label }}</option>
+        </select>
+      </div>
+
+      <label for="af-skill">Skill</label>
+      <input id="af-skill" pInputText type="text" [(ngModel)]="filter.skillName" list="af-skill-options" />
+      <datalist id="af-skill-options">
+        <option *ngFor="let option of skillSuggestions()" [value]="option"></option>
+      </datalist>
+
+      <small class="hint-text" *ngIf="optionsLoading">Loading filter suggestions...</small>
+
+      <label for="af-status">Status</label>
+      <select id="af-status" [(ngModel)]="filter.statusLabel" class="filter-select">
+        <option *ngFor="let option of statusOptions" [ngValue]="option.value">{{ option.label }}</option>
+      </select>
+
+      <label for="af-sfrom">Start date from</label>
+      <input id="af-sfrom" type="date" [(ngModel)]="filter.startDateFrom" class="filter-date" />
+
+      <label for="af-sto">Start date to</label>
+      <input id="af-sto" type="date" [(ngModel)]="filter.startDateTo" class="filter-date" />
+
+      <label for="af-dfrom">Deadline from</label>
+      <input id="af-dfrom" type="date" [(ngModel)]="filter.deadlineFrom" class="filter-date" />
+
+      <label for="af-dto">Deadline to</label>
+      <input id="af-dto" type="date" [(ngModel)]="filter.deadlineTo" class="filter-date" />
+
+      <div class="actions">
+        <button pButton type="button" label="Apply" (click)="applyFilters()"></button>
+        <button pButton type="button" label="Reset" class="p-button-secondary" (click)="resetFilters()"></button>
+        <button pButton type="button" label="Export CSV" class="p-button-help" (click)="exportAs('csv')"></button>
+        <button
+          pButton
+          type="button"
+          label="Export PDF"
+          class="p-button-help p-button-outlined"
+          (click)="exportAs('pdf')"
+        ></button>
+      </div>
+    </aside>
+
+    <section class="results-panel">
+      <div class="results-count">{{ totalElements }} projects found</div>
+
+      <ng-container *ngIf="loading">
+        <p-card *ngFor="let _ of [1, 2, 3]" styleClass="result-card">
+          <p-skeleton width="45%" height="1.25rem" />
+          <p-skeleton width="70%" height="1rem" styleClass="mt-2" />
+          <p-skeleton width="100%" height="0.65rem" styleClass="mt-2" />
+          <div class="chips">
+            <p-skeleton width="5rem" height="2rem" />
+            <p-skeleton width="5rem" height="2rem" />
+            <p-skeleton width="5rem" height="2rem" />
+          </div>
+        </p-card>
+      </ng-container>
+
+      <ng-container *ngIf="!loading && rows.length">
+        <p-card *ngFor="let row of rows; trackBy: trackByName" [header]="row.projectName" styleClass="result-card">
+          <div class="meta-line">
+            <span>{{ row.projectManagerName || 'Unassigned manager' }}</span>
+            <span>Start: {{ row.startDateIso || 'N/A' }}</span>
+          </div>
+          <p-progressBar [value]="completionRate(row)" [showValue]="true"></p-progressBar>
+          <div class="status-line">
+            <p-tag [value]="statusDisplayLabel(row.projectStatusLabel)" [severity]="statusSeverity(row.projectStatusLabel)"></p-tag>
+            <span>
+              Tasks {{ row.completedTasksCount }}/{{ row.totalTasksCount }} | On hold {{ row.onHoldTasksCount }} |
+              Overdue {{ row.overdueTasksCount }}
+            </span>
+          </div>
+          <div class="meta-line">
+            <span>Deadline: {{ row.deadlineIso || 'N/A' }}</span>
+          </div>
+          <div class="chips">
+            <p-chip *ngFor="let skill of row.skills" [label]="skill"></p-chip>
+          </div>
+        </p-card>
+
+        <p-paginator
+          [rows]="pageSize"
+          [first]="pageIndex * pageSize"
+          [totalRecords]="totalElements"
+          [rowsPerPageOptions]="[3, 6, 12]"
+          (onPageChange)="onPaginate($event)"
+        ></p-paginator>
+      </ng-container>
+
+      <div *ngIf="!loading && !rows.length" class="empty-state">
+        <div class="empty-illustration" aria-hidden="true">🔎</div>
+        <h3>No results found</h3>
+      </div>
+    </section>
+  </div>
+</div>

@@ -1,0 +1,17 @@
+<div class="client-label-picker" [class.is-disabled]="disabled">
+  <span class="client-label-picker-label">{{ heading }}</span>
+  <div class="container-items" role="listbox" [attr.aria-label]="heading">
+    @for (c of palette; track c) {
+      <button
+        type="button"
+        class="item-color"
+        [class.selected]="isSelected(c)"
+        [disabled]="disabled"
+        [style.--swatch]="c"
+        [attr.aria-selected]="isSelected(c)"
+        [attr.aria-label]="'Color ' + c"
+        (click)="pick(c)"
+      ></button>
+    }
+  </div>
+</div>

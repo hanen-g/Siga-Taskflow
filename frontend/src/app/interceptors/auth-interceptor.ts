@@ -7,8 +7,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
 
   const token = localStorage.getItem('token');
-  const isPublicAuthCall =
-    req.url.includes('/api/auth/login') || req.url.includes('/api/auth/signup');
+  const isPublicAuthCall = req.url.includes('/api/auth/login');
 
   if (token && !isPublicAuthCall) {
     req = req.clone({

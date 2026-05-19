@@ -2,6 +2,10 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, Subject, tap } from 'rxjs';
 import { Task, TaskStatus } from '../models/task.model';
+import type {
+  TaskDeadlinePredictionRequest,
+  TaskDeadlinePredictionResponse
+} from '../models/task-deadline-prediction.model';
 import { WebsocketService } from './websocket.service';
 
 export interface TaskStatusUpdatePayload {
@@ -39,21 +43,18 @@ export class TaskService {
     return this.http.patch<Task>(`${this.apiUrl}/${taskId}/status`, payload).pipe(tap(() => this.refreshSubject.next()));
   }
 
-  getMyTasks(): Observable<Task[]> {
-    return this.http.get<Task[]>(`${this.apiUrl}/my-tasks`);
-  }
-
-  getManagerTasks(): Observable<Task[]> {
-    return this.http.get<Task[]>(`${this.apiUrl}/manager-tasks`);
-  }
-
-  getAllTasks(): Observable<Task[]> {
-    return this.http.get<Task[]>(`${this.apiUrl}/all`);
+  /** Tasks for global views: server picks list by role (admin / PM / collaborator; clients get []). */
+  getTasksForCurrentUser(): Observable<Task[]> {
+    return this.http.get<Task[]>(this.apiUrl);
   }
 
   uploadTaskFile(taskId: number, file: File): Observable<any> {
     const form = new FormData();
     form.append('file', file);
     return this.http.post<any>(`http://localhost:8080/api/files/tasks/${taskId}`, form);
+  }
+
+  predictDeadline(body: TaskDeadlinePredictionRequest): Observable<TaskDeadlinePredictionResponse> {
+    return this.http.post<TaskDeadlinePredictionResponse>(`${this.apiUrl}/predict-deadline`, body);
   }
 }

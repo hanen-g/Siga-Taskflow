@@ -2,6 +2,8 @@ import { Task } from "./task.model";
 import { UploadedFile } from "./uploaded-file.model";
 import { Skill } from "./skill.model";
 
+export type ProjectStatus = 'NOT_STARTED' | 'IN_PROGRESS' | 'PAUSED' | 'ARCHIVED' | 'COMPLETED';
+
 export interface ProjectClient {
   id: number;
   firstName: string;
@@ -23,6 +25,7 @@ export interface Project {
   managerLastName?: string;
   managerEmail?: string;
   file?: string;
+  status?: ProjectStatus;
   archived?: boolean;
   /** Admin-controlled: work paused on this project */
   paused?: boolean;
@@ -38,6 +41,6 @@ export interface Project {
   tasks?: Task[];
   files?: UploadedFile[];
   requiredSkills?: Skill[];
-  /** Loaded on demand for admin project ↔ client editor (not part of the standard project payload). */
-  clients?: ProjectClient[];
+  /** When set by API: first assigned client's label color (admin cards). */
+  clientLabelColor?: string | null;
 }

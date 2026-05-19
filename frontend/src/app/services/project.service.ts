@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 import { ProjectSkillMatchResult } from '../models/skill.model';
+import { ProjectStatus } from '../models/project.model';
 
 export interface AssigneeCandidate {
   email: string;
@@ -92,16 +93,11 @@ export class ProjectService {
     return this.http.post<any>(this.proposalsUrl, body);
   }
 
-  listPendingProposals(): Observable<any[]> {
+  listProposals(): Observable<any[]> {
     return this.http.get<any[]>(this.proposalsUrl);
   }
 
-  /** Proposal history for the current PM or collaborator */
-  listMyProposalHistory(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.proposalsUrl}/mine`);
-  }
-
-  getProposalForAdmin(proposalId: number): Observable<any> {
+  getProposal(proposalId: number): Observable<any> {
     return this.http.get<any>(`${this.proposalsUrl}/${proposalId}`);
   }
 
@@ -121,16 +117,18 @@ export class ProjectService {
     return this.http.put<any>(`${this.apiUrl}/${id}/archive?archived=${archived}`, {});
   }
 
-  /** Admin-only: partial update of archived / paused / delivered */
+  /** Admin-only: set persisted lifecycle status enum */
   setProjectLifecycle(
     id: number,
-    body: { archived?: boolean; paused?: boolean; delivered?: boolean }
+    body: { status: ProjectStatus }
   ): Observable<any> {
     return this.http.put<any>(`${this.apiUrl}/${id}/lifecycle`, body);
   }
 
-  getArchivedProjects(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/archived`);
+  /** Lists projects with the given persisted status (admin: all; project manager: only managed). */
+  getProjectsByStatus(status: ProjectStatus): Observable<any[]> {
+    const params = new HttpParams().set('status', status);
+    return this.http.get<any[]>(`${this.apiUrl}/by-status`, { params });
   }
 
   getProject(id: number): Observable<any> {

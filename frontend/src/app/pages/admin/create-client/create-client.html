@@ -62,7 +62,7 @@
                 }
               </div>
               <div class="row-text">
-                <div class="row-primary">{{ clientFullName(c) }}</div>
+                <div class="row-primary" [style.color]="clientLabelColorFor(c)">{{ clientFullName(c) }}</div>
                 <div class="row-secondary">{{ c.company?.trim() || '—' }}</div>
               </div>
             </div>
@@ -162,18 +162,27 @@
                   autocomplete="tel"
                 />
               </div>
-              <div class="field field-span-2">
-                <label for="nf-address">Address <span class="req">*</span></label>
-                <textarea
-                  pTextarea
-                  id="nf-address"
-                  rows="3"
-                  [(ngModel)]="form.address"
-                  name="nfAddress"
-                  [disabled]="createLoading"
-                  class="w-full"
-                  placeholder="Street, city, ZIP"
-                ></textarea>
+              <div class="field-row-address-color">
+                <div class="field">
+                  <label for="nf-address">Address <span class="req">*</span></label>
+                  <textarea
+                    pTextarea
+                    id="nf-address"
+                    rows="3"
+                    [(ngModel)]="form.address"
+                    name="nfAddress"
+                    [disabled]="createLoading"
+                    class="w-full"
+                    placeholder="Street, city, ZIP"
+                  ></textarea>
+                </div>
+                <div class="field field-color-code-col">
+                  <app-client-label-color-picker
+                    heading="Color Code"
+                    [(selectedColor)]="form.clientLabelColor"
+                    [disabled]="createLoading"
+                  />
+                </div>
               </div>
               <div class="field field-span-2">
                 <label for="nf-projects">Projects</label>
@@ -217,7 +226,7 @@
         @if (selectedClient; as sc) {
         <section class="right-panel profile-panel">
           <header class="profile-toolbar">
-            <h2 class="profile-page-title">CLIENT PROFILE: {{ profileCompanyTitle() }}</h2>
+            <h2 class="profile-page-title">CLIENT PROFILE: {{ profileBannerName() }}</h2>
             @if (!detailEditing) {
               <div class="profile-toolbar-actions no-print">
                 <button
@@ -267,7 +276,7 @@
 
           @if (!detailEditing) {
             <div class="panel-body-scroll profile-readonly">
-              <div class="profile-banner">
+              <div class="profile-banner" [style.background]="clientLabelColorFor(sc)">
                 <div class="banner-avatar-wrap">
                   @if (sc.profilePicture) {
                     <img [src]="sc.profilePicture" alt="" class="banner-avatar-img" />
@@ -361,6 +370,26 @@
                   <input pInputText id="ef-ln" [(ngModel)]="detailEditForm.lastName" [disabled]="detailSaveLoading" class="w-full" />
                 </div>
                 <div class="field field-span-2">
+                  <label for="ef-projects">Projects</label>
+                  <p-multiSelect
+                    inputId="ef-projects"
+                    [options]="projectOptions"
+                    [(ngModel)]="detailEditProjectIds"
+                    name="efProjects"
+                    optionLabel="label"
+                    optionValue="value"
+                    placeholder="Assign projects to this client"
+                    display="chip"
+                    [filter]="true"
+                    filterPlaceholder="Search projects"
+                    [disabled]="detailSaveLoading || projectsCatalogLoading"
+                    styleClass="w-full"
+                  />
+                  <p class="form-help-note">
+                    Archived projects are not editable here; this list reflects active projects only.
+                  </p>
+                </div>
+                <div class="field field-span-2">
                   <label for="ef-email">Email</label>
                   <input
                     pInputText
@@ -394,36 +423,25 @@
                     <option value="OTHER">Other</option>
                   </select>
                 </div>
-                <div class="field field-span-2">
-                  <label for="ef-address">Address</label>
-                  <textarea
-                    pTextarea
-                    id="ef-address"
-                    rows="4"
-                    [(ngModel)]="detailEditForm.address"
-                    [disabled]="detailSaveLoading"
-                    class="w-full"
-                  ></textarea>
-                </div>
-                <div class="field field-span-2">
-                  <label for="ef-projects">Projects</label>
-                  <p-multiSelect
-                    inputId="ef-projects"
-                    [options]="projectOptions"
-                    [(ngModel)]="detailEditProjectIds"
-                    name="efProjects"
-                    optionLabel="label"
-                    optionValue="value"
-                    placeholder="Assign projects to this client"
-                    display="chip"
-                    [filter]="true"
-                    filterPlaceholder="Search projects"
-                    [disabled]="detailSaveLoading || projectsCatalogLoading"
-                    styleClass="w-full"
-                  />
-                  <p class="form-help-note">
-                    Archived projects are not editable here; this list reflects active projects only.
-                  </p>
+                <div class="field-row-address-color">
+                  <div class="field">
+                    <label for="ef-address">Address</label>
+                    <textarea
+                      pTextarea
+                      id="ef-address"
+                      rows="4"
+                      [(ngModel)]="detailEditForm.address"
+                      [disabled]="detailSaveLoading"
+                      class="w-full"
+                    ></textarea>
+                  </div>
+                  <div class="field field-color-code-col">
+                    <app-client-label-color-picker
+                      heading="Color Code"
+                      [(selectedColor)]="detailEditForm.clientLabelColor"
+                      [disabled]="detailSaveLoading"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

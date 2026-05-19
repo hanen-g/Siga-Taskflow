@@ -63,31 +63,6 @@
   font-weight: 500;
 }
 
-.left-signup-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 200px;
-  max-width: 100%;
-  padding: 10px 5px;
-  background: #ffffff;
-  color: #1a1a2e;
-  font-size: 20px;
-  font-weight: 600;
-  text-decoration: none;
-  border-radius: 5px;
-  cursor: pointer;
-  border: 2px solid rgba(255, 255, 255, 0.6);
-  transition: opacity 0.2s, transform 0.15s;
-  letter-spacing: 0.01em;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
-}
-
-.left-signup-btn:hover {
-  opacity: 0.93;
-  transform: translateY(-1px);
-}
-
 .right-panel {
   width: 40%;
   background: transparent;
@@ -222,21 +197,6 @@
 .signin-btn:disabled {
   opacity: 0.7;
   cursor: not-allowed;
-}
-
-.login-signup-hint {
-  margin: 1rem 0 0;
-  font-size: 0.9rem;
-  color: #64748b;
-}
-
-.login-signup-hint a {
-  color: #9b7fd4;
-  text-decoration: none;
-}
-
-.login-signup-hint a:hover {
-  text-decoration: underline;
 }
 
 .error-message {

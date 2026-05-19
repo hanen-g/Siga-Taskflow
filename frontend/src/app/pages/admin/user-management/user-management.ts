@@ -2,17 +2,14 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectorRef, Component, OnDestroy, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, ParamMap } from '@angular/router';
-import { Observable, Subject, of } from 'rxjs';
-import { catchError, shareReplay, startWith, switchMap, takeUntil } from 'rxjs/operators';
-import { AvatarModule } from 'primeng/avatar';
+import { forkJoin, merge, Observable, of, Subject } from 'rxjs';
+import { catchError, finalize, map, switchMap, takeUntil, tap } from 'rxjs/operators';
 import { ButtonModule } from 'primeng/button';
 import { DialogModule } from 'primeng/dialog';
 import { SelectModule } from 'primeng/select';
 import { MultiSelectModule } from 'primeng/multiselect';
 import { InputTextModule } from 'primeng/inputtext';
 import { TextareaModule } from 'primeng/textarea';
-import { TableModule } from 'primeng/table';
-import { TagModule } from 'primeng/tag';
 import {
   AdminUser,
   CreateUserRole,
@@ -24,9 +21,9 @@ import { FileAccessService } from '../../../services/file-access.service';
 import { Skill } from '../../../models/skill.model';
 import { SkillService } from '../../../services/skill.service';
 
-type RoleOption = { label: string; value: EmployeeRole };
-type StatusOption = { label: string; value: EmployeeStatusFilter };
+type ListStatusFilter = 'all' | EmployeeStatusFilter;
 type EmployeeGender = '' | 'FEMALE' | 'MALE' | 'OTHER';
+type AvatarFamily = 'green' | 'blue' | 'purple' | 'amber';
 
 @Component({
   selector: 'app-user-management',
@@ -36,9 +33,6 @@ type EmployeeGender = '' | 'FEMALE' | 'MALE' | 'OTHER';
     FormsModule,
     InputTextModule,
     SelectModule,
-    TableModule,
-    TagModule,
-    AvatarModule,
     ButtonModule,
     DialogModule,
     MultiSelectModule,
@@ -48,34 +42,30 @@ type EmployeeGender = '' | 'FEMALE' | 'MALE' | 'OTHER';
   styleUrls: ['./user-management.css']
 })
 export class UserManagementPage implements OnInit, OnDestroy {
-  users$: Observable<AdminUser[] | null> = of(null);
+  users: AdminUser[] = [];
+  loadingUsers = false;
   error: string | null = null;
   private readonly refresh$ = new Subject<void>();
   private readonly destroy$ = new Subject<void>();
   private readonly profilePictureUrls = new Map<string, string>();
   private readonly profilePicturesLoading = new Set<string>();
+  private searchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
 
   searchTerm = '';
   selectedRole: EmployeeRole = 'ALL';
   roleLocked = false;
-  selectedStatus: EmployeeStatusFilter = 'active';
+  listStatusFilter: ListStatusFilter = 'active';
 
-  readonly roleOptions: RoleOption[] = [
-    { label: 'All Roles', value: 'ALL' },
+  readonly listFilterOptions: { label: string; value: ListStatusFilter }[] = [
+    { label: 'All users', value: 'all' },
+    { label: 'Active employees', value: 'active' },
+    { label: 'Inactive employees', value: 'former' }
+  ];
+
+  readonly editRoleOptions: { label: string; value: Exclude<EmployeeRole, 'ALL' | 'CLIENT'> | 'ADMIN' }[] = [
     { label: 'Project Manager', value: 'PROJECT_MANAGER' },
     { label: 'Collaborator', value: 'COLLABORATOR' },
     { label: 'Admin', value: 'ADMIN' }
-  ];
-  readonly editRoleOptions: { label: string; value: Exclude<EmployeeRole, 'ALL'> | 'ADMIN' }[] = [
-    { label: 'Project Manager', value: 'PROJECT_MANAGER' },
-    { label: 'Collaborator', value: 'COLLABORATOR' },
-    { label: 'Admin', value: 'ADMIN' },
-    { label: 'Client', value: 'CLIENT' }
-  ];
-
-  readonly statusOptions: StatusOption[] = [
-    { label: 'Active Employees', value: 'active' },
-    { label: 'Former Employees', value: 'former' }
   ];
 
   private readonly accountCreatedFormatter = new Intl.DateTimeFormat(undefined, {
@@ -86,6 +76,7 @@ export class UserManagementPage implements OnInit, OnDestroy {
   editDialogVisible = false;
   statusDialogVisible = false;
   selectedUser: AdminUser | null = null;
+  detailUser: AdminUser | null = null;
 
   editForm = {
     firstName: '',
@@ -95,9 +86,7 @@ export class UserManagementPage implements OnInit, OnDestroy {
     skillIds: [] as number[],
     phoneNumber: '',
     address: '',
-    dateOfBirth: '',
-    gender: '' as EmployeeGender,
-    recruitmentDate: ''
+    gender: '' as EmployeeGender
   };
 
   readonly genderOptions: { label: string; value: EmployeeGender }[] = [
@@ -110,26 +99,30 @@ export class UserManagementPage implements OnInit, OnDestroy {
   skillsLoading = false;
 
   ngOnInit(): void {
-    this.users$ = this.refresh$.pipe(
-      startWith(void 0),
-      switchMap(() => {
-        this.error = null;
-        return this.userService.getAdminUsers(this.searchTerm, this.selectedRole, this.selectedStatus).pipe(
-          catchError((err) => {
-            this.error = err?.error?.message || 'Failed to load users.';
-            return of([]);
-          })
-        );
-      }),
-      shareReplay({ bufferSize: 1, refCount: true })
-    );
-
-    this.route.queryParamMap
-      .pipe(takeUntil(this.destroy$))
-      .subscribe((params) => {
-        this.applyRoleFromQuery(params);
-        this.loadUsers();
-      });
+    merge(
+      this.route.queryParamMap.pipe(
+        tap((params) => this.applyRoleFromQuery(params)),
+        map(() => void 0 as void)
+      ),
+      this.refresh$
+    )
+      .pipe(
+        switchMap(() => {
+          this.loadingUsers = true;
+          this.error = null;
+          return this.fetchUserList().pipe(
+            tap((list) => {
+              this.users = list;
+            }),
+            finalize(() => {
+              this.loadingUsers = false;
+              this.cdr.markForCheck();
+            })
+          );
+        }),
+        takeUntil(this.destroy$)
+      )
+      .subscribe();
   }
 
   constructor(
@@ -152,6 +145,9 @@ export class UserManagementPage implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    if (this.searchDebounceTimer) {
+      clearTimeout(this.searchDebounceTimer);
+    }
     this.destroy$.next();
     this.destroy$.complete();
     for (const objectUrl of this.profilePictureUrls.values()) {
@@ -169,23 +165,49 @@ export class UserManagementPage implements OnInit, OnDestroy {
     this.loadUsers();
   }
 
-  roleSeverity(role: string): 'info' | 'success' | 'secondary' | 'warn' | 'danger' | 'contrast' {
-    switch (role) {
-      case 'PROJECT_MANAGER':
-        return 'info';
-      case 'COLLABORATOR':
-        return 'success';
-      case 'CLIENT':
-        return 'secondary';
-      case 'ADMIN':
-        return 'warn';
-      default:
-        return 'contrast';
+  onSearchChange(): void {
+    if (this.searchDebounceTimer) {
+      clearTimeout(this.searchDebounceTimer);
     }
+    this.searchDebounceTimer = setTimeout(() => {
+      this.searchDebounceTimer = undefined;
+      this.loadUsers();
+    }, 280);
   }
 
   roleLabel(role: string): string {
+    if (role === 'PROJECT_MANAGER') return 'Project Manager';
+    if (role === 'COLLABORATOR') return 'Collaborator';
+    if (role === 'ADMIN') return 'Admin';
+    if (role === 'CLIENT') return 'Client';
     return role.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
+  }
+
+  avatarFamily(user: AdminUser): AvatarFamily {
+    switch (user.role) {
+      case 'COLLABORATOR':
+        return 'green';
+      case 'ADMIN':
+        return 'amber';
+      case 'PROJECT_MANAGER':
+        return 'blue';
+      case 'CLIENT':
+      default:
+        return 'purple';
+    }
+  }
+
+  genderLabel(gender: string | null | undefined): string {
+    const g = (gender ?? '').toUpperCase();
+    if (g === 'FEMALE') return 'Female';
+    if (g === 'MALE') return 'Male';
+    if (g === 'OTHER') return 'Other';
+    return '—';
+  }
+
+  skillsSummary(user: AdminUser): string {
+    const names = (user.skills ?? []).map((s) => s.name).filter(Boolean);
+    return names.length ? names.join(', ') : '—';
   }
 
   memberSinceLabel(user: AdminUser): string {
@@ -232,7 +254,6 @@ export class UserManagementPage implements OnInit, OnDestroy {
         next: (blob) => {
           const url = URL.createObjectURL(blob);
           this.profilePicturesLoading.delete(profilePicture);
-          // Defer so avatar [image] does not change during the same change-detection pass (NG0100).
           setTimeout(() => {
             this.profilePictureUrls.set(profilePicture, url);
             this.cdr.markForCheck();
@@ -247,6 +268,38 @@ export class UserManagementPage implements OnInit, OnDestroy {
     return undefined;
   }
 
+  openUserDetail(user: AdminUser): void {
+    this.detailUser = user;
+  }
+
+  closeUserDetail(): void {
+    this.detailUser = null;
+  }
+
+  onDetailBackdrop(event: MouseEvent): void {
+    if (event.target === event.currentTarget) {
+      this.closeUserDetail();
+    }
+  }
+
+  fromDetailEdit(): void {
+    if (!this.detailUser) {
+      return;
+    }
+    const u = this.detailUser;
+    this.closeUserDetail();
+    this.openEditDialog(u);
+  }
+
+  fromDetailDeactivate(): void {
+    if (!this.detailUser) {
+      return;
+    }
+    const u = this.detailUser;
+    this.closeUserDetail();
+    this.openStatusDialog(u);
+  }
+
   openEditDialog(user: AdminUser): void {
     this.selectedUser = user;
     const g = (user.gender ?? '').toUpperCase();
@@ -256,13 +309,11 @@ export class UserManagementPage implements OnInit, OnDestroy {
       firstName: user.firstName ?? '',
       lastName: user.lastName ?? '',
       email: user.email ?? '',
-      role: user.role,
+      role: user.role !== 'CLIENT' ? user.role : 'COLLABORATOR',
       skillIds: (user.skills ?? []).map((s) => s.id),
       phoneNumber: user.phoneNumber ?? '',
       address: user.address ?? '',
-      dateOfBirth: this.apiDateToInput(user.dateOfBirth),
-      gender,
-      recruitmentDate: this.apiDateToInput(user.recruitmentDate)
+      gender
     };
     if (this.roleSupportsSkills(this.editForm.role)) {
       this.loadSkillsIfNeeded();
@@ -272,12 +323,6 @@ export class UserManagementPage implements OnInit, OnDestroy {
 
   showsEmployeeProfile(role: string): boolean {
     return role === 'ADMIN' || role === 'PROJECT_MANAGER' || role === 'COLLABORATOR';
-  }
-
-  private apiDateToInput(api: string | null | undefined): string {
-    if (!api) return '';
-    const s = api.includes('T') ? String(api.split('T')[0]) : String(api).slice(0, 10);
-    return s.length >= 10 ? s : '';
   }
 
   saveUserEdits(): void {
@@ -297,13 +342,11 @@ export class UserManagementPage implements OnInit, OnDestroy {
       ? {
           phoneNumber: (this.editForm.phoneNumber ?? '').trim(),
           address: (this.editForm.address ?? '').trim(),
-          dateOfBirth: this.editForm.dateOfBirth?.trim() || undefined,
-          gender: (this.editForm.gender ?? '').trim(),
-          recruitmentDate: this.editForm.recruitmentDate?.trim() || undefined
+          gender: (this.editForm.gender ?? '').trim()
         }
       : {};
 
-    this.userService.updateAdminUser(this.selectedUser.id, { ...basePayload, ...profilePayload }).subscribe({
+    this.userService.updateUser(this.selectedUser.id, { ...basePayload, ...profilePayload }).subscribe({
       next: () => {
         this.editDialogVisible = false;
         this.selectedUser = null;
@@ -349,7 +392,6 @@ export class UserManagementPage implements OnInit, OnDestroy {
     this.statusDialogVisible = true;
   }
 
-  /** Display name for status confirmation copy (quotes included when using a proper name). */
   accountLabelForConfirm(user: AdminUser): string {
     const parts = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
     if (parts) {
@@ -373,5 +415,52 @@ export class UserManagementPage implements OnInit, OnDestroy {
         this.error = err?.error?.message || 'Failed to update employee status.';
       }
     });
+  }
+
+  private fetchUserList(): Observable<AdminUser[]> {
+    const search = this.searchTerm;
+    const role = this.selectedRole;
+
+    if (this.listStatusFilter === 'all') {
+      return forkJoin({
+        active: this.userService.getAdminUsers(search, role, 'active').pipe(catchError(() => of([] as AdminUser[]))),
+        former: this.userService.getAdminUsers(search, role, 'former').pipe(catchError(() => of([] as AdminUser[])))
+      }).pipe(
+        map(({ active, former }) => {
+          const byId = new Map<number, AdminUser>();
+          for (const u of active) {
+            byId.set(u.id, u);
+          }
+          for (const u of former) {
+            byId.set(u.id, u);
+          }
+          return this.sortUsersByName(this.withoutClients([...byId.values()]));
+        }),
+        catchError((err) => {
+          this.error = err?.error?.message || 'Failed to load users.';
+          return of([]);
+        })
+      );
+    }
+
+    return this.userService.getAdminUsers(search, role, this.listStatusFilter).pipe(
+      map((list) => this.sortUsersByName(this.withoutClients(list))),
+      catchError((err) => {
+        this.error = err?.error?.message || 'Failed to load users.';
+        return of([]);
+      })
+    );
+  }
+
+  private sortUsersByName(users: AdminUser[]): AdminUser[] {
+    return [...users].sort((a, b) => {
+      const na = `${a.firstName ?? ''} ${a.lastName ?? ''}`.trim().toLowerCase();
+      const nb = `${b.firstName ?? ''} ${b.lastName ?? ''}`.trim().toLowerCase();
+      return na.localeCompare(nb, undefined, { sensitivity: 'base' });
+    });
+  }
+
+  private withoutClients(users: AdminUser[]): AdminUser[] {
+    return users.filter((u) => u.role !== 'CLIENT');
   }
 }

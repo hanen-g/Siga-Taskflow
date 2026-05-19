@@ -522,6 +522,22 @@ export class TaskDetailsPanelComponent implements OnInit, OnChanges, OnDestroy {
     return this.canManageStatus && this.task?.status === TaskStatus.TODO;
   }
 
+  /** Notify PM without changing task status (separate from put on hold). */
+  get showReportButton(): boolean {
+    if (!this.canManageStatus || !this.task) {
+      return false;
+    }
+    switch (this.task.status) {
+      case TaskStatus.TODO:
+      case TaskStatus.IN_PROGRESS:
+      case TaskStatus.ON_HOLD:
+      case TaskStatus.IN_REVIEW:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   get showResumeAction(): boolean {
     return this.canManageStatus && this.task?.status === TaskStatus.ON_HOLD;
   }

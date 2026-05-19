@@ -11,7 +11,7 @@ import {
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
-import { finalize, switchMap } from 'rxjs/operators';
+import { finalize } from 'rxjs/operators';
 import { CdkDrag, CdkDragDrop, CdkDropList, DragDropModule } from '@angular/cdk/drag-drop';
 
 import { BadgeModule } from 'primeng/badge';
@@ -24,7 +24,6 @@ import { MessageService } from 'primeng/api';
 
 import { Priority, Task, TaskStatus } from '../../../../models/task.model';
 import { TaskService } from '../../../../services/task.service';
-import { TaskReportService } from '../../../../services/task-report.service';
 import { WebsocketService } from '../../../../services/websocket.service';
 import { AppLoaderComponent } from '../../../../layout/app-loader';
 import { TaskDetailsPanelComponent } from '../../task-details-panel';
@@ -39,7 +38,7 @@ type TaskDateSort = 'none' | 'deadline_asc' | 'deadline_desc';
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './task-kanban-board.component.html',
-  styleUrls: ['../../tasks-page.css'],
+  styleUrls: ['./task-kanban-board.component.css'],
   imports: [
     CommonModule,
     FormsModule,
@@ -92,16 +91,8 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
 
   pauseDialogVisible = false;
   reviewDialogVisible = false;
-  pauseReportReason = 'Task is not aligned with my skills';
-  pauseReportDetails = '';
+  pauseHoldReason = '';
   pauseSubmitting = false;
-  readonly reportReasons = [
-    'Task is not aligned with my skills',
-    'I have too many tasks',
-    'Missing file or task information',
-    'Deadline or priority problem',
-    'Other problem'
-  ];
   reviewNote = '';
   pendingTask: Task | null = null;
   pendingStatus: TaskStatus | null = null;
@@ -111,7 +102,6 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
 
   constructor(
     private taskService: TaskService,
-    private taskReportService: TaskReportService,
     private ws: WebsocketService,
     private cdr: ChangeDetectorRef,
     private messageService: MessageService
@@ -141,7 +131,7 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
       this.subscriptions.add(this.ws.getTaskUpdates().subscribe(() => this.loadTasks()));
       this.subscriptions.add(
         this.ws.getNotificationStream().subscribe((notif) => {
-          if ((notif.message ?? '').toLowerCase().includes('new task assigned')) {
+          if (notif.kind === 'TASK_ASSIGNED') {
             this.loadTasks();
           }
         })
@@ -302,11 +292,7 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
     const request$ =
       this.projectId != null
         ? this.taskService.getTasksByProject(this.projectId)
-        : this.isCollaborator
-          ? this.taskService.getMyTasks()
-          : this.role === 'PROJECT_MANAGER'
-            ? this.taskService.getManagerTasks()
-            : this.taskService.getAllTasks();
+        : this.taskService.getTasksForCurrentUser();
 
     this.loadRequestSub?.unsubscribe();
     this.loadRequestSub = request$.subscribe({
@@ -387,8 +373,7 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
     if (targetStatus === TaskStatus.ON_HOLD) {
       this.pendingTask = task;
       this.pendingStatus = targetStatus;
-      this.pauseReportReason = this.reportReasons[0];
-      this.pauseReportDetails = '';
+      this.pauseHoldReason = '';
       this.pauseDialogVisible = true;
       return;
     }
@@ -417,27 +402,22 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
     if (!taskId) {
       return;
     }
-    const reason = this.pauseReportReason.trim();
-    const details = this.pauseReportDetails.trim();
-    if (!reason || !details) {
+    const holdReason = this.truncateHoldReason(this.pauseHoldReason);
+    if (!holdReason) {
       this.messageService.add({
         severity: 'warn',
-        summary: 'Report incomplete',
-        detail: 'Choose a problem type and describe it for your project manager.'
+        summary: 'Hold reason required',
+        detail: 'Describe why you are putting this task on hold.'
       });
       return;
     }
 
-    const holdReason = this.compactHoldReasonForStorage(reason, details);
     this.pauseSubmitting = true;
     this.cdr.markForCheck();
 
-    this.taskReportService
-      .createReport(taskId, { reason, details })
+    this.taskService
+      .updateTaskStatus(taskId, { status: TaskStatus.ON_HOLD, holdReason })
       .pipe(
-        switchMap(() =>
-          this.taskService.updateTaskStatus(taskId, { status: TaskStatus.ON_HOLD, holdReason })
-        ),
         finalize(() => {
           this.pauseSubmitting = false;
           this.cdr.markForCheck();
@@ -450,17 +430,17 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
           this.messageService.add({
             severity: 'success',
             summary: 'Task on hold',
-            detail: 'Your report was sent and the task was put on hold.'
+            detail: 'The task was put on hold.'
           });
           this.loadTasks();
         },
         error: (err) => {
-          console.error('Hold with report failed', err);
+          console.error('Put task on hold failed', err);
           this.messageService.add({
             severity: 'error',
-            summary: 'Could not finish',
+            summary: 'Could not update status',
             detail:
-              err?.error?.message ?? err?.error?.error ?? 'Report or status update failed. Try again.'
+              err?.error?.message ?? err?.error?.error ?? 'Could not put the task on hold. Try again.'
           });
         }
       });
@@ -516,8 +496,7 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
   requestPauseFromPanel(task: Task): void {
     this.pendingTask = task;
     this.pendingStatus = TaskStatus.ON_HOLD;
-    this.pauseReportReason = this.reportReasons[0];
-    this.pauseReportDetails = '';
+    this.pauseHoldReason = '';
     this.pauseDialogVisible = true;
   }
 
@@ -598,15 +577,17 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
   private resetPendingDialogState(): void {
     this.pendingTask = null;
     this.pendingStatus = null;
-    this.pauseReportReason = this.reportReasons[0];
-    this.pauseReportDetails = '';
+    this.pauseHoldReason = '';
     this.reviewNote = '';
   }
 
-  /** DB column limit safe summary; full text is stored on the TaskReport. */
-  private compactHoldReasonForStorage(reason: string, details: string): string {
-    const singleLine = `${reason}: ${details}`.replace(/\s+/g, ' ').trim();
+  /** DB column limit safe summary for Task.holdReason. */
+  private truncateHoldReason(raw: string): string {
+    const singleLine = raw.replace(/\s+/g, ' ').trim();
     const max = 250;
+    if (!singleLine) {
+      return '';
+    }
     if (singleLine.length <= max) {
       return singleLine;
     }

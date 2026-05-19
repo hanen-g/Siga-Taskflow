@@ -1,0 +1,784 @@
+<div
+  class="workspace-page project-detail-page p-4 min-h-screen"
+  [class.project-detail-page--wide-kanban]="isAdminRole() && activeTab === 'tasks'"
+  [class.project-detail-page--chat]="activeTab === 'chat'">
+  <p-toast />
+  <p-confirmdialog />
+  <div class="project-detail-header">
+    <button
+      pButton
+      type="button"
+      icon="pi pi-arrow-left"
+      [label]="isClientPortal() ? 'Retour à mes projets' : 'Back to projects'"
+      class="p-button-text p-button-secondary project-detail-back"
+      [routerLink]="backLink">
+    </button>
+  </div>
+
+  <div *ngIf="!(project$ | async) && !error" class="project-detail-loading">
+    <app-loader label="Loading project details..." />
+  </div>
+
+  <p-message *ngIf="error" severity="error" [closable]="false">{{ error }}</p-message>
+
+  <ng-container *ngIf="project$ | async as project">
+  <ng-container *ngIf="project && !error">
+    <section class="project-detail-hero">
+     
+
+      <div class="project-detail-hero-inner">
+        <div class="project-detail-heading">
+          <h1 class="project-detail-title">{{ project.name }}</h1>
+          <p class="project-detail-subtitle">
+            {{ project.description || 'No description yet for this project.' }}
+          </p>
+        </div>
+
+        <div class="project-detail-badges">
+          <p-tag *ngIf="project.archived" severity="warn" value="Archived" />
+          <p-tag *ngIf="project.paused" severity="secondary" value="Paused" />
+          <p-tag *ngIf="project.delivered" severity="success" value="Delivered" />
+          <span
+            *ngIf="deadlineBadgeLabel(project) as deadlineBadge"
+            class="project-deadline-badge"
+            [class.is-overdue]="deadlineBadgeTone(project) === 'overdue'"
+            [class.is-today]="deadlineBadgeTone(project) === 'today'"
+            [class.is-soon]="deadlineBadgeTone(project) === 'soon'"
+            [class.is-upcoming]="deadlineBadgeTone(project) === 'upcoming'">
+            <i class="pi pi-clock" aria-hidden="true"></i>
+            {{ deadlineBadge }}
+          </span>
+        </div>
+      </div>
+
+      <div class="project-detail-progress-row">
+        <div class="project-detail-progress">
+          <div class="project-detail-progress-bar">
+            <span class="project-detail-progress-fill" [style.width.%]="completionPercent(project)"></span>
+          </div>
+          <div class="project-detail-progress-label">
+            <span class="project-detail-progress-pct">{{ completionPercent(project) }}% completed</span>
+          </div>
+        </div>
+        <div *ngIf="activeTab !== 'chat'" class="workspace-search project-detail-hero-search">
+          <div class="search-input-wrapper">
+            <i class="pi pi-search search-icon"></i>
+            <input
+              type="text"
+              [(ngModel)]="searchText"
+              placeholder="Search"
+              class="search-input" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="project-detail-layout">
+      <section class="project-detail-main">
+        <div class="project-detail-tabs">
+          <button
+            type="button"
+            class="project-detail-tab"
+            [class.is-active]="activeTab === 'tasks'"
+            (click)="switchTab('tasks')">
+            Tasks
+          </button>
+          <button
+            type="button"
+            class="project-detail-tab"
+            [class.is-active]="activeTab === 'files'"
+            (click)="switchTab('files')">
+            Files
+          </button>
+          <button
+            *ngIf="canUseProjectChat()"
+            type="button"
+            class="project-detail-tab project-detail-tab--chat"
+            [class.is-active]="activeTab === 'chat'"
+            (click)="switchTab('chat')">
+            <span>Chat</span>
+            <span *ngIf="chatUnreadCount > 0" class="project-detail-tab-unread" aria-label="Unread messages"></span>
+          </button>
+        </div>
+
+        <ng-container *ngIf="activeTab === 'tasks'">
+          <div *ngIf="isAdminRole() && project.id" class="project-detail-admin-kanban">
+            <app-task-kanban-board
+              [projectId]="project.id"
+              [filterText]="searchText"
+              [tallEmbed]="true" />
+          </div>
+          <div *ngIf="!isAdminRole()" class="project-detail-task-panel">
+            <p *ngIf="!(project.tasks?.length)" class="project-detail-empty-panel">
+              No tasks yet for this project.
+            </p>
+            <p
+              *ngIf="project.tasks?.length && !filteredTasks(project).length"
+              class="project-detail-empty-panel">
+              No tasks match your search.
+            </p>
+            <div *ngIf="filteredTasks(project).length" class="project-detail-task-list">
+              <article *ngFor="let task of filteredTasks(project)" class="task-card">
+                <div class="task-card-body">
+                  <div class="task-card-title-row">
+                    <i class="pi pi-list task-card-icon" aria-hidden="true"></i>
+                    <h3 class="task-card-title">{{ task.title }}</h3>
+                  </div>
+                  <p *ngIf="task.description && task.description.trim()" class="task-card-description">{{ task.description }}</p>
+                  <div *ngIf="task.skills?.length" class="task-card-skills">
+                    <span *ngFor="let s of task.skills" class="task-skill-chip">{{ s.name }}</span>
+                  </div>
+                  <p class="task-card-assignee">
+                    <strong>Priority:</strong>
+                    {{ task.priority ? priorityLabel(task.priority) : '—' }}
+                  </p>
+                  <p *ngIf="task.deadline" class="task-card-assignee">
+                    <strong>Deadline:</strong> {{ task.deadline | date: 'short' }}
+                  </p>
+                </div>
+                <div class="task-card-side">
+                  <input
+                    type="file"
+                    class="task-card-file-input"
+                    [id]="'task-upload-' + task.id"
+                    (change)="onTaskFileInputChange($event, task, project)" />
+                  <div class="task-card-actions">
+                    <button
+                      *ngIf="canUploadTaskFile(task, project)"
+                      type="button"
+                      pButton
+                      styleClass="p-button-outlined p-button-sm p-button-icon-only task-card-icon-btn task-card-upload-btn"
+                      [icon]="isUploadingTaskFile(task.id) ? 'pi pi-spin pi-spinner' : 'pi pi-paperclip'"
+                      pTooltip="Attach file"
+                      tooltipPosition="top"
+                      [attr.aria-label]="isUploadingTaskFile(task.id) ? 'Uploading file' : 'Attach file'"
+                      [disabled]="isUploadingTaskFile(task.id)"
+                      (click)="openTaskFilePicker(task.id)"></button>
+                    <button
+                      *ngIf="canEditTask(project)"
+                      type="button"
+                      pButton
+                      styleClass="p-button-sm p-button-icon-only task-card-icon-btn task-card-edit-btn"
+                      icon="pi pi-pencil"
+                      pTooltip="Edit task"
+                      tooltipPosition="top"
+                      aria-label="Edit task"
+                      (click)="openEditTaskDialog(task, project)"></button>
+                    <button
+                      *ngIf="canMarkTaskDone(task, project)"
+                      type="button"
+                      pButton
+                      styleClass="p-button-success p-button-sm p-button-icon-only task-card-icon-btn"
+                      icon="pi pi-check"
+                      pTooltip="Mark as done"
+                      tooltipPosition="top"
+                      aria-label="Mark as done"
+                      (click)="markTaskDone(task, project)"></button>
+                  </div>
+                  <span class="task-card-status" [ngClass]="taskStatusBadgeClass(task.status)">
+                    {{ statusLabel(task.status) }}
+                  </span>
+                </div>
+              </article>
+            </div>
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="activeTab === 'chat' && project.id">
+          <app-project-chat-panel
+            [projectId]="project.id"
+            [active]="activeTab === 'chat'" />
+        </ng-container>
+
+        <ng-container *ngIf="activeTab === 'files'">
+          <div class="project-detail-files-panel">
+            <ng-container *ngIf="sortedProjectFiles(project).length; else noFilesYet">
+            <div *ngIf="filteredProjectFiles(project).length" class="project-detail-file-list">
+              <article
+                *ngFor="let file of filteredProjectFiles(project)"
+                class="project-detail-file-card project-detail-file-row">
+                <div class="project-detail-file-preview">
+                  <div class="file-preview-icon">
+                    <i
+                      class="pi"
+                      [class.pi-file]="file.scope === 'TASK'"
+                      [class.pi-folder-open]="file.scope === 'PROJECT'"></i>
+                  </div>
+                </div>
+                <div class="project-detail-file-copy">
+                  <a
+                    class="project-detail-file-link"
+                    href="#"
+                    (click)="openFileInNewTab($event, file.fileUrl)">
+                    <p class="project-detail-file-name">{{ file.originalFileName || fileName(file.fileUrl) }}</p>
+                  </a>
+                  <p class="project-detail-file-context">{{ fileContextLabel(file) }}</p>
+                  <small class="project-detail-file-upload-meta">
+                    Uploaded by {{ file.uploadedByName || file.uploadedByEmail || 'Unknown user' }}
+                    · {{ uploadTimestampLabel(file.uploadedAt) }}
+                  </small>
+                </div>
+              </article>
+            </div>
+            <div *ngIf="!filteredProjectFiles(project).length" class="project-detail-empty-panel">
+              No files match your search.
+            </div>
+            </ng-container>
+
+            <ng-template #noFilesYet>
+              <div class="project-detail-empty-panel">No files uploaded to this project yet.</div>
+            </ng-template>
+          </div>
+        </ng-container>
+      </section>
+
+      <aside *ngIf="activeTab !== 'chat'" class="project-detail-sidebar" aria-label="Project summary">
+        <section class="project-detail-summary-card project-info-card project-detail-summary-card--rail">
+          <div *ngIf="projectToolbarActions(project).length" class="project-actions-toolbar" aria-label="Project actions">
+            <ng-container *ngFor="let action of projectToolbarActions(project)">
+              <ng-container [ngSwitch]="action.action">
+                <button
+                  *ngSwitchCase="'add-task'"
+                  type="button"
+                  [class]="actionIconClass(action) + ' project-action-add-task'"
+                  [attr.aria-label]="actionLabel(project, action)"
+                  [attr.title]="actionLabel(project, action)"
+                  [disabled]="action.disabled"
+                  (click)="handleProjectAction(action.action, project, $event)">
+                  <span class="project-action-add-task-plus-wrap" aria-hidden="true">
+                    <svg
+                      class="project-action-add-task-svg"
+                      viewBox="0 0 24 24"
+                      width="36"
+                      height="36"
+                      xmlns="http://www.w3.org/2000/svg">
+                      <path stroke-width="1.5" d="M12 22C17.5 22 22 17.5 22 12C22 6.5 17.5 2 12 2C6.5 2 2 6.5 2 12C2 17.5 6.5 22 12 22Z" />
+                      <path stroke-width="1.5" d="M8 12H16" />
+                      <path stroke-width="1.5" d="M12 16V8" />
+                    </svg>
+                  </span>
+                  <span class="project-action-add-task-label">Create new task</span>
+
+                </button>
+                <button
+                  *ngSwitchDefault
+                  type="button"
+                  [class]="actionIconClass(action)"
+                  [attr.aria-label]="actionLabel(project, action)"
+                  [attr.title]="actionLabel(project, action)"
+                  [disabled]="action.disabled"
+                  (click)="handleProjectAction(action.action, project, $event)">
+                  <img
+                    *ngIf="action.iconImg"
+                    [src]="action.iconImg"
+                    class="project-action-img-icon"
+                    alt=""
+                    width="28"
+                    height="28" />
+                  <i *ngIf="!action.iconImg && action.icon" [class]="action.icon"></i>
+                </button>
+              </ng-container>
+            </ng-container>
+          </div>
+
+          <div class="project-info-grid">
+            <div class="project-info-row">
+              <span class="project-info-label">Created On:</span>
+              <span class="project-info-value">{{ createdOnLabel(project) }}</span>
+            </div>
+            <div class="project-info-row">
+              <span class="project-info-label">Project Manager:</span>
+              <span class="project-info-value">{{ projectManagerLabel(project) }}</span>
+            </div>
+            <div class="project-info-row">
+              <span class="project-info-label">{{ isClientPortal() ? 'Total des tâches' : 'Total tasks' }}</span>
+              <span class="project-info-value">{{ projectTotalTaskCount(project) }}</span>
+            </div>
+            <div class="project-info-row">
+              <span class="project-info-label">Project start</span>
+              <span class="project-info-value">
+                {{ project.startDate ? (project.startDate | date: 'mediumDate') : '—' }}
+              </span>
+            </div>
+            <div class="project-info-row">
+              <span class="project-info-label">Deadline</span>
+              <span class="project-info-value">
+                {{ project.deadline ? (project.deadline | date: 'mediumDate') : '—' }}
+              </span>
+            </div>
+            <div *ngIf="!isClientPortal()" class="project-info-row project-info-row--skills">
+              <span class="project-info-label">Required skills</span>
+              <ng-container *ngIf="(project.requiredSkills?.length ?? 0) > 0; else noRequiredSkills">
+                <div class="project-detail-project-skills" role="list">
+                  <span
+                    *ngFor="let s of project.requiredSkills"
+                    class="task-skill-chip project-skill-chip"
+                    role="listitem">{{ s.name }}</span>
+                </div>
+              </ng-container>
+              <ng-template #noRequiredSkills>
+                <span class="project-info-value">—</span>
+              </ng-template>
+            </div>
+          </div>
+
+          <div class="project-file-box">
+            <app-folder-file-upload
+              *ngIf="canUploadAttachment(project)"
+              [label]="uploadingAttachment ? 'Uploading...' : 'Choose a file'"
+              [disabled]="uploadingAttachment"
+              (fileSelected)="onAttachmentFile($event, project)">
+            </app-folder-file-upload>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <div *ngIf="false" class="project-detail-card">
+      <section class="project-detail-section">
+        <h2 class="project-detail-section-title">Description</h2>
+        <p class="project-detail-description">
+          {{ project?.description || 'No description yet for this project.' }}
+        </p>
+      </section>
+
+      <section class="project-detail-meta">
+        <div *ngIf="project?.createdAt" class="project-detail-meta-item">
+          <span class="project-detail-meta-label">Created</span>
+          <span class="project-detail-meta-value">{{ project?.createdAt | date: 'medium' }}</span>
+        </div>
+        <div *ngIf="project?.file" class="project-detail-meta-item">
+          <span class="project-detail-meta-label">Attachment</span>
+          <a
+            class="project-detail-link"
+            href="#"
+            (click)="openFileInNewTab($event, project!.file!)">
+            Open file
+          </a>
+        </div>
+      </section>
+
+      <section *ngIf="canUploadAttachment" class="project-detail-section project-detail-upload-section">
+        <h2 class="project-detail-section-title">Upload attachment</h2>
+        <p class="project-detail-upload-hint text-600">
+          Replace the project attachment (same as from the project card menu).
+        </p>
+        <app-folder-file-upload
+          [label]="uploadingAttachment ? 'Uploading…' : 'Choose a file'"
+          [disabled]="uploadingAttachment"
+          (fileSelected)="onAttachmentFile($event, project)">
+        </app-folder-file-upload>
+      </section>
+
+      <section class="project-detail-section">
+        <h2 class="project-detail-section-title">
+          Tasks
+          <span class="project-detail-task-count" *ngIf="project?.tasks?.length">
+            ({{ project?.tasks?.length }})
+          </span>
+        </h2>
+        <p *ngIf="!project?.tasks?.length" class="project-detail-empty-tasks text-600">
+          No tasks yet for this project.
+        </p>
+        <div *ngIf="project?.tasks?.length" class="project-detail-task-table-wrap">
+          <table class="project-detail-task-table">
+            <thead>
+              <tr>
+                <th>Title</th>
+                <th>Status</th>
+                <th>Priority</th>
+                <th>Deadline</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let task of project?.tasks">
+                <td>{{ task.title }}</td>
+                <td>{{ task.status }}</td>
+                <td>{{ task.priority || '—' }}</td>
+                <td>
+                  <ng-container *ngIf="task.deadline; else noDeadline">
+                    {{ task.deadline | date: 'short' }}
+                  </ng-container>
+                  <ng-template #noDeadline>—</ng-template>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </ng-container>
+  </ng-container>
+</div>
+
+<ng-container *ngIf="project$ | async as project">
+  <p-dialog
+    header="Edit Project"
+    [visible]="displayDialog"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [style]="{ width: '500px' }"
+    (onHide)="displayDialog = false">
+
+    <ng-template pTemplate="content">
+      <div class="flex flex-column mb-5 mt-3">
+        <label class="font-bold mb-2">Name *</label>
+        <input
+          pInputText
+          [(ngModel)]="editableProject.name"
+          class="w-full"
+          placeholder="Enter project name"
+          autofocus />
+      </div>
+
+      <div class="flex flex-column mb-4">
+        <label class="font-bold mb-2">Description</label>
+        <textarea
+          pInputTextarea
+          rows="6"
+          [(ngModel)]="editableProject.description"
+          class="w-full"
+          placeholder="Enter project description"></textarea>
+      </div>
+
+      <div class="flex flex-column mb-2">
+        <label class="font-bold mb-2">Project start (optional)</label>
+        <input pInputText type="date" [(ngModel)]="editableProject.startDate" class="w-full" />
+      </div>
+
+      <div class="flex flex-column mb-2">
+        <label class="font-bold mb-2">Deadline (optional)</label>
+        <input pInputText type="date" [(ngModel)]="editableProject.deadline" class="w-full" />
+      </div>
+    </ng-template>
+
+    <ng-template pTemplate="footer">
+      <button
+        pButton
+        [label]="isSavingProject ? 'Updating...' : 'Update'"
+        [disabled]="isSavingProject"
+        (click)="saveProject(project)">
+      </button>
+    </ng-template>
+  </p-dialog>
+
+  <p-dialog
+    header="New Task"
+    [visible]="taskDialogVisible"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [style]="{ width: '500px' }"
+    (onHide)="closeTaskDialog()">
+
+    <div class="flex flex-column gap-3">
+      <label class="font-bold mb-2">Name *</label>
+      <input
+        pInputText
+        [(ngModel)]="newTask.title"
+        placeholder="Task name">
+      <label class="font-bold mb-2">Description</label>
+      <textarea
+        pInputTextarea
+        [(ngModel)]="newTask.description"
+        rows="4"
+        placeholder="Description">
+      </textarea>
+      <label class="font-bold mb-2">Priority</label>
+      <select [(ngModel)]="newTask.priority" class="p-inputtext">
+        <option [ngValue]="null">No priority</option>
+        <option *ngFor="let p of priorities" [ngValue]="p">{{ priorityLabel(p) }}</option>
+      </select>
+
+      <label class="font-bold mb-2">Deadline</label>
+      <div class="new-task-deadline-row flex gap-2 align-items-center flex-wrap">
+        <input
+          type="datetime-local"
+          pInputText
+          class="new-task-deadline-input flex-1"
+          [(ngModel)]="newTask.deadline"
+          placeholder="Deadline">
+        <button
+          type="button"
+          pButton
+          label="Predict Deadline"
+          icon="pi pi-sparkles"
+          styleClass="p-button-outlined p-button-sm whitespace-nowrap"
+          [disabled]="!canPredictNewTaskDeadline() || deadlinePredictionLoading"
+          [loading]="deadlinePredictionLoading"
+          (click)="predictNewTaskDeadline(project)">
+        </button>
+      </div>
+
+      <ng-container *ngIf="(project.requiredSkills?.length ?? 0) > 0; else noProjectSkillsForTask">
+        <label class="font-bold mb-2">Task skills</label>
+        <p-multiSelect
+          [options]="project.requiredSkills!"
+          [(ngModel)]="newTask.skillIds"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="Pick skills for this task"
+          display="chip"
+          [filter]="true"
+          filterPlaceholder="Search skills"
+          styleClass="w-full"
+          (ngModelChange)="onNewTaskSkillsChange(project)">
+        </p-multiSelect>
+
+      </ng-container>
+      <ng-template #noProjectSkillsForTask>
+
+      </ng-template>
+
+      <label class="font-bold mb-2" for="newTaskCollaborator">Assigne to *</label>
+      <div class="new-task-assignee-row flex flex-column gap-2">
+        <div class="flex gap-2 align-items-start flex-wrap">
+          <p-autocomplete
+            class="new-task-assignee-autocomplete flex-1"
+            inputId="newTaskCollaborator"
+            [(ngModel)]="newTask.collaboratorEmail"
+            [suggestions]="collaboratorEmailSuggestions"
+            (completeMethod)="searchCollaborators($event)"
+            [dropdown]="true"
+            [completeOnFocus]="true"
+            [minQueryLength]="0"
+            placeholder="Search by email"
+            styleClass="w-full"
+            inputStyleClass="w-full" />
+          <button
+            *ngIf="isProjectManagerOfProject(project)"
+            type="button"
+            pButton
+            label="Assign to me"
+            styleClass="p-button-outlined p-button-sm whitespace-nowrap"
+            (click)="assignNewTaskToMe()">
+          </button>
+        </div>
+
+      </div>
+
+      <div class="assignee-suggestions-trigger" *ngIf="isProjectManagerOfProject(project)">
+        <button
+          type="button"
+          pButton
+          label="See suggested assignees list"
+          icon="pi pi-users"
+          styleClass="p-button-outlined p-button-sm w-full sm:w-auto"
+          [disabled]="assigneeCandidatesLoading"
+          (click)="openAssigneeSuggestionsPopup()">
+        </button>
+        <p *ngIf="assigneeCandidatesLoading" class="text-600 text-sm m-0">Loading suggestions…</p>
+        <p *ngIf="!assigneeCandidatesLoading && !assigneeCandidates.length" class="text-600 text-sm m-0">
+          No suggestions for the current skill filter. Open the list to confirm, or type an assignee email above.
+        </p>
+      </div>
+
+      <div class="new-task-attachment flex flex-column gap-1">
+        <div class="new-task-attachment-actions">
+          <input
+            #newTaskFileInput
+            type="file"
+            class="new-task-file-input-hidden"
+            (change)="onNewTaskFileSelected($event)" />
+          <button
+            type="button"
+            class="new-task-attachment-icon-btn"
+            title="Choose a file to attach"
+            aria-label="Choose a file to attach"
+            (click)="newTaskFileInput.click()">
+            <i class="pi pi-paperclip" aria-hidden="true"></i>
+          </button>
+          <span class="new-task-attachment-file-name text-600" *ngIf="newTaskAttachmentFile">
+            {{ newTaskAttachmentFile.name }}
+          </span>
+          <span class="new-task-attachment-placeholder text-600 text-sm" *ngIf="!newTaskAttachmentFile">
+            Click the icon to select a file
+          </span>
+        </div>
+      </div>
+
+      <button
+        pButton
+        [label]="isSavingTask ? 'Creating...' : 'Create Task'"
+        [disabled]="isSavingTask"
+        (click)="saveTask(project)">
+      </button>
+   
+    </div>
+  </p-dialog>
+
+  <p-dialog
+    header="Predicted deadline"
+    [visible]="deadlinePredictionDialogVisible"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [style]="{ width: '28rem' }"
+    (onHide)="closeDeadlinePredictionDialog()">
+
+    <div class="deadline-prediction-dialog flex flex-column gap-3" *ngIf="deadlinePredictionResult as result">
+      <div class="deadline-prediction-date">
+        <span class="text-600 text-sm">Suggested deadline</span>
+        <strong class="deadline-prediction-date-value">
+          {{ result.predictedDeadline | date: 'medium' }}
+        </strong>
+      </div>
+
+      <p class="m-0 text-700">
+        <strong>Estimated working days:</strong> {{ result.estimatedWorkingDays }}
+      </p>
+
+      <p class="m-0 text-700 deadline-prediction-explanation">{{ result.explanation }}</p>
+
+      <p-message
+        *ngIf="result.closeToProjectDeadline"
+        severity="warn"
+        [closable]="false"
+        text="This deadline is close to the project deadline. Consider scope or assignee capacity.">
+      </p-message>
+    </div>
+
+    <ng-template pTemplate="footer">
+      <button
+        type="button"
+        pButton
+        label="Ignore"
+        styleClass="p-button-text"
+        (click)="closeDeadlinePredictionDialog()">
+      </button>
+      <button
+        type="button"
+        pButton
+        label="Use This Date"
+        (click)="applyPredictedDeadline()"
+        [disabled]="!deadlinePredictionResult">
+      </button>
+    </ng-template>
+  </p-dialog>
+
+  <p-dialog
+    header="Edit Task"
+    [visible]="editTaskDialogVisible"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [style]="{ width: '500px' }"
+    (onHide)="closeEditTaskDialog()">
+
+    <div class="flex flex-column gap-3">
+      <label class="font-bold mb-2">Name *</label>
+      <input
+        pInputText
+        [(ngModel)]="editableTask.title"
+        placeholder="Task name">
+
+      <label class="font-bold mb-2">Description</label>
+      <textarea
+        pInputTextarea
+        [(ngModel)]="editableTask.description"
+        rows="4"
+        placeholder="Description">
+      </textarea>
+
+      <label class="font-bold mb-2">Priority</label>
+      <select [(ngModel)]="editableTask.priority" class="p-inputtext">
+        <option [ngValue]="undefined">No priority</option>
+        <option *ngFor="let p of priorities" [ngValue]="p">{{ priorityLabel(p) }}</option>
+      </select>
+
+      <label class="font-bold mb-2">Deadline</label>
+      <input
+        type="datetime-local"
+        pInputText
+        [(ngModel)]="editableTask.deadline"
+        placeholder="Deadline">
+
+      <ng-container *ngIf="(project.requiredSkills?.length ?? 0) > 0">
+        <label class="font-bold mb-2">Task skills</label>
+        <p-multiSelect
+          [options]="project.requiredSkills!"
+          [(ngModel)]="editableTask.skillIds"
+          optionLabel="name"
+          optionValue="id"
+          placeholder="Pick skills for this task"
+          display="chip"
+          [filter]="true"
+          filterPlaceholder="Search skills"
+          styleClass="w-full"
+          (ngModelChange)="onEditTaskSkillsChange(project)">
+        </p-multiSelect>
+      </ng-container>
+
+      <label class="font-bold mb-2" for="editTaskCollaborator">Assigne to *</label>
+      <div class="new-task-assignee-row flex flex-column gap-2">
+        <div class="flex gap-2 align-items-start flex-wrap">
+          <p-autocomplete
+            class="new-task-assignee-autocomplete flex-1"
+            inputId="editTaskCollaborator"
+            [(ngModel)]="editableTask.collaboratorEmail"
+            [suggestions]="collaboratorEmailSuggestions"
+            (completeMethod)="searchCollaborators($event)"
+            [dropdown]="true"
+            [completeOnFocus]="true"
+            [minQueryLength]="0"
+            placeholder="Search by email"
+            styleClass="w-full"
+            inputStyleClass="w-full" />
+          <button
+            type="button"
+            pButton
+            label="Assign to me"
+            styleClass="p-button-outlined p-button-sm whitespace-nowrap"
+            (click)="assignEditedTaskToMe()">
+          </button>
+        </div>
+      </div>
+      <div class="assignee-suggestions-trigger" *ngIf="isProjectManagerOfProject(project)">
+        <button
+          type="button"
+          pButton
+          label="See suggested assignees list"
+          icon="pi pi-users"
+          styleClass="p-button-outlined p-button-sm w-full sm:w-auto"
+          [disabled]="assigneeCandidatesLoading"
+          (click)="openAssigneeSuggestionsPopup('edit')">
+        </button>
+      </div>
+
+      <button
+        pButton
+        [label]="isUpdatingTask ? 'Updating...' : 'Update Task'"
+        [disabled]="isUpdatingTask"
+        (click)="saveEditedTask(project)">
+      </button>
+    </div>
+  </p-dialog>
+
+  <p-dialog
+    header="Suggested assignees"
+    [(visible)]="assigneeSuggestionsPopupVisible"
+    [modal]="true"
+    [draggable]="false"
+    [resizable]="false"
+    [dismissableMask]="true"
+    [closable]="true"
+    appendTo="body"
+    styleClass="assignee-suggestions-popup-dialog"
+    [style]="{ width: 'min(22rem, 92vw)' }"
+    (onHide)="assigneeSuggestionsPopupVisible = false">
+    <div class="assignee-suggestions-popup-scroll">
+      <div *ngIf="assigneeCandidatesLoading" class="text-600 text-sm">Loading…</div>
+      <ul class="assignee-suggestion-list" *ngIf="!assigneeCandidatesLoading && assigneeCandidates.length">
+        <li *ngFor="let c of assigneeCandidates">
+          <button type="button" class="assignee-suggestion-btn" (click)="pickAssigneeFromPopup(c.email)">
+            {{ formatAssigneeRow(c) }}
+          </button>
+        </li>
+      </ul>
+      <p *ngIf="!assigneeCandidatesLoading && !assigneeCandidates.length" class="text-600 text-sm m-0">
+        No matching users. Adjust task skills or enter an email in the assignee field.
+      </p>
+    </div>
+  </p-dialog>
+</ng-container>
