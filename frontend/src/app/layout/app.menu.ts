@@ -4,6 +4,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
 import { WebsocketService } from '../services/websocket.service';
 import { MenuItem } from 'primeng/api';
+import { RippleModule } from 'primeng/ripple';
 import { AppMenuitem } from './app.menuitem';
 
 /** Sidebar entries may use `iconImg` (PNG/SVG) instead of PrimeIcons `icon`. */
@@ -12,17 +13,31 @@ export type AppMenuItem = MenuItem & { iconImg?: string };
 @Component({
     selector: 'app-menu',
     standalone: true,
-    imports: [CommonModule, AppMenuitem, RouterModule],
-    template:`<ul class="layout-menu">
-  @for (item of model; track item.label) {
-    @if (!item.separator) {
-      <li app-menuitem [item]="item" [root]="true"></li>
-    } @else {
-      <li class="menu-separator"></li>
+    imports: [CommonModule, AppMenuitem, RouterModule, RippleModule],
+    template: `<div class="layout-menu-container">
+  <ul class="layout-menu layout-menu-main">
+    @for (item of model; track item.label) {
+      @if (!item.separator) {
+        <li app-menuitem [item]="item" [root]="true"></li>
+      } @else {
+        <li class="menu-separator"></li>
+      }
     }
-  }
-</ul>
-`})
+  </ul>
+  <div class="layout-menu-footer">
+    <a
+      class="layout-menu-logout"
+      href="#"
+      role="button"
+      tabindex="0"
+      (click)="onLogoutClick($event)"
+      pRipple>
+      <i class="pi pi-sign-out layout-menuitem-icon"></i>
+      <span class="layout-menuitem-text">Logout</span>
+    </a>
+  </div>
+</div>`
+})
 export class AppMenu {
     model: AppMenuItem[] = [];
 
@@ -31,6 +46,11 @@ export class AppMenu {
         private ws: WebsocketService,
         private api: ApiService
     ) {}
+
+    onLogoutClick(event: Event) {
+        event.preventDefault();
+        this.logout();
+    }
 
     logout() {
         this.ws.disconnect();
@@ -211,10 +231,5 @@ export class AppMenu {
             ];
         }
 
-        this.model.push({
-            items: [
-                { label: 'Logout', icon: 'pi pi-sign-out', command: () => this.logout(), style: { 'color': '#e61414' } }
-            ]
-        });
     }
 }

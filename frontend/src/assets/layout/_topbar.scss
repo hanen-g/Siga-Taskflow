@@ -35,6 +35,14 @@
         &:focus-visible {
             @include focused();
         }
+
+        &.logo-image {
+            height: 2.25rem;
+            width: auto;
+            max-width: 10rem;
+            margin-right: 0.75rem;
+            object-fit: contain;
+        }
     }
 
     .layout-topbar-action {

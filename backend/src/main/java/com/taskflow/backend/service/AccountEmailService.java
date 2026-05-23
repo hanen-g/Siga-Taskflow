@@ -193,4 +193,70 @@ public class AccountEmailService {
             return WelcomeEmailResult.sendFailed();
         }
     }
+
+    /**
+     * Sends a password-reset email when SMTP is fully configured; otherwise skips and logs the reason.
+     */
+    public WelcomeEmailResult sendPasswordResetEmail(
+            String recipientEmail,
+            String firstName,
+            String newPassword
+    ) {
+        if (!StringUtils.hasText(recipientEmail)) {
+            log.warn("Skipping password-reset email because the recipient address is blank.");
+            return WelcomeEmailResult.sendFailed();
+        }
+
+        String safeRecipientEmail = recipientEmail.trim();
+        String safeFirstName = StringUtils.hasText(firstName) ? firstName.trim() : "there";
+        String loginUrl = appBaseUrl + "/login";
+
+        String body = String.format(
+                "Hello %s,\n\n"
+                        + "You requested a new password for your TaskFlow account.\n\n"
+                        + "Sign in: %s\n"
+                        + "Email (login): %s\n"
+                        + "New password: %s\n\n"
+                        + "If you did not request this change, contact your administrator immediately.\n\n"
+                        + "-- TaskFlow",
+                safeFirstName,
+                loginUrl,
+                safeRecipientEmail,
+                newPassword
+        );
+
+        if (!isMailConfigured()) {
+            log.warn(
+                    "Password-reset email not sent (mail not fully configured). Reasons: {}. "
+                            + "New password is still logged below at INFO when mail is disabled.",
+                    describeMailConfigurationGaps()
+            );
+            log.info(
+                    "[Mail disabled] Would email {}:\n{}",
+                    safeRecipientEmail,
+                    body
+            );
+            return WelcomeEmailResult.notConfigured();
+        }
+
+        SimpleMailMessage message = new SimpleMailMessage();
+        message.setFrom(effectiveFrom());
+        message.setTo(safeRecipientEmail);
+        message.setSubject("Your TaskFlow password has been reset");
+        message.setText(body);
+
+        try {
+            mailSender.send(message);
+            log.info("Password-reset email sent to {}", safeRecipientEmail);
+            return WelcomeEmailResult.delivered();
+        } catch (Exception e) {
+            log.error(
+                    "Failed to send password-reset email to {} (SMTP rejected or network error). Cause: {}",
+                    safeRecipientEmail,
+                    e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName(),
+                    e
+            );
+            return WelcomeEmailResult.sendFailed();
+        }
+    }
 }

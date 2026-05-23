@@ -1,0 +1,68 @@
+# SonarQube Cloud analysis for the Angular frontend (TypeScript)
+# Runs on push and pull requests that touch the frontend or Sonar config.
+
+name: SonarCloud Analysis
+
+on:
+  push:
+    branches:
+      - '**'
+    paths:
+      - 'frontend/**'
+      - 'sonar-project.properties'
+      - '.github/workflows/sonar.yml'
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'frontend/**'
+      - 'sonar-project.properties'
+      - '.github/workflows/sonar.yml'
+
+concurrency:
+  group: sonar-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sonarcloud:
+    name: SonarCloud (Angular)
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          # Full history improves blame, new-code, and PR decoration
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Run unit tests with LCOV coverage
+        working-directory: frontend
+        run: npm run test:coverage
+
+      - name: Cache SonarQube Cloud scanner data
+        uses: actions/cache@v4
+        with:
+          path: ~/.sonar/cache
+          key: ${{ runner.os }}-sonar
+          restore-keys: ${{ runner.os }}-sonar
+
+      - name: SonarQube Cloud scan
+        uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          # Enables PR decoration when the project is bound to GitHub in SonarCloud
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

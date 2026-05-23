@@ -29,38 +29,34 @@
   display: none;
 }
 
-.left-top-logo {
+.taskflow-logo-wrap {
   position: relative;
   z-index: 2;
-  width: 180px;
+  isolation: isolate;
+}
+
+.taskflow-logo {
+  display: block;
+  width: min(320px, 85%);
   max-width: 100%;
   height: auto;
-  display: block;
   object-fit: contain;
 }
 
-.left-content {
+.left-brand {
   position: relative;
   z-index: 2;
   max-width: 420px;
-  margin-bottom: 60px;
+  margin-bottom: 24px;
 }
 
-.left-content h1 {
-  font-size: clamp(3rem, 8vw, 56px);
-  margin: 0 0 24px;
-  font-weight: 700;
-  line-height: 1.05;
-  color: #ffffff;
-}
-
-.left-panel-tagline {
-  margin: 0;
-  max-width: 32ch;
-  font-size: 1.05rem;
-  line-height: 1.5;
-  color: rgba(255, 255, 255, 0.9);
-  font-weight: 500;
+.siga-logo {
+  display: block;
+  width: 180px;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+  mix-blend-mode: normal;
 }
 
 .right-panel {
@@ -201,6 +197,32 @@
 
 .error-message {
   margin-bottom: -12px;
+}
+
+.forgot-password-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -16px;
+}
+
+.forgot-password-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.9rem;
+  color: #9b7fd4;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.forgot-password-link:hover:not(:disabled) {
+  color: #8a6ec3;
+}
+
+.forgot-password-link:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
 
 @media (max-width: 900px) {

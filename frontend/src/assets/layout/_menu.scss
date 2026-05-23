@@ -5,7 +5,7 @@
     width: 20rem;
     height: calc(100vh - 8rem);
     z-index: 999;
-    overflow-y: auto;
+    overflow: hidden;
     user-select: none;
     top: 6rem;
     left: 2rem;
@@ -15,6 +15,63 @@
     background-color: var(--surface-overlay);
     border-radius: var(--content-border-radius);
     padding: 0.5rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+
+    app-menu {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+    }
+}
+
+.layout-menu-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+}
+
+.layout-menu-main {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.layout-menu-footer {
+    flex-shrink: 0;
+    margin-top: auto;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--surface-border);
+}
+
+.layout-menu-logout {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    outline: 0 none;
+    color: #ef4444;
+    cursor: pointer;
+    padding: 0.75rem 1rem;
+    border-radius: var(--content-border-radius);
+    text-decoration: none;
+    transition: box-shadow var(--element-transition-duration);
+
+    .layout-menuitem-icon {
+        margin-right: 0.5rem;
+        color: #ef4444;
+    }
+
+    &:hover {
+        background-color: #fee2e2;
+    }
+
+    &:focus {
+        @include focused-inset();
+        box-shadow: 0 0 0 0.2rem rgba(239, 68, 68, 0.2);
+    }
 }
 
 .layout-menu {
@@ -144,25 +201,6 @@
         }
     }
 
-    // Log out menu styling (red accent)
-    .logout-item {
-        a {
-            color: #ef4444 !important;
-
-            .layout-menuitem-icon {
-                color: #ef4444 !important;
-            }
-
-            &:hover {
-                background-color: #fee2e2 !important;
-            }
-
-            &:focus {
-                @include focused-inset();
-                box-shadow: 0 0 0 0.2rem rgba(239, 68, 68, 0.2) !important;
-            }
-        }
-    }
 }
 
 .layout-submenu-enter-from,

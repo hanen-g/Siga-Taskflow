@@ -1,6 +1,7 @@
 package com.taskflow.backend.controller;
 
 import com.taskflow.backend.dto.auth.AuthResponse;
+import com.taskflow.backend.dto.auth.ForgotPasswordRequest;
 import com.taskflow.backend.dto.auth.LoginRequest;
 import com.taskflow.backend.service.AuthService;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +28,34 @@ public class AuthController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ErrorResponse(e.getMessage()));
         } catch (RuntimeException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse(e.getMessage()));
+        }
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@RequestBody ForgotPasswordRequest request) {
+        try {
+            String message = authService.forgotPassword(request.getEmail());
+            return ResponseEntity.ok(new MessageResponse(message));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new ErrorResponse(e.getMessage()));
+        }
+    }
+
+    static class MessageResponse {
+        private String message;
+
+        public MessageResponse(String message) {
+            this.message = message;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+
+        public void setMessage(String message) {
+            this.message = message;
         }
     }
 
