@@ -6,7 +6,9 @@
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "test:ci": "ng test --configuration=ci",
+    "test:coverage": "ng test --configuration=ci"
   },
   "prettier": {
     "printWidth": 100,
@@ -32,11 +34,11 @@
     "@angular/router": "21.2.6",
     "@primeuix/themes": "^2.0.3",
     "@stomp/stompjs": "^7.3.0",
+    "chart.js": "^4.4.9",
     "prettier-plugin-tailwindcss": "^0.7.2",
     "primeflex": "^4.0.0",
     "primeicons": "^7.0.0",
     "primeng": "^21.1.1",
-    "chart.js": "^4.4.9",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0"
   },
@@ -44,6 +46,7 @@
     "@angular/build": "21.2.6",
     "@angular/cli": "21.2.6",
     "@angular/compiler-cli": "21.2.6",
+    "@vitest/coverage-v8": "^4.1.7",
     "autoprefixer": "^10.4.24",
     "jsdom": "^27.1.0",
     "postcss": "^8.5.6",

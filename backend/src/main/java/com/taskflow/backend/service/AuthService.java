@@ -28,6 +28,10 @@ public class AuthService {
     private final RandomPasswordService randomPasswordService;
     private final SkillRepository skillRepository;
     private final CompanyService companyService;
+    private final AccountEmailService accountEmailService;
+
+    public static final String FORGOT_PASSWORD_GENERIC_MESSAGE =
+            "If an account exists for this email, a new password has been sent.";
 
     public AuthService(
             UserRepository userRepository,
@@ -35,7 +39,8 @@ public class AuthService {
             JwtService jwtService,
             RandomPasswordService randomPasswordService,
             SkillRepository skillRepository,
-            CompanyService companyService
+            CompanyService companyService,
+            AccountEmailService accountEmailService
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
@@ -43,6 +48,7 @@ public class AuthService {
         this.randomPasswordService = randomPasswordService;
         this.skillRepository = skillRepository;
         this.companyService = companyService;
+        this.accountEmailService = accountEmailService;
     }
 
     public record ProvisioningResult(User user, String temporaryPassword) {}
@@ -129,6 +135,41 @@ public class AuthService {
                 user.getRole().name()
         );
         return new AuthResponse(token, user);
+    }
+
+    /**
+     * Generates a new password, emails it to the user, and persists the encoded password.
+     * Always returns the same message when the email is unknown or inactive (no enumeration).
+     */
+    public String forgotPassword(String email) {
+        String normalized = normalizeEmail(email);
+        if (normalized == null || normalized.isEmpty()) {
+            throw new IllegalArgumentException("Email is required.");
+        }
+
+        var userOpt = userRepository.findByEmail(normalized);
+        if (userOpt.isEmpty() || !userOpt.get().isActive()) {
+            return FORGOT_PASSWORD_GENERIC_MESSAGE;
+        }
+
+        User user = userOpt.get();
+        String newPassword = randomPasswordService.generateTemporaryPassword();
+        AccountEmailService.WelcomeEmailResult emailResult = accountEmailService.sendPasswordResetEmail(
+                user.getEmail(),
+                user.getFirstName(),
+                newPassword
+        );
+
+        if (!emailResult.sent() && !emailResult.skippedBecauseNotConfigured()) {
+            throw new IllegalStateException(
+                    "Could not send the password reset email. Check mail settings or try again later."
+            );
+        }
+
+        user.setPassword(passwordEncoder.encode(newPassword));
+        userRepository.save(user);
+
+        return FORGOT_PASSWORD_GENERIC_MESSAGE;
     }
 
     private String normalizeEmail(String email) {

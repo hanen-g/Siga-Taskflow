@@ -5,4 +5,12 @@
     padding: 1rem 0 1rem 0;
     gap: 0.5rem;
     border-top: 1px solid var(--surface-border);
+
+    .layout-footer-logo {
+        height: 1.25rem;
+        width: auto;
+        max-width: 7rem;
+        object-fit: contain;
+        display: block;
+    }
 }

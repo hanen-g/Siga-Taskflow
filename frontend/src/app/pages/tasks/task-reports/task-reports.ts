@@ -100,4 +100,19 @@ export class TaskReportsPage implements OnInit {
   trackByReport(_index: number, report: TaskReport): number | undefined {
     return report.id;
   }
+  getReasonClass(reason: string): string {
+  const r = reason?.toLowerCase() ?? '';
+  if (r.includes('skill')) return 'skills';
+  if (r.includes('missing') || r.includes('file') || r.includes('information')) return 'missing';
+  if (r.includes('many') || r.includes('overload')) return 'overload';
+  return 'default';
+}
+
+getReasonIcon(reason: string): string {
+  const r = reason?.toLowerCase() ?? '';
+  if (r.includes('skill')) return 'pi-exclamation-triangle';
+  if (r.includes('missing') || r.includes('file') || r.includes('information')) return 'pi-file';
+  if (r.includes('many') || r.includes('overload')) return 'pi-th-large';
+  return 'pi-flag';
+}
 }

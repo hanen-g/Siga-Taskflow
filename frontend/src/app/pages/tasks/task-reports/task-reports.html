@@ -1,10 +1,24 @@
 <p-toast></p-toast>
 
 <div class="task-reports-page">
+
   <div class="reports-header">
-    <div>
-      <h1>Task Reports</h1>
-      <p>Review collaborator complaints and mark them fixed when the issue is handled.</p>
+    <h1>Task Reports</h1>
+    <p>Review collaborator complaints and mark them fixed when the issue is handled.</p>
+  </div>
+
+  <div *ngIf="!isLoading && !errorMessage && reports.length" class="stats-row">
+    <div class="stat-card">
+      <span class="stat-label">Total reports</span>
+      <span class="stat-value">{{ reports.length }}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Pending</span>
+      <span class="stat-value amber">{{ reports.length }}</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Resolved</span>
+      <span class="stat-value green">0</span>
     </div>
   </div>
 
@@ -25,27 +39,34 @@
 
   <div class="reports-list" *ngIf="!isLoading && !errorMessage && reports.length">
     <article class="report-card" *ngFor="let report of reports; trackBy: trackByReport">
-      <div class="report-main">
-        <div class="report-topline">
-          <span class="reason">{{ report.reason }}</span>
-          <span class="created">{{ formatDate(report.createdAt) }}</span>
-        </div>
-        <h2>{{ report.taskTitle }}</h2>
-        <div class="meta">
-          <span><i class="pi pi-folder"></i>{{ report.projectName }}</span>
-          <span><i class="pi pi-user"></i>{{ report.reporterName || report.reporterEmail }}</span>
-        </div>
-        <p>{{ report.details }}</p>
+
+      <div class="reason-banner" [ngClass]="getReasonClass(report.reason)">
+        <i class="pi" [ngClass]="getReasonIcon(report.reason)"></i>
+        <span class="reason-tag">{{ report.reason }}</span>
+        <span class="reason-time">{{ formatDate(report.createdAt) }}</span>
       </div>
 
-      <button
-        pButton
-        type="button"
-        icon="pi pi-check"
-        label="Mark fixed"
-        [disabled]="isResolving(report)"
-        (click)="resolveReport(report)"
-      ></button>
+      <div class="card-body">
+        <div class="report-main">
+          <h2>{{ report.taskTitle }}</h2>
+          <div class="meta">
+            <span><i class="pi pi-folder"></i>{{ report.projectName }}</span>
+            <span><i class="pi pi-user"></i>{{ report.reporterName || report.reporterEmail }}</span>
+          </div>
+          <p class="card-message">{{ report.details }}</p>
+        </div>
+
+        <button
+          pButton
+          type="button"
+          icon="pi pi-check"
+          label="Mark fixed"
+          class="btn-fixed"
+          [disabled]="isResolving(report)"
+          (click)="resolveReport(report)"
+        ></button>
+      </div>
+
     </article>
   </div>
 </div>

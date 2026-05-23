@@ -12,6 +12,9 @@ node_modules/
 dist/
 build/
 
+# test coverage (Vitest / ng test)
+coverage/
+
 # logs
 npm-debug.log*
 yarn-debug.log*

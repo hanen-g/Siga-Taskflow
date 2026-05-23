@@ -17,13 +17,6 @@ import { distinctUntilChanged, filter, takeUntil } from 'rxjs/operators';
     imports: [RouterModule, CommonModule, OverlayBadgeModule, ProjectsCalendarDialog],
     templateUrl: './app.topbar.html',
     styles: [`
-        .logo-image {
-            height: 40px;
-            width: auto;
-            margin-right: 0.75rem;
-            object-fit: contain;
-        }
-
         .notification-container {
             position: relative;
             display: inline-block;

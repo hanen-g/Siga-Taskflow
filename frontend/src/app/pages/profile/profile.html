@@ -9,8 +9,6 @@
 
     <div class="profile-body">
       <aside class="picture-card">
-        <h2>Profile Picture</h2>
-
         <div class="avatar-stage">
           <div class="circular-container">
             <ng-container *ngIf="profilePictureDisplaySrc; else avatarFallback">
@@ -28,17 +26,28 @@
           </div>
         </div>
 
-        <input
-          id="profilePictureUpload"
-          type="file"
-          accept="image/*"
-          class="hidden-file-input"
-          (change)="onProfilePictureChange($event)" />
+        <ng-container *ngIf="isEditingProfile">
+          <input
+            id="profilePictureUpload"
+            type="file"
+            accept="image/*"
+            class="hidden-file-input"
+            (change)="onProfilePictureChange($event)" />
 
-        <label for="profilePictureUpload" class="upload-button">
-          <i class="pi pi-upload"></i>
-          <span>Change Profile Picture</span>
-        </label>
+          <label for="profilePictureUpload" class="upload-button">
+            <i class="pi pi-upload"></i>
+            <span>Change Profile Picture</span>
+          </label>
+        </ng-container>
+
+        <section class="status-card">
+          <div class="status-header">
+            <h3>Account Status</h3>
+            <i class="pi pi-verified"></i>
+          </div>
+          <p>Role: {{ roleLabel }}</p>
+          <p>{{ memberSinceStatusLine }}</p>
+        </section>
       </aside>
 
       <div class="details-column">
@@ -155,15 +164,6 @@
               [loading]="isLoading && !isEditingProfile"
               (click)="isEditingProfile ? cancelEditing() : enterChangePasswordMode()"></button>
           </div>
-
-          <section class="status-card">
-            <div class="status-header">
-              <h3>Account Status</h3>
-              <i class="pi pi-verified"></i>
-            </div>
-            <p>Role: {{ roleLabel }}</p>
-            <p>{{ memberSinceStatusLine }}</p>
-          </section>
         </div>
       </div>
     </div>

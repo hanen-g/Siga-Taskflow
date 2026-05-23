@@ -42,6 +42,7 @@ export class Login implements OnInit {
   password = '';
   message = '';
   isLoading = false;
+  isResettingPassword = false;
   logoSrc = '/assets/images/LOGO_SIGA.png';
   private readonly fallbackLogoSrc = 'https://www.siga.tn/wp-content/uploads/2018/02/NV_LOGO_SIGA_2_69.png';
 
@@ -134,6 +135,53 @@ export class Login implements OnInit {
           life: 3000
         });
         this.isLoading = false;
+      },
+    });
+  }
+
+  forgotPassword() {
+    const email = this.username?.trim();
+    if (!email) {
+      this.message = 'Enter your email above, then click Forgot password.';
+      this.messageService.add({
+        severity: 'warn',
+        summary: 'Email required',
+        detail: this.message,
+        life: 4000,
+      });
+      return;
+    }
+
+    this.isResettingPassword = true;
+    this.message = '';
+
+    this.api.forgotPassword(email).subscribe({
+      next: (res) => {
+        const detail =
+          res.message ||
+          'If an account exists for this email, a new password has been sent.';
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Check your email',
+          detail,
+          life: 6000,
+        });
+        this.isResettingPassword = false;
+      },
+      error: (err) => {
+        const detail =
+          err.error?.message ||
+          (err.status === 0
+            ? 'Unable to connect to server. Please check if backend is running.'
+            : 'Could not send password reset email. Please try again later.');
+        this.message = detail;
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Password reset failed',
+          detail,
+          life: 5000,
+        });
+        this.isResettingPassword = false;
       },
     });
   }

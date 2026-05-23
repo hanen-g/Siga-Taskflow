@@ -3,14 +3,18 @@
 
   <section class="left-panel">
     <div class="left-bg-overlay"></div>
-    <img
-      [src]="logoSrc"
-      (error)="handleLogoError($event)"
-      alt="SIGA"
-      class="left-top-logo" />
-    <div class="left-content">
-      <h1>TaskFlow</h1>
-      <p class="left-panel-tagline">Your platform for a smooth workflow experience.</p>
+    <div class="taskflow-logo-wrap">
+      <img
+        src="assets/images/Logo taskflow.png"
+        alt="TaskFlow"
+        class="taskflow-logo" />
+    </div>
+    <div class="left-brand">
+      <img
+        [src]="logoSrc"
+        (error)="handleLogoError($event)"
+        alt="SIGA"
+        class="siga-logo" />
     </div>
   </section>
 
@@ -35,7 +39,7 @@
             id="username"
             [(ngModel)]="username"
             placeholder="Enter your email"
-            [disabled]="isLoading"
+            [disabled]="isLoading || isResettingPassword"
             required
             class="underline-input" />
         </div>
@@ -49,14 +53,25 @@
             id="password"
             [(ngModel)]="password"
             placeholder="Password"
-            [disabled]="isLoading"
+            [disabled]="isLoading || isResettingPassword"
             required
             class="underline-input" />
         </div>
+
+        <div class="forgot-password-row">
+          <button
+            type="button"
+            class="forgot-password-link"
+            (click)="forgotPassword()"
+            [disabled]="isLoading || isResettingPassword">
+            {{ isResettingPassword ? 'Sending...' : 'Forgot password?' }}
+          </button>
+        </div>
+
 <button
   type="submit"
   class="signin-btn"
-  [disabled]="isLoading">
+  [disabled]="isLoading || isResettingPassword">
   {{ isLoading ? 'Signing in...' : 'Sign in' }}
 </button>
       </form>

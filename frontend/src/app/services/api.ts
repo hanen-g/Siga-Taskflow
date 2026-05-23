@@ -22,6 +22,13 @@ login(email: string, password: string) {
   );
 }
 
+forgotPassword(email: string) {
+  return this.http.post<MessageResponse>(
+    `${this.baseUrl}/auth/forgot-password`,
+    { email }
+  );
+}
+
 getProfile() {
   return this.http.get<UserProfile>(`${this.baseUrl}/user/me`);
 }
@@ -74,6 +81,10 @@ export interface AuthResponse {
   firstName: string;
   lastName: string;
   role: string;
+}
+
+export interface MessageResponse {
+  message: string;
 }
 
 export interface UserProfile {
