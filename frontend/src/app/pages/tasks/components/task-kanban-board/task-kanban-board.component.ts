@@ -537,7 +537,7 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
 
   statusListId(status: TaskStatus): string {
     const prefix = this.projectId != null ? `p${this.projectId}` : 'g';
-    return `${prefix}-status-${status.toLowerCase().replaceAll(/_/g, '-')}`;
+    return `${prefix}-status-${status.toLowerCase().replaceAll('_', '-')}`;
   }
 
   connectedDropLists(): string[] {
@@ -780,7 +780,7 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
 
   private statusFromListId(listId: string): TaskStatus {
     const tail = listId.split('status-').pop() ?? '';
-    const raw = tail.replaceAll(/-/g, '_').toUpperCase();
+    const raw = tail.replaceAll('-', '_').toUpperCase();
     switch (raw) {
       case 'TODO':
         return TaskStatus.TODO;

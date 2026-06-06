@@ -5,15 +5,15 @@
   </header>
 
   <div class="controls-bar">
-    <label class="search-wrap">
+    <label class="search-wrap" for="um-search">
       <span class="search-label">Search users</span>
       <input
+        id="um-search"
         type="search"
         class="um-input um-input--search"
         placeholder="Search by name or email…"
         [(ngModel)]="searchTerm"
         (ngModelChange)="onSearchChange()"
-        autocomplete="off"
       />
     </label>
     <select
@@ -37,7 +37,12 @@
   } @else {
     <div class="card-grid">
       @for (user of users; track user.id) {
-        <div class="user-card" (click)="openUserDetail(user)" (keydown.enter)="openUserDetail(user)" tabindex="0" role="button">
+        <button
+          type="button"
+          class="user-card"
+          (click)="openUserDetail(user)"
+          (keydown.enter)="openUserDetail(user)"
+        >
           <div
             class="user-card__avatar"
             [class.user-card__avatar--green]="avatarFamily(user) === 'green'"
@@ -65,15 +70,11 @@
             <span class="status-dot" [class.status-dot--active]="user.active" [class.status-dot--inactive]="!user.active"></span>
             <span class="status-label">{{ user.active ? 'Active' : 'Inactive' }}</span>
           </div>
-          <button
-            type="button"
-            class="view-details-btn"
-            (click)="openUserDetail(user); $event.stopPropagation()"
-          >
+          <span class="view-details-btn">
             <i class="pi pi-user" aria-hidden="true"></i>
             View details
-          </button>
-        </div>
+          </span>
+        </button>
       } @empty {
         <p class="empty-state">No users matched the current filters.</p>
       }
@@ -82,7 +83,7 @@
 
   <!-- Detail modal -->
   @if (detailUser) {
-    <div tabindex="0" class="um-modal-backdrop" (click)="onDetailBackdrop($event)">
+    <div class="um-modal-backdrop" (click)="onDetailBackdrop($event)">
       <div class="um-modal" role="dialog" aria-modal="true" aria-labelledby="um-detail-title" (click)="$event.stopPropagation()">
         <button type="button" class="um-modal-close" (click)="closeUserDetail()" aria-label="Close">✕</button>
 

@@ -180,7 +180,7 @@ export class UserManagementPage implements OnInit, OnDestroy {
     if (role === 'COLLABORATOR') return 'Collaborator';
     if (role === 'ADMIN') return 'Admin';
     if (role === 'CLIENT') return 'Client';
-    return role.replaceAll(/_/g, ' ').toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
+    return role.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
   }
 
   avatarFamily(user: AdminUser): AvatarFamily {
@@ -309,7 +309,7 @@ export class UserManagementPage implements OnInit, OnDestroy {
       firstName: user.firstName ?? '',
       lastName: user.lastName ?? '',
       email: user.email ?? '',
-      role: user.role !== 'CLIENT' ? user.role : 'COLLABORATOR',
+      role: user.role === 'CLIENT' ? 'COLLABORATOR' : user.role,
       skillIds: (user.skills ?? []).map((s) => s.id),
       phoneNumber: user.phoneNumber ?? '',
       address: user.address ?? '',

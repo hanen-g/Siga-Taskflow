@@ -69,7 +69,7 @@
 .project-detail-sidebar .project-info-grid{display:flex;flex-direction:column;border-top:1px solid rgba(203,213,225,.75)}
 .project-detail-sidebar .project-info-row{display:flex;flex-direction:column;align-items:flex-start;gap:.2rem;padding:.7rem 0}
 .project-detail-sidebar .project-info-row--skills .project-info-label{margin-bottom:.15rem}
-.project-detail-sidebar .project-detail-project-skills{display:flex;flex-wrap:wrap;gap:.35rem .45rem;align-items:center}
+.project-detail-sidebar .project-detail-project-skills{display:flex;flex-wrap:wrap;gap:.35rem .45rem;align-items:center;list-style:none;margin:0;padding:0}
 .project-detail-sidebar .project-skill-chip{margin:0}
 .project-detail-sidebar .project-info-value{text-align:left}
 .project-detail-sidebar .project-file-box{margin-top:1rem}

@@ -138,6 +138,7 @@
   align-items: center;
   text-align: center;
   gap: 8px;
+  width: 100%;
   padding: 1rem;
   background: #fff;
   border: var(--um-border);
@@ -145,6 +146,9 @@
   cursor: pointer;
   box-sizing: border-box;
   transition: border-color 0.15s ease;
+  font: inherit;
+  color: inherit;
+  appearance: none;
 }
 
 .user-card:hover {
@@ -286,9 +290,8 @@
   border-radius: 8px;
   background: transparent;
   color: var(--um-text-primary);
-  cursor: pointer;
   box-sizing: border-box;
-  transition: background 0.12s ease;
+  pointer-events: none;
 }
 
 .view-details-btn .pi {

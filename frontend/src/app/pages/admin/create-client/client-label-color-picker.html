@@ -1,6 +1,6 @@
 <div class="client-label-picker" [class.is-disabled]="disabled">
   <span class="client-label-picker-label">{{ heading }}</span>
-  <div class="container-items" role="listbox" [attr.aria-label]="heading">
+  <fieldset class="container-items" [attr.aria-label]="heading" [disabled]="disabled">
     @for (c of palette; track c) {
       <button
         type="button"
@@ -13,5 +13,5 @@
         (click)="pick(c)"
       ></button>
     }
-  </div>
+  </fieldset>
 </div>

@@ -33,12 +33,10 @@ export class AppSidebar implements OnInit, OnDestroy {
                 } else {
                     this.unbindOutsideClickListener();
                 }
+            } else if (state.mobileMenuActive) {
+                this.bindOutsideClickListener();
             } else {
-                if (state.mobileMenuActive) {
-                    this.bindOutsideClickListener();
-                } else {
-                    this.unbindOutsideClickListener();
-                }
+                this.unbindOutsideClickListener();
             }
         });
     }

@@ -322,7 +322,7 @@ export class AdminAdvancedFilterPage implements OnInit {
           row.skills.join('; '),
           row.projectStatusLabel ? this.statusDisplayLabel(row.projectStatusLabel) : ''
         ]
-          .map((value) => `"${String(value).replaceAll(/"/g, '""')}"`)
+          .map((value) => `"${String(value).replaceAll('"', '""')}"`)
           .join(',')
       );
     });
@@ -372,9 +372,9 @@ export class AdminAdvancedFilterPage implements OnInit {
 
   private escapeHtml(s: string): string {
     return s
-      .replaceAll(/&/g, '&amp;')
-      .replaceAll(/</g, '&lt;')
-      .replaceAll(/>/g, '&gt;')
-      .replaceAll(/"/g, '&quot;');
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;');
   }
 }

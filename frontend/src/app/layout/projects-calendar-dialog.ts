@@ -212,7 +212,8 @@ export class ProjectsCalendarDialog implements OnChanges {
   }
 
   private calendarKeyFromString(trimmed: string): string | null {
-    const head = trimmed.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    const dateHeadPattern = /^(\d{4})-(\d{2})-(\d{2})/;
+    const head = dateHeadPattern.exec(trimmed.trim());
     if (head) {
       return `${head[1]}-${head[2]}-${head[3]}`;
     }
@@ -231,7 +232,7 @@ export class ProjectsCalendarDialog implements OnChanges {
     const moIndex = Number(raw[1]);
     const day = Number(raw[2]);
     if (Number.isNaN(y) || Number.isNaN(moIndex) || Number.isNaN(day)) return null;
-    const monthJs = moIndex >= 1 && moIndex <= 12 ? moIndex - 1 : NaN;
+    const monthJs = moIndex >= 1 && moIndex <= 12 ? moIndex - 1 : Number.NaN;
     if (Number.isNaN(monthJs)) return null;
     return this.toDateKey(new Date(y, monthJs, day));
   }

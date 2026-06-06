@@ -309,12 +309,11 @@
             <div *ngIf="!isClientPortal()" class="project-info-row project-info-row--skills">
               <span class="project-info-label">Required skills</span>
               <ng-container *ngIf="(project.requiredSkills?.length ?? 0) > 0; else noRequiredSkills">
-                <div class="project-detail-project-skills" role="list">
-                  <span
+                <ul class="project-detail-project-skills">
+                  <li
                     *ngFor="let s of project.requiredSkills"
-                    class="task-skill-chip project-skill-chip"
-                    role="listitem">{{ s.name }}</span>
-                </div>
+                    class="task-skill-chip project-skill-chip">{{ s.name }}</li>
+                </ul>
               </ng-container>
               <ng-template #noRequiredSkills>
                 <span class="project-info-value">—</span>

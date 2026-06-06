@@ -444,7 +444,6 @@
 }
 
 .approve-button {
-  font-size: 0.85rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -503,7 +502,7 @@
   height: 3.5rem;
   border-radius: 999px;
   background: #f1f5f9;
-  color: #64748b;
+  color: #475569;
   font-size: 1.4rem;
   margin-bottom: 0.85rem;
 }

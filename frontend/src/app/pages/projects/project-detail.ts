@@ -332,7 +332,7 @@ export class ProjectDetailPage implements OnInit, OnDestroy {
   ngOnInit() {
     this.backLink = this.resolveProjectsListUrl();
     const idParam = this.route.snapshot.paramMap.get('projectId');
-    const id = idParam ? Number(idParam) : NaN;
+    const id = idParam ? Number(idParam) : Number.NaN;
     if (!Number.isFinite(id)) {
       this.error = 'Invalid project.';
       return;
