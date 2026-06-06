@@ -102,7 +102,7 @@ export class UserManagementPage implements OnInit, OnDestroy {
     merge(
       this.route.queryParamMap.pipe(
         tap((params) => this.applyRoleFromQuery(params)),
-        map(() => void 0 as void)
+        map(() => undefined)
       ),
       this.refresh$
     )
@@ -126,11 +126,11 @@ export class UserManagementPage implements OnInit, OnDestroy {
   }
 
   constructor(
-    private userService: UserService,
-    private fileAccessService: FileAccessService,
-    private cdr: ChangeDetectorRef,
-    private skillService: SkillService,
-    private route: ActivatedRoute
+    private readonly userService: UserService,
+    private readonly fileAccessService: FileAccessService,
+    private readonly cdr: ChangeDetectorRef,
+    private readonly skillService: SkillService,
+    private readonly route: ActivatedRoute
   ) {}
 
   private applyRoleFromQuery(params: ParamMap): void {
@@ -180,7 +180,7 @@ export class UserManagementPage implements OnInit, OnDestroy {
     if (role === 'COLLABORATOR') return 'Collaborator';
     if (role === 'ADMIN') return 'Admin';
     if (role === 'CLIENT') return 'Client';
-    return role.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
+    return role.replaceAll(/_/g, ' ').toLowerCase().replace(/\b\w/g, (m) => m.toUpperCase());
   }
 
   avatarFamily(user: AdminUser): AvatarFamily {

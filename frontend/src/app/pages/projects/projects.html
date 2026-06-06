@@ -70,7 +70,8 @@
         *ngIf="isAdmin && pendingProposals.length && showsFullProjectsDashboard()"
         class="projects-proposals-urgent"
         role="alert"
-        aria-live="polite">
+        aria-live="polite"
+        aria-label="Proposed projects requiring review">
         <div class="projects-proposals-urgent-header">
           <img
             src="assets/images/proposed-subjects-icon.png"
@@ -87,11 +88,10 @@
           <a
             [routerLink]="projectProposalsReviewPath"
             pButton
-            label="Review now"
             icon="pi pi-arrow-right"
             iconPos="right"
             class="projects-proposals-urgent-link p-button-danger"
-          ></a>
+          >Review now</a>
         </div>
       </aside>
 
@@ -303,8 +303,8 @@
 
   <ng-template pTemplate="content">
     <div class="flex flex-column mb-5 mt-3">
-      <label class="font-bold mb-2">Name <span class="text-red-500">*</span></label>
-      <input pInputText 
+      <label for="name-1" class="font-bold mb-2">Name <span class="text-red-500">*</span></label>
+      <input id="name-1" pInputText 
              [(ngModel)]="newProject.name" 
              class="w-full"
              placeholder="Enter project name"
@@ -312,8 +312,8 @@
     </div>
 
     <div class="flex flex-column mb-4">
-      <label class="font-bold mb-2">Description</label>
-      <textarea pInputTextarea 
+      <label for="description-2" class="font-bold mb-2">Description</label>
+      <textarea id="description-2" pInputTextarea 
                 rows="6"
                 [(ngModel)]="newProject.description"
                 class="w-full"
@@ -321,8 +321,8 @@
     </div>
 
     <div class="flex flex-column mb-2">
-      <label class="font-bold mb-2">Project start</label>
-      <input
+      <label for="project-start-3" class="font-bold mb-2">Project start</label>
+      <input id="project-start-3"
         pInputText
         type="date"
         [(ngModel)]="newProject.startDate"
@@ -330,8 +330,8 @@
     </div>
 
     <div class="flex flex-column mb-2">
-      <label class="font-bold mb-2">Deadline</label>
-      <input
+      <label for="deadline-4" class="font-bold mb-2">Deadline</label>
+      <input id="deadline-4"
         pInputText
         type="date"
         [(ngModel)]="newProject.deadline"
@@ -339,8 +339,8 @@
     </div>
 
     <div class="flex flex-column mb-2">
-      <label class="font-bold mb-2">Required skills</label>
-      <p-multiselect
+      <label for="required-skills-5" class="font-bold mb-2">Required skills</label>
+      <p-multiselect id="required-skills-5"
         [options]="allSkills"
         optionLabel="name"
         optionValue="id"
@@ -358,8 +358,8 @@
     </div>
 
     <div *ngIf="isAdmin" class="flex flex-column mb-4 mt-1">
-      <label class="font-bold mb-2">Project manager *</label>
-      <p-select
+      <label for="project-manager-6" class="font-bold mb-2">Project manager *</label>
+      <p-select id="project-manager-6"
         [options]="projectManagerOptions()"
         [(ngModel)]="newProject.managerId"
         optionLabel="label"
@@ -389,8 +389,8 @@
     </div>
 
     <div *ngIf="isAdmin" class="flex flex-column mb-4">
-      <label class="font-bold mb-2">Clients</label>
-      <p-multiselect
+      <label for="clients-7" class="font-bold mb-2">Clients</label>
+      <p-multiselect id="clients-7"
         [options]="clientOptions()"
         optionLabel="label"
         optionValue="value"
@@ -407,8 +407,8 @@
       <p *ngIf="clientsLoadError" class="text-sm text-red-500 mt-1 m-0">{{ clientsLoadError }}</p>
     </div>
     <div class="flex flex-column mb-2">
-      <label class="font-bold mb-2">Attachment</label>
-      <input
+      <label for="attachment-8" class="font-bold mb-2">Attachment</label>
+      <input id="attachment-8"
         type="file"
         class="w-full"
         (change)="onCreateProjectFileSelected($event)" />
@@ -473,12 +473,12 @@
       Your idea is sent to an administrator for review.
     </p>
     <div class="flex flex-column mb-4">
-      <label class="font-bold mb-2">Project title <span class="text-red-500">*</span></label>
-      <input pInputText [(ngModel)]="proposeIdea.name" class="w-full" placeholder="Name for your project idea" />
+      <label for="project-title-9" class="font-bold mb-2">Project title <span class="text-red-500">*</span></label>
+      <input id="project-title-9" pInputText [(ngModel)]="proposeIdea.name" class="w-full" placeholder="Name for your project idea" />
     </div>
     <div class="flex flex-column mb-4">
-      <label class="font-bold mb-2">Description</label>
-      <textarea
+      <label for="description-10" class="font-bold mb-2">Description</label>
+      <textarea id="description-10"
         pInputTextarea
         rows="5"
         [(ngModel)]="proposeIdea.description"
@@ -487,8 +487,8 @@
       ></textarea>
     </div>
     <div class="flex flex-column mb-4">
-      <label class="font-bold mb-2">Client contact</label>
-      <input
+      <label for="client-contact-11" class="font-bold mb-2">Client contact</label>
+      <input id="client-contact-11"
         pInputText
         [(ngModel)]="proposeIdea.clientContact"
         class="w-full"

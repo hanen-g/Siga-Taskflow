@@ -64,7 +64,7 @@ export interface ClientAccountOption {
 export class UserService {
   private readonly apiUrl = 'http://localhost:8080/api/user';
 
-  constructor(private http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {}
 
   getProjectManager(): Observable<ProjectManagerOption[]> {
     return this.http.get<ProjectManagerOption[]>(`${this.apiUrl}/admin/project-managers`);

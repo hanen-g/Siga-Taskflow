@@ -94,9 +94,9 @@ export class CreateUsersPage implements OnInit {
   }
 
   constructor(
-    private userService: UserService,
-    private messageService: MessageService,
-    private skillService: SkillService
+    private readonly userService: UserService,
+    private readonly messageService: MessageService,
+    private readonly skillService: SkillService
   ) {}
 
   ngOnInit(): void {

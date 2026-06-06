@@ -75,9 +75,9 @@ export class AdminAdvancedFilterPage implements OnInit {
   ];
 
   constructor(
-    private reporting: ReportingService,
-    private messages: MessageService,
-    private cdr: ChangeDetectorRef
+    private readonly reporting: ReportingService,
+    private readonly messages: MessageService,
+    private readonly cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -248,17 +248,20 @@ export class AdminAdvancedFilterPage implements OnInit {
     if (!this.useRoleUserFilter) {
       return base;
     }
-    return {
-      ...base,
-      ...(this.rolePmUserId != null ? { filterPmUserId: this.rolePmUserId } : {}),
-      ...(this.roleCollaboratorUserId != null
-        ? {
-            filterCollaboratorUserId: this.roleCollaboratorUserId,
-            ...(this.roleCollaboratorMatchTasks ? { filterCollaboratorMatchTasks: true } : {})
-          }
-        : {}),
-      ...(this.roleClientUserId != null ? { filterClientUserId: this.roleClientUserId } : {})
-    };
+    const filter: AdminProjectAdvancedFilter = { ...base };
+    if (this.rolePmUserId != null) {
+      filter.filterPmUserId = this.rolePmUserId;
+    }
+    if (this.roleCollaboratorUserId != null) {
+      filter.filterCollaboratorUserId = this.roleCollaboratorUserId;
+      if (this.roleCollaboratorMatchTasks) {
+        filter.filterCollaboratorMatchTasks = true;
+      }
+    }
+    if (this.roleClientUserId != null) {
+      filter.filterClientUserId = this.roleClientUserId;
+    }
+    return filter;
   }
 
   private load(page: number, size: number): void {
@@ -319,7 +322,7 @@ export class AdminAdvancedFilterPage implements OnInit {
           row.skills.join('; '),
           row.projectStatusLabel ? this.statusDisplayLabel(row.projectStatusLabel) : ''
         ]
-          .map((value) => `"${String(value).replace(/"/g, '""')}"`)
+          .map((value) => `"${String(value).replaceAll(/"/g, '""')}"`)
           .join(',')
       );
     });
@@ -333,7 +336,7 @@ export class AdminAdvancedFilterPage implements OnInit {
   }
 
   private openPrintablePdfView(): void {
-    const win = window.open('', '_blank');
+    const win = globalThis.open('', '_blank');
     if (!win) {
       this.messages.add({
         severity: 'warn',
@@ -356,17 +359,22 @@ export class AdminAdvancedFilterPage implements OnInit {
         </div>`
       )
       .join('');
-    win.document.write(`<html><head><title>TaskFlow Advanced filter</title></head><body>${cards}</body></html>`);
-    win.document.close();
-    win.focus();
-    win.print();
+    const html = `<!DOCTYPE html><html><head><title>TaskFlow Advanced filter</title></head><body>${cards}</body></html>`;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    win.location.href = url;
+    win.onload = () => {
+      URL.revokeObjectURL(url);
+      win.focus();
+      win.print();
+    };
   }
 
   private escapeHtml(s: string): string {
     return s
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;');
+      .replaceAll(/&/g, '&amp;')
+      .replaceAll(/</g, '&lt;')
+      .replaceAll(/>/g, '&gt;')
+      .replaceAll(/"/g, '&quot;');
   }
 }

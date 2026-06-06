@@ -7,7 +7,7 @@ import { TaskReport, TaskReportRequest } from '../models/task-report.model';
 export class TaskReportService {
   private readonly apiUrl = 'http://localhost:8080/api/task-reports';
 
-  constructor(private http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {}
 
   createReport(taskId: number, payload: TaskReportRequest): Observable<TaskReport> {
     return this.http.post<TaskReport>(`${this.apiUrl}/tasks/${taskId}`, payload);

@@ -13,8 +13,7 @@ import { MessageService } from 'primeng/api';
 
 import { RouterModule, Router } from '@angular/router';
 import { ApiService } from '../../services/api';
-import { Location } from '@angular/common';
-import { CommonModule } from '@angular/common';
+import { CommonModule, Location } from '@angular/common';
 
 @Component({
   selector: 'app-login',
@@ -47,10 +46,10 @@ export class Login implements OnInit {
   private readonly fallbackLogoSrc = 'https://www.siga.tn/wp-content/uploads/2018/02/NV_LOGO_SIGA_2_69.png';
 
   constructor(
-    private api: ApiService,
-    private router: Router,
-    private location: Location,
-    private messageService: MessageService
+    private readonly api: ApiService,
+    private readonly router: Router,
+    private readonly location: Location,
+    private readonly messageService: MessageService
   ) {}
 
   ngOnInit() {

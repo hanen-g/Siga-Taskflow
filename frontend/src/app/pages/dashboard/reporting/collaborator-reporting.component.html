@@ -35,23 +35,23 @@
     <p-card header="Performance summary">
       <div class="perf-grid">
         <div>
-          <label class="muted">Completion rate</label>
+          <label for="completion-rate-12" class="muted">Completion rate</label>
           <p-progressBar [value]="data.completionRatePercent" [style]="{ height: '10px' }" />
           <span class="small">{{ data.completionRatePercent | number : '1.0-1' }}%</span>
         </div>
         <div>
-          <label class="muted">Avg. days from first comment to latest comment on completed tasks</label>
+          <label for="avg-days-from-first-comment-to-latest-co-13" class="muted">Avg. days from first comment to latest comment on completed tasks</label>
           <div class="kpi-lite">
             {{ data.averageCompletionDays != null ? (data.averageCompletionDays | number : '1.0-1') : 'Not enough signal' }}
           </div>
           <small class="hint">Based on Discussion activity timestamps (approximation).</small>
         </div>
         <div>
-          <label class="muted">Returned for rework (signals from PM comments)</label>
+          <label for="returned-for-rework-signals-from-pm-comm-14" class="muted">Returned for rework (signals from PM comments)</label>
           <span class="kpi-lite">{{ data.rejectedByPmHeuristicCount }}</span>
         </div>
         <div>
-          <label class="muted">Waiting for approval (IN_REVIEW)</label>
+          <label for="waiting-for-approval-in-review-15" class="muted">Waiting for approval (IN_REVIEW)</label>
           <span class="kpi-lite">{{ data.inReviewWaitingCount }}</span>
         </div>
       </div>
@@ -62,9 +62,9 @@
         <p-table [value]="data.overdueTasks" [tableStyle]="{ 'min-width': '100%' }">
           <ng-template pTemplate="header">
             <tr>
-              <th>Task</th>
-              <th>Deadline</th>
-              <th>Project</th>
+              <th scope="col">Task</th>
+              <th scope="col">Deadline</th>
+              <th scope="col">Project</th>
             </tr>
           </ng-template>
           <ng-template pTemplate="body" let-row>
@@ -86,9 +86,9 @@
         <p-table [value]="data.onHoldTasks" [tableStyle]="{ 'min-width': '100%' }">
           <ng-template pTemplate="header">
             <tr>
-              <th>Task</th>
-              <th>Reason</th>
-              <th>Project</th>
+              <th scope="col">Task</th>
+              <th scope="col">Reason</th>
+              <th scope="col">Project</th>
             </tr>
           </ng-template>
           <ng-template pTemplate="body" let-row>

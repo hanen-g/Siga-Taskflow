@@ -10,7 +10,7 @@ import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 
 import { Project } from '../../models/project.model';
-import { TaskStatus } from '../../models/task.model';
+import {} from '../../models/task.model';
 
 @Component({
   selector: 'app-project-panel',
@@ -65,7 +65,7 @@ export class ProjectPanel {
     return this.adminProjectControls && this.isPaused;
   }
 
-  constructor(private router: Router) {}
+  constructor(private readonly router: Router) {}
 
   onCardNavigate(event: MouseEvent): void {
     if (!this.detailBase || this.project?.id == null) {
@@ -76,7 +76,7 @@ export class ProjectPanel {
       return;
     }
     const base = this.detailBase.replace(/\/$/, '');
-    void this.router.navigateByUrl(`${base}/${this.project.id}`);
+    this.router.navigateByUrl(`${base}/${this.project.id}`);
   }
 
   resumePausedProject(event: Event): void {

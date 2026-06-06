@@ -49,10 +49,10 @@ export class AdminSkillsPage implements OnInit {
   editSaving = false;
 
   constructor(
-    private skillService: SkillService,
-    private messageService: MessageService,
-    private confirmation: ConfirmationService,
-    private cdr: ChangeDetectorRef,
+    private readonly skillService: SkillService,
+    private readonly messageService: MessageService,
+    private readonly confirmation: ConfirmationService,
+    private readonly cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -69,22 +69,7 @@ export class AdminSkillsPage implements OnInit {
       },
       error: (err) => {
         this.skills = [];
-        const body = err?.error;
-        const serverMsg =
-          typeof body === 'string'
-            ? body
-            : typeof body?.message === 'string'
-              ? body.message
-              : typeof body?.error === 'string'
-                ? body.error
-                : null;
-        const detail =
-          serverMsg ??
-          (err?.status === 403
-            ? 'Access denied. Sign in as an administrator.'
-            : err?.status === 0
-              ? 'Cannot reach the server. Is the backend running on port 8080?'
-              : 'Could not load skills.');
+        const detail = this.skillsLoadErrorDetail(err);
         this.messageService.add({
           severity: 'error',
           summary: 'Error',
@@ -198,6 +183,31 @@ export class AdminSkillsPage implements OnInit {
 
   descriptionLabel(skill: Skill): string {
     return skill.description?.trim() ? skill.description : '—';
+  }
+
+  private skillsLoadErrorDetail(err: { error?: unknown; status?: number }): string {
+    const body = err?.error;
+    let serverMsg: string | null = null;
+    if (typeof body === 'string') {
+      serverMsg = body;
+    } else if (typeof body === 'object' && body !== null) {
+      const record = body as { message?: unknown; error?: unknown };
+      if (typeof record.message === 'string') {
+        serverMsg = record.message;
+      } else if (typeof record.error === 'string') {
+        serverMsg = record.error;
+      }
+    }
+    if (serverMsg) {
+      return serverMsg;
+    }
+    if (err?.status === 403) {
+      return 'Access denied. Sign in as an administrator.';
+    }
+    if (err?.status === 0) {
+      return 'Cannot reach the server. Is the backend running on port 8080?';
+    }
+    return 'Could not load skills.';
   }
 
   usageCount(skill: Skill): number {

@@ -1,7 +1,7 @@
 import { Component, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { Observable, of } from 'rxjs';
+import { Observable, of, Subject, takeUntil } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { FormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
@@ -31,7 +31,6 @@ import { TaskKanbanBoardComponent } from '../tasks/components/task-kanban-board/
 import { ProjectChatPanelComponent } from './project-chat-panel';
 import { ProjectChatService } from '../../services/project-chat.service';
 import { WebsocketService } from '../../services/websocket.service';
-import { Subject, takeUntil } from 'rxjs';
 type ProjectAction =
   | 'edit'
   | 'add-task'
@@ -193,7 +192,7 @@ export class ProjectDetailPage implements OnInit, OnDestroy {
     ];
     const seed = `${project.id ?? ''}${project.name ?? ''}`;
     const index =
-      Array.from(seed).reduce((total, char) => total + char.charCodeAt(0), 0) % palette.length;
+      Array.from(seed).reduce((total, char) => total + (char.codePointAt(0) ?? 0), 0) % palette.length;
     return palette[index];
   }
 
@@ -319,15 +318,15 @@ export class ProjectDetailPage implements OnInit, OnDestroy {
   }
 
   constructor(
-    private route: ActivatedRoute,
-    private projectService: ProjectService,
-    private taskService: TaskService,
-    private fileAccess: FileAccessService,
-    private messageService: MessageService,
-    private confirmationService: ConfirmationService,
-    private userService: UserService,
-    private projectChatService: ProjectChatService,
-    private websocketService: WebsocketService
+    private readonly route: ActivatedRoute,
+    private readonly projectService: ProjectService,
+    private readonly taskService: TaskService,
+    private readonly fileAccess: FileAccessService,
+    private readonly messageService: MessageService,
+    private readonly confirmationService: ConfirmationService,
+    private readonly userService: UserService,
+    private readonly projectChatService: ProjectChatService,
+    private readonly websocketService: WebsocketService
   ) {}
 
   ngOnInit() {

@@ -83,11 +83,11 @@ export class ProfilePage implements OnInit, OnDestroy {
   // ── Constructor ────────────────────────────────────────────────────────────
 
   constructor(
-    private api: ApiService,
-    private messageService: MessageService,
-    private fileAccessService: FileAccessService,
-    private skillService: SkillService,
-    private cdr: ChangeDetectorRef,
+    private readonly api: ApiService,
+    private readonly messageService: MessageService,
+    private readonly fileAccessService: FileAccessService,
+    private readonly skillService: SkillService,
+    private readonly cdr: ChangeDetectorRef,
   ) {
     this.picturePath$
       .pipe(
@@ -295,7 +295,7 @@ export class ProfilePage implements OnInit, OnDestroy {
   /** Parses `yyyy-MM-dd` as a local calendar date for display (avoids UTC off-by-one). */
   private formatProfileCreatedDate(isoDate: string | null | undefined): string {
     if (!isoDate || !/^\d{4}-\d{2}-\d{2}$/.test(isoDate)) return '';
-    const [y, m, d] = isoDate.split('-').map((x) => parseInt(x, 10));
+    const [y, m, d] = isoDate.split('-').map((x) => Number.parseInt(x, 10));
     if (!y || !m || !d) return '';
     return new Intl.DateTimeFormat(undefined, {
       day: 'numeric',

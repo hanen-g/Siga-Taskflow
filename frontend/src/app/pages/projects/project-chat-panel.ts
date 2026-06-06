@@ -42,10 +42,10 @@ export class ProjectChatPanelComponent implements OnInit, OnChanges, AfterViewIn
   private readonly destroy$ = new Subject<void>();
 
   constructor(
-    private projectChatService: ProjectChatService,
-    private websocketService: WebsocketService,
-    private cdr: ChangeDetectorRef,
-    private ngZone: NgZone
+    private readonly projectChatService: ProjectChatService,
+    private readonly websocketService: WebsocketService,
+    private readonly cdr: ChangeDetectorRef,
+    private readonly ngZone: NgZone
   ) {}
 
   ngOnInit(): void {

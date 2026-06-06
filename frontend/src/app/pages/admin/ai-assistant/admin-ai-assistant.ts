@@ -23,8 +23,7 @@ import { TextareaModule } from 'primeng/textarea';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { ConfirmationService, MessageService } from 'primeng/api';
 
-import type { AiChatUIMessage } from '../../../models/ai-chat.model';
-import type { AiChatApiResponse } from '../../../models/ai-chat.model';
+import type { AiChatUIMessage, AiChatApiResponse } from '../../../models/ai-chat.model';
 import { AiChatService, trimConversationHistory } from '../../../services/ai-chat.service';
 
 const AI_CHAT_HTTP_TIMEOUT_MS = 180_000;
@@ -32,8 +31,15 @@ const AI_CHAT_HTTP_TIMEOUT_MS = 180_000;
 const OFF_TOPIC_REFUSAL =
   "I'm here to help with TaskFlow only. Please ask me something related to the app.";
 
-const OFF_TOPIC_KEYWORDS =
-  /\b(weather|forecast|recipe|cooking|joke|jokes|meme|sports?|football|basketball|soccer|politics|election|news|headline|movie|movies|film|song|music|lyrics|poem|poetry|homework|celebrity|gossip|stock market|crypto|bitcoin|ethereum|translate this|write code|python code|javascript code|java code|debug my|leetcode)\b/i;
+const OFF_TOPIC_KEYWORD_GROUPS = [
+  'weather|forecast|recipe|cooking',
+  'joke|jokes|meme|sports?|football|basketball|soccer',
+  'politics|election|news|headline',
+  'movie|movies|film|song|music|lyrics|poem|poetry|homework',
+  'celebrity|gossip|stock market|crypto|bitcoin|ethereum',
+  'translate this|write code|python code|javascript code|java code|debug my|leetcode',
+];
+const OFF_TOPIC_KEYWORDS = new RegExp(`\\b(${OFF_TOPIC_KEYWORD_GROUPS.join('|')})\\b`, 'i');
 
 @Component({
   selector: 'app-admin-ai-assistant',
@@ -77,9 +83,9 @@ export class AdminAiAssistantPage implements OnInit, AfterViewChecked, OnDestroy
   ];
 
   constructor(
-    private aiChat: AiChatService,
-    private confirm: ConfirmationService,
-    private cdr: ChangeDetectorRef
+    private readonly aiChat: AiChatService,
+    private readonly confirm: ConfirmationService,
+    private readonly cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -137,18 +143,18 @@ export class AdminAiAssistantPage implements OnInit, AfterViewChecked, OnDestroy
     if (!this.lastUserForRetry) {
       return;
     }
-    void this.send(this.lastUserForRetry);
+    this.send(this.lastUserForRetry);
   }
 
   chipPick(q: string): void {
     this.welcomeVisible = false;
-    void this.send(q);
+    this.send(q);
   }
 
   composerKey(ev: KeyboardEvent): void {
     if (ev.key === 'Enter' && !ev.shiftKey) {
       ev.preventDefault();
-      void this.submitInput();
+      this.submitInput();
     }
   }
 
@@ -159,7 +165,7 @@ export class AdminAiAssistantPage implements OnInit, AfterViewChecked, OnDestroy
     }
     this.input = '';
     this.welcomeVisible = false;
-    void this.send(t);
+    this.send(t);
   }
 
   send(text: string): void {

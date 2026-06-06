@@ -29,7 +29,7 @@ export class BrowserHistoryAuthService {
       if (!event.persisted) {
         return;
       }
-      const path = window.location.pathname;
+      const path = globalThis.location.pathname;
       const isPublic = path.includes('/login');
       if (!isPublic && !localStorage.getItem('token')) {
         this.ngZone.run(() => {

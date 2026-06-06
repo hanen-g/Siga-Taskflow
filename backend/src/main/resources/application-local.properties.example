@@ -1,0 +1,8 @@
+# Copy this file to application-local.properties and fill in your values.
+# application-local.properties is gitignored and loaded automatically on your machine only.
+
+spring.datasource.password=your_mysql_password
+
+jwt.secret=your_jwt_secret_at_least_32_characters_long
+
+spring.mail.password=your_gmail_app_password

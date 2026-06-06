@@ -6,7 +6,7 @@
 
   <div class="controls-bar">
     <label class="search-wrap">
-      <span class="sr-only">Search users</span>
+      <span class="search-label">Search users</span>
       <input
         type="search"
         class="um-input um-input--search"
@@ -37,7 +37,7 @@
   } @else {
     <div class="card-grid">
       @for (user of users; track user.id) {
-        <article class="user-card" (click)="openUserDetail(user)" (keydown.enter)="openUserDetail(user)" tabindex="0" role="button">
+        <div class="user-card" (click)="openUserDetail(user)" (keydown.enter)="openUserDetail(user)" tabindex="0" role="button">
           <div
             class="user-card__avatar"
             [class.user-card__avatar--green]="avatarFamily(user) === 'green'"
@@ -73,7 +73,7 @@
             <i class="pi pi-user" aria-hidden="true"></i>
             View details
           </button>
-        </article>
+        </div>
       } @empty {
         <p class="empty-state">No users matched the current filters.</p>
       }
@@ -82,7 +82,7 @@
 
   <!-- Detail modal -->
   @if (detailUser) {
-    <div class="um-modal-backdrop" (click)="onDetailBackdrop($event)">
+    <div tabindex="0" class="um-modal-backdrop" (click)="onDetailBackdrop($event)">
       <div class="um-modal" role="dialog" aria-modal="true" aria-labelledby="um-detail-title" (click)="$event.stopPropagation()">
         <button type="button" class="um-modal-close" (click)="closeUserDetail()" aria-label="Close">✕</button>
 
@@ -201,17 +201,17 @@
     [style]="{ width: 'min(42rem, 96vw)' }"
   >
     <div class="form-grid dialog-form">
-      <label>First Name</label>
-      <input pInputText [(ngModel)]="editForm.firstName" />
+      <label for="first-name-30">First Name</label>
+      <input id="first-name-30" pInputText [(ngModel)]="editForm.firstName" />
 
-      <label>Last Name</label>
-      <input pInputText [(ngModel)]="editForm.lastName" />
+      <label for="last-name-31">Last Name</label>
+      <input id="last-name-31" pInputText [(ngModel)]="editForm.lastName" />
 
-      <label>Email</label>
-      <input pInputText [(ngModel)]="editForm.email" />
+      <label for="email-32">Email</label>
+      <input id="email-32" pInputText [(ngModel)]="editForm.email" />
 
-      <label>Role</label>
-      <p-select
+      <label for="role-33">Role</label>
+      <p-select id="role-33"
         [options]="editRoleOptions"
         [(ngModel)]="editForm.role"
         optionLabel="label"
@@ -221,11 +221,11 @@
       ></p-select>
 
       <ng-container *ngIf="showsEmployeeProfile(editForm.role)">
-        <label>Phone</label>
-        <input pInputText type="tel" [(ngModel)]="editForm.phoneNumber" />
+        <label for="phone-34">Phone</label>
+        <input id="phone-34" pInputText type="tel" [(ngModel)]="editForm.phoneNumber" />
 
-        <label>Gender</label>
-        <p-select
+        <label for="gender-35">Gender</label>
+        <p-select id="gender-35"
           [options]="genderOptions"
           [(ngModel)]="editForm.gender"
           optionLabel="label"
@@ -234,8 +234,8 @@
           styleClass="w-full"
         ></p-select>
 
-        <label class="dialog-span-2">Address</label>
-        <textarea
+        <label for="address-36" class="dialog-span-2">Address</label>
+        <textarea id="address-36"
           pInputTextarea
           class="dialog-span-2 w-full address-textarea"
           rows="3"
@@ -245,8 +245,8 @@
       </ng-container>
 
       <ng-container *ngIf="roleSupportsSkills(editForm.role)">
-        <label>Skills</label>
-        <p-multiselect
+        <label for="skills-37">Skills</label>
+        <p-multiselect id="skills-37"
           [options]="allSkills"
           optionLabel="name"
           optionValue="id"

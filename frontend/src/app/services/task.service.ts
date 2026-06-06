@@ -15,11 +15,11 @@ export interface TaskStatusUpdatePayload {
 
 @Injectable({ providedIn: 'root' })
 export class TaskService {
-  private apiUrl = 'http://localhost:8080/api/tasks';
-  private refreshSubject = new Subject<void>();
+  private readonly apiUrl = 'http://localhost:8080/api/tasks';
+  private readonly refreshSubject = new Subject<void>();
   refresh$ = this.refreshSubject.asObservable();
 
-  constructor(private http: HttpClient, private ws: WebsocketService) {
+  constructor(private readonly http: HttpClient, private readonly ws: WebsocketService) {
     this.ws.getTaskUpdates().subscribe(() => this.refreshSubject.next());
   }
 

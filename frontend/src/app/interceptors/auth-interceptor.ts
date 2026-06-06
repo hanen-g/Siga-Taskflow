@@ -28,7 +28,7 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         setTimeout(() => {
-          void router.navigate(['/login']);
+          router.navigate(['/login']);
         }, 0);
       }
 

@@ -6,7 +6,7 @@ import { CanActivate, ActivatedRouteSnapshot, Router } from '@angular/router';
 })
 export class AuthGuard implements CanActivate {
 
-  constructor(private router: Router) {}
+  constructor(private readonly router: Router) {}
 
   private getRoleFromToken(): string | null {
     const token = localStorage.getItem('token');

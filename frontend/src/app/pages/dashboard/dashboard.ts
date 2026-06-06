@@ -29,9 +29,9 @@ export class Dashboard implements OnInit {
   title = 'Dashboard';
 
   constructor(
-    private router: Router,
-    private ws: WebsocketService,
-    private messageService: MessageService
+    private readonly router: Router,
+    private readonly ws: WebsocketService,
+    private readonly messageService: MessageService
   ) {}
 
   ngOnInit() {

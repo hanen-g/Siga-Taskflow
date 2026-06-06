@@ -34,10 +34,10 @@ export interface ClientOption {
 })
 export class ProjectService {
 
-  private apiUrl = 'http://localhost:8080/api/projects';
-  private proposalsUrl = 'http://localhost:8080/api/project-proposals';
+  private readonly apiUrl = 'http://localhost:8080/api/projects';
+  private readonly proposalsUrl = 'http://localhost:8080/api/project-proposals';
 
-  constructor(private http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {}
   
   myProjects(): Observable<any[]> {
     return this.http.get<any[]>(`${this.apiUrl}/my-projects`);

@@ -6,7 +6,7 @@ import { Observable } from 'rxjs';
 export class FileAccessService {
   private readonly apiOrigin = 'http://localhost:8080';
 
-  constructor(private http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {}
 
   /** GET file with JWT (via auth interceptor); use blob URL to open in a new tab. */
   fetchFileBlob(fileUrlOrPath: string): Observable<Blob> {

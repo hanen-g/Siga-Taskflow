@@ -47,10 +47,10 @@ export class ArchivedProjectsPage implements OnInit {
   /** Project detail link: admin vs project manager area */
   detailBase = '/dashboard/pm/projects';
 
-  private refresh$ = new Subject<void>();
+  private readonly refresh$ = new Subject<void>();
 
   archivedProjects$: Observable<any[] | null> = this.refresh$.pipe(
-    startWith(void 0),
+    startWith(undefined),
     switchMap(() => {
       this.error = null;
       const request$ =
@@ -76,13 +76,13 @@ export class ArchivedProjectsPage implements OnInit {
   }
 
   constructor(
-    private projectService: ProjectService,
-    private api: ApiService,
-    private router: Router,
-    private route: ActivatedRoute,
-    private ws: WebsocketService,
-    private confirmationService: ConfirmationService,
-    private messageService: MessageService
+    private readonly projectService: ProjectService,
+    private readonly api: ApiService,
+    private readonly router: Router,
+    private readonly route: ActivatedRoute,
+    private readonly ws: WebsocketService,
+    private readonly confirmationService: ConfirmationService,
+    private readonly messageService: MessageService
   ) {
     this.ws.getProjectUpdates().subscribe((msg: ProjectMessage) => {
       this.refresh$.next();
@@ -98,7 +98,7 @@ export class ArchivedProjectsPage implements OnInit {
 
   goToProject(project: Project): void {
     if (project?.id) {
-      void this.router.navigate([this.detailBase, project.id]);
+      this.router.navigate([this.detailBase, project.id]);
     }
   }
 

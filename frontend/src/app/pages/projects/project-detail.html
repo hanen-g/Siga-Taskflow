@@ -423,8 +423,8 @@
 
     <ng-template pTemplate="content">
       <div class="flex flex-column mb-5 mt-3">
-        <label class="font-bold mb-2">Name *</label>
-        <input
+        <label for="name-16" class="font-bold mb-2">Name *</label>
+        <input id="name-16"
           pInputText
           [(ngModel)]="editableProject.name"
           class="w-full"
@@ -433,8 +433,8 @@
       </div>
 
       <div class="flex flex-column mb-4">
-        <label class="font-bold mb-2">Description</label>
-        <textarea
+        <label for="description-17" class="font-bold mb-2">Description</label>
+        <textarea id="description-17"
           pInputTextarea
           rows="6"
           [(ngModel)]="editableProject.description"
@@ -443,13 +443,13 @@
       </div>
 
       <div class="flex flex-column mb-2">
-        <label class="font-bold mb-2">Project start (optional)</label>
-        <input pInputText type="date" [(ngModel)]="editableProject.startDate" class="w-full" />
+        <label for="project-start-optional-18" class="font-bold mb-2">Project start (optional)</label>
+        <input id="project-start-optional-18" pInputText type="date" [(ngModel)]="editableProject.startDate" class="w-full" />
       </div>
 
       <div class="flex flex-column mb-2">
-        <label class="font-bold mb-2">Deadline (optional)</label>
-        <input pInputText type="date" [(ngModel)]="editableProject.deadline" class="w-full" />
+        <label for="deadline-optional-19" class="font-bold mb-2">Deadline (optional)</label>
+        <input id="deadline-optional-19" pInputText type="date" [(ngModel)]="editableProject.deadline" class="w-full" />
       </div>
     </ng-template>
 
@@ -473,27 +473,27 @@
     (onHide)="closeTaskDialog()">
 
     <div class="flex flex-column gap-3">
-      <label class="font-bold mb-2">Name *</label>
-      <input
+      <label for="name-20" class="font-bold mb-2">Name *</label>
+      <input id="name-20"
         pInputText
         [(ngModel)]="newTask.title"
         placeholder="Task name">
-      <label class="font-bold mb-2">Description</label>
-      <textarea
+      <label for="description-21" class="font-bold mb-2">Description</label>
+      <textarea id="description-21"
         pInputTextarea
         [(ngModel)]="newTask.description"
         rows="4"
         placeholder="Description">
       </textarea>
-      <label class="font-bold mb-2">Priority</label>
-      <select [(ngModel)]="newTask.priority" class="p-inputtext">
+      <label for="priority-22" class="font-bold mb-2">Priority</label>
+      <select id="priority-22" [(ngModel)]="newTask.priority" class="p-inputtext">
         <option [ngValue]="null">No priority</option>
         <option *ngFor="let p of priorities" [ngValue]="p">{{ priorityLabel(p) }}</option>
       </select>
 
-      <label class="font-bold mb-2">Deadline</label>
+      <label for="deadline-23" class="font-bold mb-2">Deadline</label>
       <div class="new-task-deadline-row flex gap-2 align-items-center flex-wrap">
-        <input
+        <input id="deadline-23"
           type="datetime-local"
           pInputText
           class="new-task-deadline-input flex-1"
@@ -512,8 +512,8 @@
       </div>
 
       <ng-container *ngIf="(project.requiredSkills?.length ?? 0) > 0; else noProjectSkillsForTask">
-        <label class="font-bold mb-2">Task skills</label>
-        <p-multiSelect
+        <label for="task-skills-24" class="font-bold mb-2">Task skills</label>
+        <p-multiSelect id="task-skills-24"
           [options]="project.requiredSkills!"
           [(ngModel)]="newTask.skillIds"
           optionLabel="name"
@@ -667,36 +667,36 @@
     (onHide)="closeEditTaskDialog()">
 
     <div class="flex flex-column gap-3">
-      <label class="font-bold mb-2">Name *</label>
-      <input
+      <label for="name-25" class="font-bold mb-2">Name *</label>
+      <input id="name-25"
         pInputText
         [(ngModel)]="editableTask.title"
         placeholder="Task name">
 
-      <label class="font-bold mb-2">Description</label>
-      <textarea
+      <label for="description-26" class="font-bold mb-2">Description</label>
+      <textarea id="description-26"
         pInputTextarea
         [(ngModel)]="editableTask.description"
         rows="4"
         placeholder="Description">
       </textarea>
 
-      <label class="font-bold mb-2">Priority</label>
-      <select [(ngModel)]="editableTask.priority" class="p-inputtext">
+      <label for="priority-27" class="font-bold mb-2">Priority</label>
+      <select id="priority-27" [(ngModel)]="editableTask.priority" class="p-inputtext">
         <option [ngValue]="undefined">No priority</option>
         <option *ngFor="let p of priorities" [ngValue]="p">{{ priorityLabel(p) }}</option>
       </select>
 
-      <label class="font-bold mb-2">Deadline</label>
-      <input
+      <label for="deadline-28" class="font-bold mb-2">Deadline</label>
+      <input id="deadline-28"
         type="datetime-local"
         pInputText
         [(ngModel)]="editableTask.deadline"
         placeholder="Deadline">
 
       <ng-container *ngIf="(project.requiredSkills?.length ?? 0) > 0">
-        <label class="font-bold mb-2">Task skills</label>
-        <p-multiSelect
+        <label for="task-skills-29" class="font-bold mb-2">Task skills</label>
+        <p-multiSelect id="task-skills-29"
           [options]="project.requiredSkills!"
           [(ngModel)]="editableTask.skillIds"
           optionLabel="name"

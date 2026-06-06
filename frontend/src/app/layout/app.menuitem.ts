@@ -1,4 +1,4 @@
-import { Component, computed, inject, input, signal } from '@angular/core';
+import { Component, computed, inject, input, signal, OnInit, AfterViewInit } from '@angular/core';
 import { IsActiveMatchOptions, NavigationEnd, Router, RouterModule } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { RippleModule } from 'primeng/ripple';
@@ -47,7 +47,7 @@ import { filter } from 'rxjs/operators';
         `
     ]
 })
-export class AppMenuitem {
+export class AppMenuitem implements OnInit, AfterViewInit {
     layoutService = inject(LayoutService);
 
     router = inject(Router);
