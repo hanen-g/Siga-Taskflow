@@ -54,10 +54,10 @@
           </div>
           <div class="notification-panel-content">
             @if (notifications.length > 0) {
-              <div
+              <button
+                type="button"
                 *ngFor="let notif of notifications"
                 class="notification-item"
-                tabindex="0"
                 (click)="onNotificationClick(notif, $event)"
                 (keydown.enter)="onNotificationClick(notif, $event)">
                 <div class="notification-icon">
@@ -66,7 +66,7 @@
                 <div class="notification-body">
                   <p class="notification-message">{{ notif.message }}</p>
                 </div>
-              </div>
+              </button>
             } @else {
               <div class="no-notifications">
                 <i class="pi pi-inbox"></i>

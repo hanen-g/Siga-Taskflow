@@ -170,7 +170,7 @@
 
 .signin-btn {
   width: 100%;
-  background: #9b7fd4;
+  background: #6d28d9;
   border: none;
   color: #ffffff;
   font-weight: 500;
@@ -185,7 +185,7 @@
 }
 
 .signin-btn:hover {
-  background: #8a6ec3;
+  background: #5b21b6;
   box-shadow: 0 12px 28px rgba(155, 127, 212, 0.4);
 }
 

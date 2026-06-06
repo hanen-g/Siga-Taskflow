@@ -21,7 +21,6 @@
             name="clientListSearch"
             placeholder="Search clients..."
             class="search-input"
-            autocomplete="off"
           />
         </div>
         <button
@@ -44,12 +43,11 @@
           <div class="list-empty">No clients match your filter.</div>
         } @else {
           @for (c of filteredClients; track c.id; let idx = $index) {
-            <div
+            <button
+              type="button"
               class="client-list-row"
               [class.is-selected]="selectedClient?.id === c.id && rightPanelMode === 'profile'"
               [class.is-inactive]="!c.active"
-              role="button"
-              tabindex="0"
               (click)="selectClient(c)"
               (keydown)="listRowActivate($event, c)"
             >
@@ -65,7 +63,7 @@
                 <div class="row-primary" [style.color]="clientLabelColorFor(c)">{{ clientFullName(c) }}</div>
                 <div class="row-secondary">{{ c.company?.trim() || '—' }}</div>
               </div>
-            </div>
+            </button>
           }
         }
       </div>
@@ -108,7 +106,6 @@
                   [disabled]="createLoading"
                   class="w-full"
                   placeholder="Matricule fiscale"
-                  autocomplete="organization"
                 />
               </div>
               <div class="field">
@@ -145,7 +142,7 @@
                   name="nfEmail"
                   [disabled]="createLoading"
                   class="w-full"
-                  autocomplete="off"
+                  autocomplete="email"
                 />
               </div>
               <div class="field">
@@ -396,7 +393,7 @@
                     [(ngModel)]="detailEditForm.email"
                     [disabled]="detailSaveLoading"
                     class="w-full"
-                    autocomplete="off"
+                    autocomplete="email"
                   />
                 </div>
                 <div class="field">

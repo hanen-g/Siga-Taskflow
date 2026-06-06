@@ -10,7 +10,6 @@ import { Router } from '@angular/router';
 import { ButtonModule } from 'primeng/button';
 
 import { Project } from '../../models/project.model';
-import {} from '../../models/task.model';
 
 @Component({
   selector: 'app-project-panel',

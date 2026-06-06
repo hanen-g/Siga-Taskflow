@@ -39,7 +39,7 @@ const OFF_TOPIC_KEYWORD_GROUPS = [
   'celebrity|gossip|stock market|crypto|bitcoin|ethereum',
   'translate this|write code|python code|javascript code|java code|debug my|leetcode',
 ];
-const OFF_TOPIC_KEYWORDS = new RegExp(`\\b(${OFF_TOPIC_KEYWORD_GROUPS.join('|')})\\b`, 'i');
+const OFF_TOPIC_KEYWORDS = new RegExp(String.raw`\b(${OFF_TOPIC_KEYWORD_GROUPS.join('|')})\b`, 'i');
 
 @Component({
   selector: 'app-admin-ai-assistant',

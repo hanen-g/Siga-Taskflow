@@ -232,7 +232,7 @@ export class ProjectProposalsPage implements OnInit {
 
   formatRole(role?: string): string {
     if (!role) return '';
-    return role.replaceAll(/_/g, ' ').toUpperCase();
+    return role.replaceAll('_', ' ').toUpperCase();
   }
 
   formatDate(value?: string): string {

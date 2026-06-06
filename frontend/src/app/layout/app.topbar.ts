@@ -95,8 +95,14 @@ import { distinctUntilChanged, filter, takeUntil } from 'rxjs/operators';
         }
 
         .notification-item {
+            width: 100%;
             padding: 1rem;
+            border: none;
             border-bottom: 1px solid var(--surface-border);
+            background: transparent;
+            text-align: left;
+            font: inherit;
+            color: inherit;
             display: flex;
             gap: 0.75rem;
             cursor: pointer;

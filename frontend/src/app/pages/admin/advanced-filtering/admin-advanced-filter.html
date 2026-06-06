@@ -38,7 +38,7 @@
         </label>
       </div>
 
-      <div *ngIf="useRoleUserFilter" class="role-user-expand" role="region" aria-label="User filters by role">
+      <section *ngIf="useRoleUserFilter" class="role-user-expand" aria-label="User filters by role">
         <label for="af-pm-role-user">Project manager</label>
         <select id="af-pm-role-user" [(ngModel)]="rolePmUserId" class="filter-select">
           <option [ngValue]="null">Any project manager</option>
@@ -62,7 +62,7 @@
           <option [ngValue]="null">Any client</option>
           <option *ngFor="let u of clientUserOptions" [ngValue]="u.id">{{ u.label }}</option>
         </select>
-      </div>
+      </section>
 
       <label for="af-skill">Skill</label>
       <input id="af-skill" pInputText type="text" [(ngModel)]="filter.skillName" list="af-skill-options" />
