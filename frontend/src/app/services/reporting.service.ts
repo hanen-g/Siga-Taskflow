@@ -15,7 +15,7 @@ import type {
 export class ReportingService {
   private readonly base = 'http://localhost:8080/api/reporting';
 
-  constructor(private http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {}
 
   collaborator(): Observable<CollaboratorDashboard> {
     return this.http.get<CollaboratorDashboard>(`${this.base}/collaborator`);
@@ -36,7 +36,7 @@ export class ReportingService {
   ): Observable<AdminProjectAdvancedFilterResponse> {
     const params = new URLSearchParams();
     const appendIfValue = (key: string, value: string | undefined) => {
-      if (value && value.trim()) {
+      if (value?.trim()) {
         params.set(key, value.trim());
       }
     };

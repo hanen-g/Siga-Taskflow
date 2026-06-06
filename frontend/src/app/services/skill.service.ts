@@ -5,10 +5,10 @@ import { Skill } from '../models/skill.model';
 
 @Injectable({ providedIn: 'root' })
 export class SkillService {
-  private base = 'http://localhost:8080/api';
+  private readonly base = 'http://localhost:8080/api';
   private listCache$?: Observable<Skill[]>;
 
-  constructor(private http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {}
 
   /** All skills in the catalog (for pickers; cached per session). */
   getAllSkillsRefreshed(): Observable<Skill[]> {

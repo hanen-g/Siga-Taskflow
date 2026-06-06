@@ -186,11 +186,11 @@ export class AppTopbar implements OnInit, OnDestroy {
     items!: MenuItem[];
 
     layoutService = inject(LayoutService);
-    private ws = inject(WebsocketService);
-    private notificationService = inject(NotificationService);
-    private router = inject(Router);
-    private cdr = inject(ChangeDetectorRef);
-    private destroy$ = new Subject<void>();
+    private readonly ws = inject(WebsocketService);
+    private readonly notificationService = inject(NotificationService);
+    private readonly router = inject(Router);
+    private readonly cdr = inject(ChangeDetectorRef);
+    private readonly destroy$ = new Subject<void>();
     @ViewChild('topbarMenu') topbarMenu?: ElementRef<HTMLElement>;
     @ViewChild('topbarMenuButton') topbarMenuButton?: ElementRef<HTMLElement>;
 
@@ -353,21 +353,26 @@ export class AppTopbar implements OnInit, OnDestroy {
         }
 
         const role = this.readStoredRole();
-        const base =
-            role === 'ADMIN'
-                ? '/dashboard/admin/projects'
-                : role === 'CLIENT'
-                  ? '/dashboard/client/projects'
-                  : null;
+        const base = this.projectPathForRole(role);
         if (!base) {
             return;
         }
 
         this.showNotificationPanel = false;
         this.closeTopbarMenu();
-        void this.router.navigate([`${base}/${notification.projectId}`], {
+        this.router.navigate([`${base}/${notification.projectId}`], {
             queryParams: { tab: 'chat' }
         });
+    }
+
+    private projectPathForRole(role: string | null): string | null {
+        if (role === 'ADMIN') {
+            return '/dashboard/admin/projects';
+        }
+        if (role === 'CLIENT') {
+            return '/dashboard/client/projects';
+        }
+        return null;
     }
 
     private readStoredRole(): string | null {

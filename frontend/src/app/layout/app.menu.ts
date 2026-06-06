@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, OnInit } from '@angular/core';
 import { ApiService } from '../services/api';
 import { CommonModule } from '@angular/common';
 import { Router, RouterModule } from '@angular/router';
@@ -38,13 +38,13 @@ export type AppMenuItem = MenuItem & { iconImg?: string };
   </div>
 </div>`
 })
-export class AppMenu {
+export class AppMenu implements OnInit {
     model: AppMenuItem[] = [];
 
     constructor(
-        private router: Router,
-        private ws: WebsocketService,
-        private api: ApiService
+        private readonly router: Router,
+        private readonly ws: WebsocketService,
+        private readonly api: ApiService
     ) {}
 
     onLogoutClick(event: Event) {
@@ -134,7 +134,7 @@ export class AppMenu {
                             icon: 'pi pi-folder',
                             path: '/all-projects',
                             command: () => {
-                                void this.router.navigate(['/dashboard/admin/projects'], {
+                                this.router.navigate(['/dashboard/admin/projects'], {
                                     queryParams: {},
                                 });
                             },
@@ -181,7 +181,7 @@ export class AppMenu {
                     path: '/users',
                     command: ({ originalEvent }) => {
                         originalEvent?.preventDefault();
-                        void this.router.navigate(['/dashboard/admin/users']);
+                        this.router.navigate(['/dashboard/admin/users']);
                     },
                     items: [
                         { label: 'Create users', icon: 'pi pi-user-plus', routerLink: ['/dashboard/admin/create-users'] },
@@ -191,7 +191,7 @@ export class AppMenu {
                             path: '/users-by-role',
                             command: ({ originalEvent }) => {
                                 originalEvent?.preventDefault();
-                                void this.router.navigate(['/dashboard/admin/users']);
+                                this.router.navigate(['/dashboard/admin/users']);
                             },
                             items: [
                                 { label: 'Admins', icon: 'pi pi-shield', routerLink: ['/dashboard/admin/users'], queryParams: { role: 'ADMIN' } },

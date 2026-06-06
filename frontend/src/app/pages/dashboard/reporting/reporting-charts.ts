@@ -13,7 +13,7 @@ const COLORS = [
 
 export function donutData(series?: ChartSeries) {
   const labels = series?.labels ?? [];
-  const data = series?.values?.map((v) => Number(v)) ?? [];
+  const data = series?.values?.map(Number) ?? [];
   return {
     labels,
     datasets: [{ data, backgroundColor: labels.map((_, i) => COLORS[i % COLORS.length]), borderWidth: 0 }]
@@ -22,7 +22,7 @@ export function donutData(series?: ChartSeries) {
 
 export function barData(series?: ChartSeries, label = '') {
   const labels = series?.labels ?? [];
-  const data = series?.values?.map((v) => Number(v)) ?? [];
+  const data = series?.values?.map(Number) ?? [];
   return {
     labels,
     datasets: [
@@ -38,7 +38,7 @@ export function barData(series?: ChartSeries, label = '') {
 
 export function lineData(series?: ChartSeries, label = '') {
   const labels = series?.labels ?? [];
-  const data = series?.values?.map((v) => Number(v)) ?? [];
+  const data = series?.values?.map(Number) ?? [];
   return {
     labels,
     datasets: [

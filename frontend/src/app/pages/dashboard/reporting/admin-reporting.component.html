@@ -48,8 +48,8 @@
       <p-table [value]="data.systemHealth.rankedHoldReasons" [rows]="10">
         <ng-template pTemplate="header">
           <tr>
-            <th>Reason</th>
-            <th>Occurrences</th>
+            <th scope="col">Reason</th>
+            <th scope="col">Occurrences</th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-r>
@@ -78,12 +78,12 @@
       <p-table [value]="data.projectsOverview" [paginator]="true" [rows]="10">
         <ng-template pTemplate="header">
           <tr>
-            <th>Project</th>
-            <th>PM</th>
-            <th>Tasks</th>
-            <th>Completion %</th>
-            <th>Deadline</th>
-            <th>Risk</th>
+            <th scope="col">Project</th>
+            <th scope="col">PM</th>
+            <th scope="col">Tasks</th>
+            <th scope="col">Completion %</th>
+            <th scope="col">Deadline</th>
+            <th scope="col">Risk</th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-r>
@@ -103,11 +103,11 @@
       <p-table [value]="data.usersOverview" [paginator]="true" [rows]="12">
         <ng-template pTemplate="header">
           <tr>
-            <th>Name</th>
-            <th>Role</th>
-            <th>Assigned tasks</th>
-            <th>Completion %</th>
-            <th>Status</th>
+            <th scope="col">Name</th>
+            <th scope="col">Role</th>
+            <th scope="col">Assigned tasks</th>
+            <th scope="col">Completion %</th>
+            <th scope="col">Status</th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-r>

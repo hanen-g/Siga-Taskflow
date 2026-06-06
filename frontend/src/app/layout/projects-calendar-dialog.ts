@@ -51,9 +51,9 @@ export interface MonthView {
   styleUrls: ['./projects-calendar-dialog.css']
 })
 export class ProjectsCalendarDialog implements OnChanges {
-  private projectService = inject(ProjectService);
-  private taskService = inject(TaskService);
-  private cdr = inject(ChangeDetectorRef);
+  private readonly projectService = inject(ProjectService);
+  private readonly taskService = inject(TaskService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   @Input() visible = false;
   @Output() visibleChange = new EventEmitter<boolean>();
@@ -205,38 +205,35 @@ export class ProjectsCalendarDialog implements OnChanges {
 
   private normalizeDeadlineToCalendarKey(raw: unknown): string | null {
     if (raw == null || raw === '') return null;
-
-    if (typeof raw === 'string') {
-      const trimmed = raw.trim();
-      const head = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (head) {
-        const y = head[1];
-        const mo = head[2];
-        const day = head[3];
-        return `${y}-${mo}-${day}`;
-      }
-      const parsed = Date.parse(trimmed);
-      if (!Number.isNaN(parsed)) return this.toDateKey(new Date(parsed));
-      return null;
-    }
-
-    if (typeof raw === 'number' && Number.isFinite(raw)) {
-      const d = new Date(raw);
-      if (!Number.isNaN(d.getTime())) return this.toDateKey(d);
-      return null;
-    }
-
-    if (Array.isArray(raw) && raw.length >= 3) {
-      const y = Number(raw[0]);
-      const moIndex = Number(raw[1]);
-      const day = Number(raw[2]);
-      if (Number.isNaN(y) || Number.isNaN(moIndex) || Number.isNaN(day)) return null;
-      const monthJs = moIndex >= 1 && moIndex <= 12 ? moIndex - 1 : NaN;
-      if (Number.isNaN(monthJs)) return null;
-      return this.toDateKey(new Date(y, monthJs, day));
-    }
-
+    if (typeof raw === 'string') return this.calendarKeyFromString(raw);
+    if (typeof raw === 'number' && Number.isFinite(raw)) return this.calendarKeyFromTimestamp(raw);
+    if (Array.isArray(raw)) return this.calendarKeyFromParts(raw);
     return null;
+  }
+
+  private calendarKeyFromString(trimmed: string): string | null {
+    const head = trimmed.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (head) {
+      return `${head[1]}-${head[2]}-${head[3]}`;
+    }
+    const parsed = Date.parse(trimmed.trim());
+    return Number.isNaN(parsed) ? null : this.toDateKey(new Date(parsed));
+  }
+
+  private calendarKeyFromTimestamp(raw: number): string | null {
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : this.toDateKey(d);
+  }
+
+  private calendarKeyFromParts(raw: unknown[]): string | null {
+    if (raw.length < 3) return null;
+    const y = Number(raw[0]);
+    const moIndex = Number(raw[1]);
+    const day = Number(raw[2]);
+    if (Number.isNaN(y) || Number.isNaN(moIndex) || Number.isNaN(day)) return null;
+    const monthJs = moIndex >= 1 && moIndex <= 12 ? moIndex - 1 : NaN;
+    if (Number.isNaN(monthJs)) return null;
+    return this.toDateKey(new Date(y, monthJs, day));
   }
 
   private buildMonth(year: number, monthIndex: number): MonthView {

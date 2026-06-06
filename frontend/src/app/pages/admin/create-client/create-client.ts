@@ -102,10 +102,10 @@ export class CreateClientPage implements OnInit {
   private detailEditInitialProjectIds: number[] = [];
 
   constructor(
-    private userService: UserService,
-    private projectService: ProjectService,
-    private messageService: MessageService,
-    private cdr: ChangeDetectorRef,
+    private readonly userService: UserService,
+    private readonly projectService: ProjectService,
+    private readonly messageService: MessageService,
+    private readonly cdr: ChangeDetectorRef,
   ) {}
 
   ngOnInit(): void {
@@ -359,12 +359,12 @@ export class CreateClientPage implements OnInit {
   sendEmail(): void {
     const e = this.selectedClient?.email;
     if (e) {
-      window.location.href = `mailto:${encodeURIComponent(e)}`;
+      globalThis.location.href = `mailto:${encodeURIComponent(e)}`;
     }
   }
 
   printProfile(): void {
-    window.print();
+    globalThis.print();
   }
 
   startDetailEdit(): void {

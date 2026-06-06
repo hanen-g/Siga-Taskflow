@@ -71,7 +71,7 @@ export class ProjectsPage implements OnInit {
   pageTitle = 'Projects';
 
   private readonly destroyRef = inject(DestroyRef);
-  private refresh$ = new Subject<void>();
+  private readonly refresh$ = new Subject<void>();
 
   projects$: Observable<Project[] | null> = of(null);
   private latestProjects: Project[] = [];
@@ -123,15 +123,15 @@ export class ProjectsPage implements OnInit {
   private pmCandidateLoadSeq = 0;
 
   constructor(
-    private projectService: ProjectService,
-    private userService: UserService,
-    private skillService: SkillService,
-    private api: ApiService,
-    private ws: WebsocketService,
-    private confirmationService: ConfirmationService,
-    private messageService: MessageService,
-    private route: ActivatedRoute,
-    private router: Router
+    private readonly projectService: ProjectService,
+    private readonly userService: UserService,
+    private readonly skillService: SkillService,
+    private readonly api: ApiService,
+    private readonly ws: WebsocketService,
+    private readonly confirmationService: ConfirmationService,
+    private readonly messageService: MessageService,
+    private readonly route: ActivatedRoute,
+    private readonly router: Router
   ) {
     this.ws.getProjectUpdates().subscribe(() => {
       this.refresh$.next();
@@ -301,14 +301,14 @@ export class ProjectsPage implements OnInit {
   /** Normalized ids for multiselect + API (avoids string/number mismatches). Exposed for template hints. */
   normalizedRequiredSkillIds(): number[] {
     const raw = this.newProject.requiredSkillIds ?? [];
-    const nums = raw.map((id) => Number(id)).filter((n) => Number.isFinite(n));
+    const nums = raw.map(Number).filter((n) => Number.isFinite(n));
     return [...new Set(nums)];
   }
 
   private pmSkillIdSet(pm: ProjectManagerOption): Set<number> {
     return new Set(
       (pm.skillIds ?? [])
-        .map((id) => Number(id))
+        .map(Number)
         .filter((n) => Number.isFinite(n))
     );
   }
@@ -488,7 +488,7 @@ export class ProjectsPage implements OnInit {
       .getProposal(id)
       .pipe(
         finalize(() => {
-          void this.router.navigate([], {
+          this.router.navigate([], {
             relativeTo: this.route,
             queryParams: { approveProposal: null },
             queryParamsHandling: 'merge',
@@ -757,7 +757,7 @@ export class ProjectsPage implements OnInit {
       .map((c) => {
         const name = `${c.firstName ?? ''} ${c.lastName ?? ''}`.trim();
         const company = c.company?.trim();
-        const head = company ? company : (name || c.email);
+        const head = company ?? (name || c.email);
         const detail = company && name ? ` — ${name}` : '';
         const tail = c.email ? ` (${c.email})` : '';
         return { label: `${head}${detail}${tail}`, value: c.id };
@@ -814,7 +814,6 @@ export class ProjectsPage implements OnInit {
     if (!this.validateProjectName()) return;
 
     if (this.isAdmin) {
-      const reqs = this.newProject.requiredSkillIds ?? [];
       if (this.normalizedRequiredSkillIds().length && this.projectManagersMatchingRequiredSkills().length === 0) {
         this.notify(
           'error',

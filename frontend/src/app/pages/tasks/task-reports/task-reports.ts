@@ -24,9 +24,9 @@ export class TaskReportsPage implements OnInit {
   resolvingIds = new Set<number>();
 
   constructor(
-    private taskReportService: TaskReportService,
-    private messageService: MessageService,
-    private cdr: ChangeDetectorRef
+    private readonly taskReportService: TaskReportService,
+    private readonly messageService: MessageService,
+    private readonly cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {

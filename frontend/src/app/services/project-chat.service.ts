@@ -7,7 +7,7 @@ import { ProjectChatMessage, ProjectChatUnreadCount } from '../models/project-ch
 export class ProjectChatService {
   private readonly baseUrl = 'http://localhost:8080/api/projects';
 
-  constructor(private http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {}
 
   getMessages(projectId: number): Observable<ProjectChatMessage[]> {
     return this.http.get<ProjectChatMessage[]>(`${this.baseUrl}/${projectId}/messages`);

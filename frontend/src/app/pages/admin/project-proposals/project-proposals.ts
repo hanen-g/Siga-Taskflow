@@ -64,11 +64,11 @@ export class ProjectProposalsPage implements OnInit {
   });
 
   constructor(
-    private projectService: ProjectService,
-    private router: Router,
-    private messageService: MessageService,
-    private confirmation: ConfirmationService,
-    private cdr: ChangeDetectorRef
+    private readonly projectService: ProjectService,
+    private readonly router: Router,
+    private readonly messageService: MessageService,
+    private readonly confirmation: ConfirmationService,
+    private readonly cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {
@@ -232,7 +232,7 @@ export class ProjectProposalsPage implements OnInit {
 
   formatRole(role?: string): string {
     if (!role) return '';
-    return role.replace(/_/g, ' ').toUpperCase();
+    return role.replaceAll(/_/g, ' ').toUpperCase();
   }
 
   formatDate(value?: string): string {

@@ -5,7 +5,6 @@ import {
   Input,
   Output,
   EventEmitter,
-  OnInit,
   OnDestroy,
   OnChanges,
   ChangeDetectionStrategy,
@@ -310,12 +309,12 @@ import { TaskReportService } from '../../services/task-report.service';
     }
   `]
 })
-export class TaskDetailsPanelComponent implements OnInit, OnChanges, OnDestroy {
+export class TaskDetailsPanelComponent implements OnChanges, OnDestroy {
   @Input() task: Task | null = null;
   @Input() canManageStatus = false;
   /** When false, hides "Assigned To" (e.g. collaborator view). */
   @Input() showAssignedTo = true;
-  @Output() close = new EventEmitter<void>();
+  @Output() panelClose = new EventEmitter<void>();
   @Output() requestStart = new EventEmitter<Task>();
   @Output() requestPause = new EventEmitter<Task>();
   @Output() requestResume = new EventEmitter<Task>();
@@ -339,23 +338,20 @@ export class TaskDetailsPanelComponent implements OnInit, OnChanges, OnDestroy {
   ];
 
   private commentSubscription: Subscription | null = null;
-  private subscriptions: Subscription[] = [];
+  private readonly subscriptions: Subscription[] = [];
   /** Deferred so the same click that opened the panel does not close it when it bubbles to document. */
   private allowOutsideCloseClick = false;
 
   constructor(
-    private el: ElementRef<HTMLElement>,
-    private commentService: CommentService,
-    private ws: WebsocketService,
-    private userService: UserService,
-    private taskService: TaskService,
-    private taskReportService: TaskReportService,
-    private messageService: MessageService,
-    private cdr: ChangeDetectorRef
+    private readonly el: ElementRef<HTMLElement>,
+    private readonly commentService: CommentService,
+    private readonly ws: WebsocketService,
+    private readonly userService: UserService,
+    private readonly taskService: TaskService,
+    private readonly taskReportService: TaskReportService,
+    private readonly messageService: MessageService,
+    private readonly cdr: ChangeDetectorRef
   ) {}
-
-  ngOnInit() {
-  }
 
   ngOnDestroy() {
     this.subscriptions.forEach(sub => sub.unsubscribe());
@@ -381,12 +377,9 @@ export class TaskDetailsPanelComponent implements OnInit, OnChanges, OnDestroy {
       }
       this.loadComments();
       this.subscribeToComments();
-    } else {
-      // If no task, unsubscribe
-      if (this.commentSubscription) {
-        this.commentSubscription.unsubscribe();
-        this.commentSubscription = null;
-      }
+    } else if (this.commentSubscription) {
+      this.commentSubscription.unsubscribe();
+      this.commentSubscription = null;
     }
   }
 
@@ -412,7 +405,7 @@ export class TaskDetailsPanelComponent implements OnInit, OnChanges, OnDestroy {
     if (this.el.nativeElement.contains(target)) {
       return;
     }
-    this.close.emit();
+    this.panelClose.emit();
     this.cdr.markForCheck();
   }
 

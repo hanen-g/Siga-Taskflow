@@ -57,7 +57,9 @@
               <div
                 *ngFor="let notif of notifications"
                 class="notification-item"
-                (click)="onNotificationClick(notif, $event)">
+                tabindex="0"
+                (click)="onNotificationClick(notif, $event)"
+                (keydown.enter)="onNotificationClick(notif, $event)">
                 <div class="notification-icon">
                   <i class="pi pi-info-circle"></i>
                 </div>

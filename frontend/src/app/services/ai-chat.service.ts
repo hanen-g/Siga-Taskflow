@@ -9,7 +9,7 @@ const HISTORY_MAX = 8;
 export class AiChatService {
   private readonly base = 'http://localhost:8080/api';
 
-  constructor(private http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {}
 
   chat(request: AiChatApiRequest): Observable<AiChatApiResponse> {
     return this.http.post<AiChatApiResponse>(`${this.base}/ai/chat`, this.withTrimmedHistory(request));

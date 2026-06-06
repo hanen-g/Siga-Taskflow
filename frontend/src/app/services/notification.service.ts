@@ -11,7 +11,7 @@ export class NotificationService {
   /** Emitted when the topbar should reload from GET /my (e.g. after a proposal is submitted). */
   readonly refreshNotifications$ = this.refreshRequested.asObservable();
 
-  constructor(private http: HttpClient) {}
+  constructor(private readonly http: HttpClient) {}
 
   requestNotificationsRefresh(): void {
     this.refreshRequested.next();

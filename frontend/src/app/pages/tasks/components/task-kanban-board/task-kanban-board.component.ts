@@ -101,10 +101,10 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
   private loadRequestSub?: Subscription;
 
   constructor(
-    private taskService: TaskService,
-    private ws: WebsocketService,
-    private cdr: ChangeDetectorRef,
-    private messageService: MessageService
+    private readonly taskService: TaskService,
+    private readonly ws: WebsocketService,
+    private readonly cdr: ChangeDetectorRef,
+    private readonly messageService: MessageService
   ) {}
 
   get isCollaborator(): boolean {
@@ -537,7 +537,7 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
 
   statusListId(status: TaskStatus): string {
     const prefix = this.projectId != null ? `p${this.projectId}` : 'g';
-    return `${prefix}-status-${status.toLowerCase().replace(/_/g, '-')}`;
+    return `${prefix}-status-${status.toLowerCase().replaceAll(/_/g, '-')}`;
   }
 
   connectedDropLists(): string[] {
@@ -780,7 +780,7 @@ export class TaskKanbanBoardComponent implements OnInit, OnDestroy, OnChanges {
 
   private statusFromListId(listId: string): TaskStatus {
     const tail = listId.split('status-').pop() ?? '';
-    const raw = tail.replace(/-/g, '_').toUpperCase();
+    const raw = tail.replaceAll(/-/g, '_').toUpperCase();
     switch (raw) {
       case 'TODO':
         return TaskStatus.TODO;

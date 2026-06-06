@@ -49,12 +49,12 @@
       <p-table [value]="data.projectsTable" [paginator]="true" [rows]="8">
         <ng-template pTemplate="header">
           <tr>
-            <th>Name</th>
-            <th>Tasks</th>
-            <th>Done</th>
-            <th>Progress</th>
-            <th>Deadline</th>
-            <th>Risk</th>
+            <th scope="col">Name</th>
+            <th scope="col">Tasks</th>
+            <th scope="col">Done</th>
+            <th scope="col">Progress</th>
+            <th scope="col">Deadline</th>
+            <th scope="col">Risk</th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-r>
@@ -77,12 +77,12 @@
       <p-table [value]="data.collaboratorPerformance">
         <ng-template pTemplate="header">
           <tr>
-            <th>Collaborator</th>
-            <th>Assigned</th>
-            <th>Completed</th>
-            <th>On hold</th>
-            <th>Signals (PM comments)</th>
-            <th>Score</th>
+            <th scope="col">Collaborator</th>
+            <th scope="col">Assigned</th>
+            <th scope="col">Completed</th>
+            <th scope="col">On hold</th>
+            <th scope="col">Signals (PM comments)</th>
+            <th scope="col">Score</th>
           </tr>
         </ng-template>
         <ng-template pTemplate="body" let-r>
@@ -103,9 +103,9 @@
         <p-table [value]="data.inReviewAttention">
           <ng-template pTemplate="header">
             <tr>
-              <th>Task</th>
-              <th>Collaborators</th>
-              <th>Waiting ~hours</th>
+              <th scope="col">Task</th>
+              <th scope="col">Collaborators</th>
+              <th scope="col">Waiting ~hours</th>
             </tr>
           </ng-template>
           <ng-template pTemplate="body" let-r>
@@ -121,9 +121,9 @@
         <p-table [value]="data.onHoldAttention">
           <ng-template pTemplate="header">
             <tr>
-              <th>Task</th>
-              <th>Collaborators</th>
-              <th>Hold reason</th>
+              <th scope="col">Task</th>
+              <th scope="col">Collaborators</th>
+              <th scope="col">Hold reason</th>
             </tr>
           </ng-template>
           <ng-template pTemplate="body" let-r>

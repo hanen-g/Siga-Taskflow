@@ -41,7 +41,7 @@
       >
         <i class="pi pi-flag"></i>
       </button>
-      <button type="button" class="close-btn" (click)="close.emit()">
+      <button type="button" class="close-btn" (click)="panelClose.emit()">
         <i class="pi pi-times"></i>
       </button>
     </div>
@@ -50,19 +50,19 @@
   <div class="panel-content">
     <div class="task-info-section">
       <div class="info-item" *ngIf="showAssignedTo">
-        <label>Assigned To:</label>
+        <label for="assigned-to-38">Assigned To:</label>
         <span>{{ getAssigneeName() }}</span>
       </div>
       <div class="info-item">
-        <label>Project:</label>
+        <label for="project-39">Project:</label>
         <span>{{ task.projectName }}</span>
       </div>
       <div class="info-item" *ngIf="task.deadline">
-        <label>Due Date:</label>
+        <label for="due-date-40">Due Date:</label>
         <span>{{ task.deadline | date:'medium' }}</span>
       </div>
       <div class="info-item">
-        <label>Description:</label>
+        <label for="description-41">Description:</label>
         <div class="description">{{ task.description || 'No description provided.' }}</div>
       </div>
     </div>

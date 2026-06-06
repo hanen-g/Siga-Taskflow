@@ -38,9 +38,9 @@ export class ClientReportingPage implements OnInit {
   opts = defaultChartOptions;
 
   constructor(
-    private reporting: ReportingService,
-    private messages: MessageService,
-    private cdr: ChangeDetectorRef
+    private readonly reporting: ReportingService,
+    private readonly messages: MessageService,
+    private readonly cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {

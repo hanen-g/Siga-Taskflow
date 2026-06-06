@@ -38,9 +38,9 @@ export class CollaboratorReportingPage implements OnInit {
   barOpts = barChartOptions;
 
   constructor(
-    private reporting: ReportingService,
-    private messages: MessageService,
-    private cdr: ChangeDetectorRef
+    private readonly reporting: ReportingService,
+    private readonly messages: MessageService,
+    private readonly cdr: ChangeDetectorRef
   ) {}
 
   ngOnInit(): void {

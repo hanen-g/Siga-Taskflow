@@ -60,7 +60,15 @@
 .search-wrap {
   flex: 1;
   min-width: 0;
-  display: block;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.search-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--um-text-primary);
 }
 
 .um-input {

@@ -11,7 +11,7 @@ export class WebsocketService implements OnDestroy {
   // ─── Connection State ────────────────────────────────────────────────────────
   private client: Client | null = null;
   private isConnecting = false;
-  private connectionState$ = new BehaviorSubject<boolean>(false);
+  private readonly connectionState$ = new BehaviorSubject<boolean>(false);
 
   // ─── Streams ─────────────────────────────────────────────────────────────────
   private notifications$    = new Subject<Notification>();
@@ -19,16 +19,16 @@ export class WebsocketService implements OnDestroy {
   private taskUpdates$      = new Subject<TaskMessage>();
 
   // ─── Project Subscriptions ───────────────────────────────────────────────────
-  private projectSubjects             = new Map<number, Subject<TaskMessage>>();
-  private pendingProjectSubscriptions = new Set<number>();
+  private readonly projectSubjects             = new Map<number, Subject<TaskMessage>>();
+  private readonly pendingProjectSubscriptions = new Set<number>();
 
   // ─── Task Comments Subscriptions ────────────────────────────────────────────
-  private taskCommentSubjects         = new Map<number, Subject<any>>();
-  private pendingTaskCommentSubscriptions = new Set<number>();
+  private readonly taskCommentSubjects         = new Map<number, Subject<any>>();
+  private readonly pendingTaskCommentSubscriptions = new Set<number>();
 
   // ─── Project Chat Subscriptions ─────────────────────────────────────────────
-  private projectChatSubjects = new Map<number, Subject<ProjectChatMessage>>();
-  private pendingProjectChatSubscriptions = new Set<number>();
+  private readonly projectChatSubjects = new Map<number, Subject<ProjectChatMessage>>();
+  private readonly pendingProjectChatSubscriptions = new Set<number>();
 
   // ─── Connect ─────────────────────────────────────────────────────────────────
 
