@@ -122,7 +122,7 @@ export class ProjectDetailPage implements OnInit, OnDestroy {
 
   backLink = '/dashboard/pm/projects';
 
-  /** Admin: lifecycle + edit. PM (owner): add task. */
+  /** Admin: lifecycle + edit project. PM (owner): add task only. */
   projectToolbarActions(project: Project | null): ProjectActionItem[] {
     if (!project) {
       return [];

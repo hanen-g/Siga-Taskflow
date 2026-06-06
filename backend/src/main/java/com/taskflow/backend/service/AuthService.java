@@ -13,6 +13,7 @@ import com.taskflow.backend.security.JwtService;
 import com.taskflow.backend.util.ClientLabelColors;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.HashSet;
@@ -51,12 +52,12 @@ public class AuthService {
         this.accountEmailService = accountEmailService;
     }
 
-    public record ProvisioningResult(User user, String temporaryPassword) {}
-
     /**
      * Creates a user (admin only via API) with a system-generated password. Does not return a session token.
+     * Rolls back if the welcome email cannot be sent.
      */
-    public ProvisioningResult createUser(AdminCreateUserRequest request) {
+    @Transactional
+    public User createUser(AdminCreateUserRequest request) {
         if (request.getRole() == null) {
             throw new IllegalArgumentException("Role is required. Must be PROJECT_MANAGER, COLLABORATOR, CLIENT or ADMIN.");
         }
@@ -93,8 +94,29 @@ public class AuthService {
         user.setCreatedAt(LocalDate.now());
 
         User saved = userRepository.save(user);
+        AccountEmailService.WelcomeEmailResult emailResult = accountEmailService.sendWelcomeWithCredentials(
+                saved.getEmail(),
+                saved.getFirstName() == null ? "there" : saved.getFirstName(),
+                saved.getRole() == null ? "User" : saved.getRole().name().replace('_', ' '),
+                temporaryPassword
+        );
 
-        return new ProvisioningResult(saved, temporaryPassword);
+        if (!emailResult.sent()) {
+            if (emailResult.skippedBecauseNotConfigured()) {
+                throw new IllegalStateException(
+                        "Account was not created because outgoing mail is not configured. "
+                                + "Set MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD, and optionally MAIL_FROM."
+                );
+            }
+            throw new IllegalStateException(
+                    "Account was not created because the welcome email could not be delivered. "
+                            + "For Gmail: enable 2-Step Verification, create an App Password at "
+                            + "https://myaccount.google.com/apppasswords, set MAIL_PASSWORD (or "
+                            + "application-local.properties), then restart the backend."
+            );
+        }
+
+        return saved;
     }
 
     private HashSet<Skill> resolveSkillsForRole(UserRole role, List<Long> skillIds) {

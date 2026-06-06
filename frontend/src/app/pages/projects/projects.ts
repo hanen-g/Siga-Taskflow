@@ -24,6 +24,7 @@ import { ApiService } from '../../services/api';
 import { ProjectPanel } from './project-panel';
 import { AppLoaderComponent } from '../../layout/app-loader';
 import { Skill } from '../../models/skill.model';
+import { Project } from '../../models/project.model';
 import { SkillService } from '../../services/skill.service';
 
 @Component({
@@ -72,14 +73,12 @@ export class ProjectsPage implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private refresh$ = new Subject<void>();
 
-  projects$: Observable<any[] | null> = of(null);
-  private latestProjects: any[] = [];
+  projects$: Observable<Project[] | null> = of(null);
+  private latestProjects: Project[] = [];
   error: string | null = null;
   searchText = '';
 
   displayDialog = false;
-  isEditMode = false;
-  selectedProjectId: number | null = null;
 
   newProject: {
     name: string;
@@ -101,8 +100,6 @@ export class ProjectsPage implements OnInit {
   clients: ClientAccountOption[] = [];
   clientsLoading = false;
   clientsLoadError: string | null = null;
-  /** Snapshot of clients assigned to the project being edited (for diff/no-op detection). */
-  private editClientIdsSnapshot: number[] = [];
 
   /** Optional file uploaded with admin “create project”. */
   createProjectAttachmentFile: File | null = null;
@@ -171,7 +168,7 @@ export class ProjectsPage implements OnInit {
           })
         )
       })
-    ) as Observable<any[] | null>;
+    ) as Observable<Project[] | null>;
   }
 
   private syncProjectsViewFilterFromRoute(): void {
@@ -363,13 +360,13 @@ export class ProjectsPage implements OnInit {
     if (match.length === 1) {
       this.newProject.managerId = match[0].id;
     }
-    if (this.pmCandidatesPopupVisible && !this.isEditMode && this.isAdmin) {
+    if (this.pmCandidatesPopupVisible && this.isAdmin) {
       this.loadProjectManagerCandidatesForCreateForm();
     }
   }
 
   openProjectManagerCandidatesPopup(): void {
-    if (!this.isAdmin || this.isEditMode || !this.displayDialog) {
+    if (!this.isAdmin || !this.displayDialog) {
       return;
     }
     this.pmCandidatesPopupVisible = true;
@@ -452,7 +449,7 @@ export class ProjectsPage implements OnInit {
     return '/dashboard/pm/projects';
   }
 
-  private loadProjectsByRole(): Observable<any[]> {
+  private loadProjectsByRole(): Observable<Project[]> {
     return this.isAdmin ? this.projectService.getAllProjects() : this.projectService.myProjects();
   }
 
@@ -510,8 +507,6 @@ export class ProjectsPage implements OnInit {
   private openCreateDialogPrefilledFromProposal(p: any): void {
     this.displayDialog = false;
     this.resetPmCandidatesState();
-    this.isEditMode = false;
-    this.selectedProjectId = null;
     this.createProjectAttachmentFile = null;
     const n = Number(p?.id);
     this.createFromProposalId = Number.isFinite(n) && n >= 1 ? n : null;
@@ -526,7 +521,6 @@ export class ProjectsPage implements OnInit {
       requiredSkillIds: [],
       clientIds: []
     };
-    this.editClientIdsSnapshot = [];
     this.projectManagersLoadError = null;
     this.loadSkillsIfNeeded();
     this.loadClientsIfNeeded();
@@ -712,11 +706,9 @@ export class ProjectsPage implements OnInit {
   }
 
   showDialog() {
-    this.isEditMode = false;
     this.createProjectAttachmentFile = null;
     this.resetPmCandidatesState();
     this.newProject = { name: '', description: '', startDate: '', deadline: '', managerId: null, requiredSkillIds: [], clientIds: [] };
-    this.editClientIdsSnapshot = [];
     this.projectManagersLoadError = null;
     this.loadSkillsIfNeeded();
     this.loadClientsIfNeeded();
@@ -735,42 +727,10 @@ export class ProjectsPage implements OnInit {
 
   closeDialog() {
     this.displayDialog = false;
-    this.isEditMode = false;
-    this.selectedProjectId = null;
     this.createProjectAttachmentFile = null;
     this.createFromProposalId = null;
     this.proposalClientContactHint = null;
-    this.editClientIdsSnapshot = [];
     this.resetPmCandidatesState();
-  }
-
-  editProject(project: any) {
-    this.isEditMode = true;
-    this.resetPmCandidatesState();
-    this.createProjectAttachmentFile = null;
-    this.createFromProposalId = null;
-    this.proposalClientContactHint = null;
-    this.selectedProjectId = project.id;
-    this.newProject = {
-      ...project,
-      requiredSkillIds: (project.requiredSkills ?? []).map((s: Skill) => s.id),
-      clientIds: []
-    };
-    this.editClientIdsSnapshot = [];
-    this.loadSkillsIfNeeded();
-    this.loadClientsIfNeeded();
-    this.projectService.getProjectClients(project.id).subscribe({
-      next: (rows) => {
-        const ids = (rows ?? []).map((r) => r.id).filter((n): n is number => typeof n === 'number');
-        this.newProject.clientIds = [...ids];
-        this.editClientIdsSnapshot = [...ids];
-      },
-      error: () => {
-        this.newProject.clientIds = [];
-        this.editClientIdsSnapshot = [];
-      }
-    });
-    this.displayDialog = true;
   }
 
   private loadClientsIfNeeded(): void {
@@ -828,16 +788,15 @@ export class ProjectsPage implements OnInit {
 
   private validateProjectName(): boolean {
 
-    const name = this.newProject.name?.trim().toLowerCase();
+    const name = this.newProject.name.trim().toLowerCase();
 
     if (!name) {
       this.notify('error', 'Validation Error', 'Project name cannot be empty');
       return false;
     }
 
-    const exists = this.latestProjects.some(project =>
-      project.id !== this.selectedProjectId &&
-      project.name.trim().toLowerCase() === name
+    const exists = this.latestProjects.some(
+      (project) => project.name.trim().toLowerCase() === name
     );
 
     if (exists) {
@@ -854,9 +813,7 @@ export class ProjectsPage implements OnInit {
     }
     if (!this.validateProjectName()) return;
 
-    const isEditing = this.isEditMode;
-
-    if (!isEditing && this.isAdmin) {
+    if (this.isAdmin) {
       const reqs = this.newProject.requiredSkillIds ?? [];
       if (this.normalizedRequiredSkillIds().length && this.projectManagersMatchingRequiredSkills().length === 0) {
         this.notify(
@@ -890,44 +847,33 @@ export class ProjectsPage implements OnInit {
       return;
     }
 
-    const request = isEditing
-      ? this.projectService.updateProject(this.selectedProjectId!, {
-          name: this.newProject.name,
-          description: this.newProject.description,
-          startDate: this.newProject.startDate || undefined,
-          deadline: this.newProject.deadline || undefined,
-          requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id }))
-        })
-      : this.projectService.createProject({
-          name: this.newProject.name,
-          description: this.newProject.description,
-          startDate: this.newProject.startDate || undefined,
-          deadline: this.newProject.deadline || undefined,
-          manager: { id: this.newProject.managerId! },
-          requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id })),
-          consumedProposalId:
-            this.createFromProposalId != null && this.createFromProposalId >= 1
-              ? this.createFromProposalId
-              : undefined
-        });
-
     this.saveInProgress = true;
-    request.subscribe({
+    this.projectService
+      .createProject({
+        name: this.newProject.name,
+        description: this.newProject.description,
+        startDate: this.newProject.startDate || undefined,
+        deadline: this.newProject.deadline || undefined,
+        manager: { id: this.newProject.managerId! },
+        requiredSkills: this.newProject.requiredSkillIds.map((id) => ({ id })),
+        consumedProposalId:
+          this.createFromProposalId != null && this.createFromProposalId >= 1
+            ? this.createFromProposalId
+            : undefined
+      })
+      .subscribe({
       next: (result: unknown) => {
         const attachment = this.createProjectAttachmentFile;
         const newProjectId =
-          !isEditing && result && typeof result === 'object' && 'id' in result
-            ? (result as { id: number }).id
-            : null;
-        const targetId = isEditing ? this.selectedProjectId : newProjectId;
+          result && typeof result === 'object' && 'id' in result ? (result as { id: number }).id : null;
 
         const continueAfterAttachment = (attachmentFailed: boolean) => {
-          this.persistProjectClientsIfNeeded(targetId, isEditing, (clientsFailed) => {
-            this.finishProjectSave(isEditing, attachmentFailed, clientsFailed);
+          this.persistProjectClientsIfNeeded(newProjectId, (clientsFailed) => {
+            this.finishProjectSave(attachmentFailed, clientsFailed);
           });
         };
 
-        if (!isEditing && attachment && newProjectId != null) {
+        if (attachment && newProjectId != null) {
           this.projectService.uploadAttachment(newProjectId, attachment).subscribe({
             next: () => {
               this.createProjectAttachmentFile = null;
@@ -949,23 +895,15 @@ export class ProjectsPage implements OnInit {
         this.notify(
           'error',
           'Request Failed',
-          typeof msg === 'string' ? msg
-            : isEditing
-            ? 'Project was updated on the server, but the app could not finish the request cleanly.'
-            : 'Unable to save the project.'
+          typeof msg === 'string' ? msg : 'Unable to save the project.'
         );
       }
     });
   }
 
-  /**
-   * Sync project ↔ client assignments after the main create/update succeeded. When editing we skip the
-   * call when the selection was unchanged; on creation we always sync (even with an empty list, this is a
-   * no-op on the server).
-   */
+  /** Sync client assignments after project creation (skipped when none selected). */
   private persistProjectClientsIfNeeded(
     projectId: number | null,
-    isEditing: boolean,
     done: (clientsFailed: boolean) => void
   ): void {
     if (projectId == null) {
@@ -973,15 +911,7 @@ export class ProjectsPage implements OnInit {
       return;
     }
     const desired = [...(this.newProject.clientIds ?? [])];
-    if (isEditing) {
-      const a = [...desired].sort((x, y) => x - y);
-      const b = [...this.editClientIdsSnapshot].sort((x, y) => x - y);
-      const same = a.length === b.length && a.every((v, i) => v === b[i]);
-      if (same) {
-        done(false);
-        return;
-      }
-    } else if (desired.length === 0) {
+    if (desired.length === 0) {
       done(false);
       return;
     }
@@ -991,8 +921,8 @@ export class ProjectsPage implements OnInit {
     });
   }
 
-  /** @param attachmentUploadFailed only when project was already created and optional file upload failed */
-  private finishProjectSave(isEditing: boolean, attachmentUploadFailed: boolean, clientsUpdateFailed = false): void {
+  /** @param attachmentUploadFailed only when project was created and optional file upload failed */
+  private finishProjectSave(attachmentUploadFailed: boolean, clientsUpdateFailed = false): void {
     this.saveInProgress = false;
     this.closeDialog();
     this.refresh$.next();
@@ -1006,16 +936,10 @@ export class ProjectsPage implements OnInit {
       this.notify(
         'warn',
         'Partial success',
-        isEditing
-          ? 'Project was updated, but client assignments could not be saved. Try again from the edit dialog.'
-          : 'Project was created, but client assignments could not be saved. Open the project to assign clients.'
+        'Project was created, but client assignments could not be saved. Open the project to assign clients.'
       );
     } else {
-      this.notify(
-        'success',
-        'Success',
-        isEditing ? 'Project updated successfully' : 'Project created successfully'
-      );
+      this.notify('success', 'Success', 'Project created successfully');
     }
   }
 
@@ -1058,11 +982,6 @@ export class ProjectsPage implements OnInit {
   }
 
   createProject() {
-    this.saveProject();
-  }
-
-  updateProject() {
-    this.isEditMode = true;
     this.saveProject();
   }
 

@@ -30,9 +30,6 @@
       </p>
     </div>
 
-    <p-message *ngIf="createInfoMessage" severity="success" styleClass="w-full msg">
-      {{ createInfoMessage }}
-    </p-message>
     <p-message *ngIf="createError" severity="error" styleClass="w-full msg">{{ createError }}</p-message>
 
     <ng-container *ngIf="createRole">

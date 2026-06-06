@@ -80,6 +80,11 @@ public class ProjectService {
 
     @Transactional
     public ProjectResponse createProject(Project project) {
+        String name = requireProjectName(project.getName());
+        if (projectRepository.existsByNameIgnoreCase(name)) {
+            throw new BadRequestException("A project with this name already exists");
+        }
+        project.setName(name);
         if (project.getStatus() == null) {
             if (project.getStartDate() != null && project.getStartDate().isAfter(java.time.LocalDate.now())) {
                 project.setStatus(ProjectStatus.NOT_STARTED);
@@ -355,14 +360,15 @@ public class ProjectService {
         Project project = projectRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project", id));
 
-        boolean isAdmin = actor.getRole() == UserRole.ADMIN;
-        boolean isManager = project.getManager() != null
-                && project.getManager().getId().equals(actor.getId());
-        if (!isAdmin && !isManager) {
-            throw new UnauthorizedException("You are not allowed to update this project");
+        if (actor.getRole() != UserRole.ADMIN) {
+            throw new UnauthorizedException("Only administrators can update projects");
         }
 
-        project.setName(details.getName());
+        String name = requireProjectName(details.getName());
+        if (projectRepository.existsByNameIgnoreCaseAndIdNot(name, id)) {
+            throw new BadRequestException("A project with this name already exists");
+        }
+        project.setName(name);
         project.setDescription(details.getDescription());
         project.setStartDate(details.getStartDate());
         project.setDeadline(details.getDeadline());
@@ -900,6 +906,13 @@ public class ProjectService {
                 messagingTemplate.convertAndSend("/topic/projects", msg);
             });
         }
+    }
+
+    private static String requireProjectName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            throw new BadRequestException("Project name is required");
+        }
+        return name.trim();
     }
 
     private List<ClientOptionResponse> mapClientsToOptions(List<User> clients) {

@@ -576,10 +576,10 @@ export class CreateClientPage implements OnInit {
           const finishSuccess = (assignOk: boolean, assignErr?: string) => {
             this.createLoading = false;
             this.messageService.add({
-              severity: res.emailSent ? 'success' : 'warn',
-              summary: res.emailSent ? 'Client created' : 'Client created (email not sent)',
-              detail: res?.message ?? 'Account saved.',
-              life: res.emailSent ? 3200 : 12000,
+              severity: 'success',
+              summary: 'Client created',
+              detail: 'A welcome email with sign-in details was sent.',
+              life: 3200,
             });
             if (projectIds.length && !assignOk) {
               this.messageService.add({

@@ -107,7 +107,6 @@
                 [project]="project"
                 [detailBase]="projectDetailBase"
                 [adminProjectControls]="isAdmin"
-                (edit)="editProject($event)"
                 (archive)="archiveProject($event)"
                 (setPaused)="pauseProject($event)"
                 (setDelivered)="deliverProject($event)">
@@ -126,7 +125,6 @@
               [project]="project"
               [detailBase]="projectDetailBase"
               [adminProjectControls]="isAdmin"
-              (edit)="editProject($event)"
               (archive)="archiveProject($event)"
               (setPaused)="pauseProject($event)"
               (setDelivered)="deliverProject($event)">
@@ -141,7 +139,6 @@
               [project]="project"
               [detailBase]="projectDetailBase"
               [adminProjectControls]="isAdmin"
-              (edit)="editProject($event)"
               (archive)="archiveProject($event)"
               (setPaused)="pauseProject($event)"
               (setDelivered)="deliverProject($event)">
@@ -162,7 +159,6 @@
               [project]="project"
               [detailBase]="projectDetailBase"
               [adminProjectControls]="isAdmin"
-              (edit)="editProject($event)"
               (archive)="archiveProject($event)"
               (setPaused)="pauseProject($event)"
               (setDelivered)="deliverProject($event)">
@@ -182,7 +178,6 @@
               [project]="project"
               [detailBase]="projectDetailBase"
               [adminProjectControls]="isAdmin"
-              (edit)="editProject($event)"
               (archive)="archiveProject($event)"
               (setPaused)="pauseProject($event)"
               (setDelivered)="deliverProject($event)">
@@ -199,7 +194,6 @@
               [project]="project"
               [detailBase]="projectDetailBase"
               [adminProjectControls]="isAdmin"
-              (edit)="editProject($event)"
               (archive)="archiveProject($event)"
               (setPaused)="pauseProject($event)"
               (setDelivered)="deliverProject($event)">
@@ -299,7 +293,7 @@
 
 <p-dialog
   *ngIf="showNewProjectFormDialog"
-  [header]="isEditMode ? 'Edit project' : 'Create project'"
+  header="Create project"
   [(visible)]="displayDialog"
   [modal]="true"
   [draggable]="false"
@@ -363,7 +357,7 @@
       </p-multiselect>
     </div>
 
-    <div *ngIf="!isEditMode && isAdmin" class="flex flex-column mb-4 mt-1">
+    <div *ngIf="isAdmin" class="flex flex-column mb-4 mt-1">
       <label class="font-bold mb-2">Project manager *</label>
       <p-select
         [options]="projectManagerOptions()"
@@ -412,7 +406,7 @@
       </p-multiselect>
       <p *ngIf="clientsLoadError" class="text-sm text-red-500 mt-1 m-0">{{ clientsLoadError }}</p>
     </div>
-    <div *ngIf="!isEditMode" class="flex flex-column mb-2">
+    <div class="flex flex-column mb-2">
       <label class="font-bold mb-2">Attachment</label>
       <input
         type="file"
@@ -425,10 +419,10 @@
   <ng-template pTemplate="footer">
     <button
       pButton
-      [label]="isEditMode ? 'Update' : 'Create'"
+      label="Create"
       [loading]="saveInProgress"
       [disabled]="saveInProgress"
-      (click)="isEditMode ? updateProject() : createProject()">
+      (click)="createProject()">
     </button>
   </ng-template>
 </p-dialog>
@@ -515,7 +509,7 @@
       label="Submit idea"
       type="button"
       [loading]="proposeSubmitting"
-      [disabled]="proposeSubmitting"
+      [disabled]="proposeSubmitting || !proposeIdea.name.trim() || !proposeIdea.description.trim()"
       (click)="submitProposal()"
     ></button>
   </ng-template>
