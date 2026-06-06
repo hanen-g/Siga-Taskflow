@@ -9,7 +9,6 @@ import com.taskflow.backend.repository.SkillRepository;
 import com.taskflow.backend.repository.UserRepository;
 import org.springframework.data.domain.PageRequest;
 import com.taskflow.backend.security.JwtService;
-import com.taskflow.backend.service.AccountEmailService;
 import com.taskflow.backend.service.AuthService;
 import com.taskflow.backend.service.CompanyService;
 import com.taskflow.backend.service.ProjectService;
@@ -43,7 +42,6 @@ public class UserController {
     private final JwtService jwtService;
     private final PasswordEncoder passwordEncoder;
     private final AuthService authService;
-    private final AccountEmailService accountEmailService;
     private final SkillRepository skillRepository;
     private final CompanyService companyService;
     private final ProjectService projectService;
@@ -53,7 +51,6 @@ public class UserController {
             JwtService jwtService,
             PasswordEncoder passwordEncoder,
             AuthService authService,
-            AccountEmailService accountEmailService,
             SkillRepository skillRepository,
             CompanyService companyService,
             ProjectService projectService
@@ -62,7 +59,6 @@ public class UserController {
         this.jwtService = jwtService;
         this.passwordEncoder = passwordEncoder;
         this.authService = authService;
-        this.accountEmailService = accountEmailService;
         this.skillRepository = skillRepository;
         this.companyService = companyService;
         this.projectService = projectService;
@@ -172,31 +168,11 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> createUser(@RequestBody AdminCreateUserRequest request) {
         try {
-            AuthService.ProvisioningResult result = authService.createUser(request);
-            User user = result.user();
-            String plainPassword = result.temporaryPassword();
-            AccountEmailService.WelcomeEmailResult emailResult;
-            try {
-                emailResult = accountEmailService.sendWelcomeWithCredentials(
-                        user.getEmail(),
-                        user.getFirstName() == null ? "there" : user.getFirstName(),
-                        user.getRole() == null ? "User" : user.getRole().name().replace('_', ' '),
-                        plainPassword
-                );
-            } catch (Exception e) {
-                emailResult = AccountEmailService.WelcomeEmailResult.sendFailed();
-            }
-            boolean emailSent = emailResult.sent();
-            String emailMessage;
-            if (emailSent) {
-                emailMessage = "A welcome email with sign-in details was sent.";
-            } else if (emailResult.skippedBecauseNotConfigured()) {
-                emailMessage = "Account created. Outgoing mail is not configured: set MAIL_HOST, MAIL_USERNAME, MAIL_PASSWORD, and optionally MAIL_FROM (or leave MAIL_FROM unset to use the SMTP username as the sender). Credentials are written to the server log when mail is disabled.";
-            } else {
-                emailMessage = "Account created, but the welcome email could not be delivered (SMTP error). Check spring.mail.* settings, App Passwords for Gmail, and the server log.";
-            }
+            User user = authService.createUser(request);
             return ResponseEntity.status(HttpStatus.CREATED)
-                    .body(new AdminUserCreatedResponse(adminUserResponse(user), emailSent, emailMessage));
+                    .body(new AdminUserCreatedResponse(adminUserResponse(user)));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(new ErrorResponse(e.getMessage()));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
         } catch (DataIntegrityViolationException e) {
@@ -527,25 +503,13 @@ public class UserController {
 
     static class AdminUserCreatedResponse {
         private final AdminUserResponse user;
-        private final boolean emailSent;
-        private final String message;
 
-        public AdminUserCreatedResponse(AdminUserResponse user, boolean emailSent, String message) {
+        public AdminUserCreatedResponse(AdminUserResponse user) {
             this.user = user;
-            this.emailSent = emailSent;
-            this.message = message;
         }
 
         public AdminUserResponse getUser() {
             return user;
-        }
-
-        public boolean isEmailSent() {
-            return emailSent;
-        }
-
-        public String getMessage() {
-            return message;
         }
     }
 

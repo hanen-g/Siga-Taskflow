@@ -18,6 +18,10 @@ import java.util.Optional;
 
 public interface ProjectRepository extends JpaRepository<Project, Long>, JpaSpecificationExecutor<Project> {
 
+    boolean existsByNameIgnoreCase(String name);
+
+    boolean existsByNameIgnoreCaseAndIdNot(String name, Long id);
+
     @EntityGraph(attributePaths = {"manager", "tasks", "members", "requiredSkills"})
     List<Project> findByManager(User manager);
 

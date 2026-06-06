@@ -4,15 +4,45 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    branches:
+      - main
 
 env:
   JAVA_VERSION: '21'
   IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/taskflow-backend
 
 jobs:
+  test:
+    name: Test & JaCoCo Coverage
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Java ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: temurin
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Run tests with JaCoCo coverage
+        working-directory: backend
+        run: mvn test --no-transfer-progress
+
+      - name: Verify JaCoCo report exists
+        run: test -f backend/target/site/jacoco/jacoco.xml
+
   build-and-push:
     name: Build & Push to GHCR
     runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     permissions:
       contents: read
@@ -21,6 +51,8 @@ jobs:
     steps:
       - name: Checkout source code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Java ${{ env.JAVA_VERSION }}
         uses: actions/setup-java@v4
@@ -28,8 +60,9 @@ jobs:
           java-version: ${{ env.JAVA_VERSION }}
           distribution: temurin
           cache: maven
+          cache-dependency-path: backend/pom.xml
 
-      - name: Build JAR (skip tests)
+      - name: Build JAR
         working-directory: backend
         run: mvn clean package -DskipTests --no-transfer-progress
 

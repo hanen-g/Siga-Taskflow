@@ -79,6 +79,7 @@
           "configurations": {
             "ci": {
               "watch": false,
+              "runnerConfig": "vitest.config.ts",
               "coverage": true,
               "coverageReporters": ["lcov", "text-summary"],
               "coverageExclude": [

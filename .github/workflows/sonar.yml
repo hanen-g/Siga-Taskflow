@@ -1,21 +1,31 @@
-# SonarQube Cloud analysis for the Angular frontend (TypeScript)
-# Runs on push and pull requests that touch the frontend or Sonar config.
+# SonarCloud analysis for the Taskflow monorepo (Angular frontend + Spring Boot backend).
+# Runs tests with coverage first, then uploads results to SonarCloud.
 
 name: SonarCloud Analysis
 
 on:
+  workflow_dispatch:
+
   push:
     branches:
+      - main
       - '**'
     paths:
       - 'frontend/**'
+      - 'backend/**'
       - 'sonar-project.properties'
+      - 'frontend/sonar-project.properties'
+      - 'backend/sonar-project.properties'
       - '.github/workflows/sonar.yml'
+
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
       - 'frontend/**'
+      - 'backend/**'
       - 'sonar-project.properties'
+      - 'frontend/sonar-project.properties'
+      - 'backend/sonar-project.properties'
       - '.github/workflows/sonar.yml'
 
 concurrency:
@@ -24,7 +34,7 @@ concurrency:
 
 jobs:
   sonarcloud:
-    name: SonarCloud (Angular)
+    name: SonarCloud (Full Stack)
     runs-on: ubuntu-latest
 
     permissions:
@@ -35,7 +45,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          # Full history improves blame, new-code, and PR decoration
           fetch-depth: 0
 
       - name: Set up Node.js
@@ -45,13 +54,31 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install frontend dependencies
         working-directory: frontend
         run: npm ci
 
-      - name: Run unit tests with LCOV coverage
+      - name: Run frontend unit tests with LCOV coverage
         working-directory: frontend
         run: npm run test:coverage
+
+      - name: Verify frontend LCOV report exists
+        run: test -f frontend/coverage/frontend/lcov.info
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: temurin
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+
+      - name: Run backend unit and integration tests with JaCoCo
+        working-directory: backend
+        run: mvn test --no-transfer-progress
+
+      - name: Verify backend JaCoCo report exists
+        run: test -f backend/target/site/jacoco/jacoco.xml
 
       - name: Cache SonarQube Cloud scanner data
         uses: actions/cache@v4
@@ -60,9 +87,9 @@ jobs:
           key: ${{ runner.os }}-sonar
           restore-keys: ${{ runner.os }}-sonar
 
-      - name: SonarQube Cloud scan
-        uses: SonarSource/sonarqube-scan-action@7006c4492b2e0ee0f816d36501671557c97f5995
+      - name: SonarCloud scan
+        uses: SonarSource/sonarqube-scan-action@v7
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          # Enables PR decoration when the project is bound to GitHub in SonarCloud
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_QUALITYGATE_WAIT: 'true'

@@ -51,7 +51,6 @@ export class CreateUsersPage implements OnInit {
   newSkillName = '';
   addingSkill = false;
   createLoading = false;
-  createInfoMessage: string | null = null;
   createError: string | null = null;
 
   /** Avoid NG0100 when async subscriptions set bindable error text after stabilisation. */
@@ -178,7 +177,6 @@ export class CreateUsersPage implements OnInit {
   }
 
   submit(): void {
-    this.createInfoMessage = null;
     this.createError = null;
 
     if (!this.createRole) {
@@ -207,15 +205,13 @@ export class CreateUsersPage implements OnInit {
         ...(address ? { address } : {}),
       })
       .subscribe({
-        next: (res) => {
+        next: () => {
           this.createLoading = false;
-          const detail = res.message ?? 'Account saved.';
-          this.createInfoMessage = null;
           this.messageService.add({
-            severity: res.emailSent ? 'success' : 'warn',
-            summary: res.emailSent ? 'Account created' : 'Account created (email not sent)',
-            detail,
-            life: res.emailSent ? 3200 : 12000
+            severity: 'success',
+            summary: 'Account created',
+            detail: 'A welcome email with sign-in details was sent.',
+            life: 3200
           });
           this.form = {
             firstName: '',

@@ -38,8 +38,6 @@ export interface AdminUser {
 
 export interface AdminUserCreatedResponse {
   user: AdminUser;
-  emailSent: boolean;
-  message: string;
 }
 
 export interface ProjectManagerOption {

@@ -8,7 +8,9 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "test:ci": "ng test --configuration=ci",
-    "test:coverage": "ng test --configuration=ci"
+    "test:coverage": "ng test --configuration=ci",
+    "cypress:open": "cypress open --component",
+    "cypress:run": "cypress run --component"
   },
   "prettier": {
     "printWidth": 100,
@@ -26,6 +28,7 @@
   "packageManager": "npm@11.7.0",
   "dependencies": {
     "@angular/animations": "21.2.6",
+    "@angular/cdk": "^21.2.6",
     "@angular/common": "21.2.6",
     "@angular/compiler": "21.2.6",
     "@angular/core": "21.2.6",
@@ -43,16 +46,21 @@
     "tslib": "^2.3.0"
   },
   "devDependencies": {
+    "@angular-devkit/build-angular": "^21.2.13",
     "@angular/build": "21.2.6",
     "@angular/cli": "21.2.6",
     "@angular/compiler-cli": "21.2.6",
+    "@angular/platform-browser-dynamic": "^21.2.6",
+    "@cypress/angular": "^4.1.0",
     "@vitest/coverage-v8": "^4.1.7",
     "autoprefixer": "^10.4.24",
+    "cypress": "^15.16.0",
     "jsdom": "^27.1.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^4.1.18",
     "tailwindcss-primeui": "^0.6.1",
     "typescript": "~5.9.2",
-    "vitest": "^4.0.8"
+    "vitest": "^4.0.8",
+    "zone.js": "^0.16.2"
   }
 }

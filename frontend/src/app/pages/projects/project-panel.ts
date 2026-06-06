@@ -48,7 +48,6 @@ export class ProjectPanel {
   /** Optional description; defaults to `project.description`. */
   @Input() description?: string;
 
-  @Output() edit = new EventEmitter<Project>();
   @Output() archive = new EventEmitter<{
     id: number;
     archived: boolean;

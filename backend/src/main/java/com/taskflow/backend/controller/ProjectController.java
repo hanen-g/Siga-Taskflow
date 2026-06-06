@@ -247,7 +247,7 @@ public class ProjectController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('PROJECT_MANAGER', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public Project updateProject(
             @PathVariable Long id,
             @RequestBody Project projectDetails,
